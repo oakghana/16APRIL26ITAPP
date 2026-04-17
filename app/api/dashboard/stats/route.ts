@@ -1,14 +1,10 @@
 import { type NextRequest, NextResponse } from "next/server"
-import { createClient } from "@supabase/supabase-js"
+import { getServerSupabase } from "@/lib/supabase"
 
 // Use service role key to bypass RLS
-const supabase = createClient(
-  process.env.NEXT_PUBLIC_SUPABASE_URL!, 
-  process.env.SUPABASE_SERVICE_ROLE_KEY!
-)
-
 export async function GET(request: NextRequest) {
   try {
+    const supabase = getServerSupabase()
     const searchParams = request.nextUrl.searchParams
     const location = searchParams.get("location")
     const canSeeAll = searchParams.get("canSeeAll") === "true"

@@ -1,11 +1,10 @@
 import { type NextRequest, NextResponse } from "next/server"
-import { createClient } from "@supabase/supabase-js"
+import { getServerSupabase } from "@/lib/supabase"
 
 // Use service role key to bypass RLS
-const supabaseAdmin = createClient(process.env.NEXT_PUBLIC_SUPABASE_URL!, process.env.SUPABASE_SERVICE_ROLE_KEY!)
-
 export async function PATCH(request: NextRequest) {
   try {
+    const supabaseAdmin = getServerSupabase()
     const body = await request.json()
     const { id, status, work_notes, actual_hours, completed_at } = body
 

@@ -1,12 +1,6 @@
 import { NextRequest, NextResponse } from "next/server"
-import { createClient } from "@supabase/supabase-js"
+import { getServerSupabase } from "@/lib/supabase"
 import nodemailer from "nodemailer"
-
-// Use service role key to bypass RLS
-const supabaseAdmin = createClient(
-  process.env.NEXT_PUBLIC_SUPABASE_URL!,
-  process.env.SUPABASE_SERVICE_ROLE_KEY!
-)
 
 // Email transporter configuration
 const createEmailTransporter = () => {
@@ -127,6 +121,7 @@ async function sendServiceProviderEmail(
 
 export async function GET(request: NextRequest) {
   try {
+    const supabaseAdmin = getServerSupabase()
     const { searchParams } = new URL(request.url)
     const location = searchParams.get("location")
     const canSeeAll = searchParams.get("canSeeAll") === "true"
@@ -172,6 +167,7 @@ export async function GET(request: NextRequest) {
 
 export async function POST(request: NextRequest) {
   try {
+    const supabaseAdmin = getServerSupabase()
     const body = await request.json()
 
     console.log("[v0] Creating repair request:", body)
@@ -292,6 +288,7 @@ export async function POST(request: NextRequest) {
 
 export async function PUT(request: NextRequest) {
   try {
+    const supabaseAdmin = getServerSupabase()
     const body = await request.json()
     const { id, device_id, device_name, issue_description, priority, service_provider_id, service_provider_name, location, estimated_cost } = body
 
@@ -336,6 +333,7 @@ export async function PUT(request: NextRequest) {
 
 export async function DELETE(request: NextRequest) {
   try {
+    const supabaseAdmin = getServerSupabase()
   const body = await request.json()
   const { id, userRole } = body
   

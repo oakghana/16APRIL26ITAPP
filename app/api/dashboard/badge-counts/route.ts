@@ -1,28 +1,10 @@
 import { type NextRequest, NextResponse } from "next/server"
-import { createClient } from "@supabase/supabase-js"
+import { getServerSupabase } from "@/lib/supabase"
 
 // Use service role key to bypass RLS
-const supabaseAdmin = createClient(process.env.NEXT_PUBLIC_SUPABASE_URL!, process.env.SUPABASE_SERVICE_ROLE_KEY!)
-
-// Helper to filter data by location in memory
-function filterByLocation(data: any[], location: string, canSeeAll: boolean, field = "location"): any[] {
-  if (canSeeAll || !location) return data
-  const loc = location.toLowerCase()
-  return data.filter((item: any) => {
-    const itemLoc = (item[field] || "").toLowerCase()
-    return itemLoc.includes(loc) || loc.includes(itemLoc)
-  })
-}
-
-// Helper to check if status matches any in list (case-insensitive)
-function matchesStatus(itemStatus: string | null | undefined, statusList: string[]): boolean {
-  if (!itemStatus) return false
-  const normalized = itemStatus.toLowerCase()
-  return statusList.some((s) => s.toLowerCase() === normalized)
-}
-
 export async function GET(request: NextRequest) {
   try {
+    const supabaseAdmin = getServerSupabase()
     const { searchParams } = new URL(request.url)
     const location = searchParams.get("location") || ""
     const canSeeAll = searchParams.get("canSeeAll") === "true"
@@ -255,4 +237,21 @@ export async function GET(request: NextRequest) {
     console.error("[v0] API Badge Counts error:", error)
     return NextResponse.json({ error: "Internal server error" }, { status: 500 })
   }
+}
+
+// Helper to filter data by location
+function filterByLocation(data: any[], location: string, canSeeAll: boolean, field = "location"): any[] {
+  if (canSeeAll || !location) return data
+  const loc = location.toLowerCase()
+  return data.filter((item: any) => {
+    const itemLoc = (item[field] || "").toLowerCase()
+    return itemLoc.includes(loc) || loc.includes(itemLoc)
+  })
+}
+
+// Helper to check if status matches any in list (case-insensitive)
+function matchesStatus(itemStatus: string | null | undefined, statusList: string[]): boolean {
+  if (!itemStatus) return false
+  const normalized = itemStatus.toLowerCase()
+  return statusList.some((s) => s.toLowerCase() === normalized)
 }

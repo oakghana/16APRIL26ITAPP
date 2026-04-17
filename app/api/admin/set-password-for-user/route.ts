@@ -1,9 +1,10 @@
 import { type NextRequest, NextResponse } from "next/server"
 import bcryptjs from "bcryptjs"
-import { createClient } from "@supabase/supabase-js"
+import { getServerSupabase } from "@/lib/supabase"
 
 export async function POST(request: NextRequest) {
   try {
+    const supabase = getServerSupabase()
     const { username, password } = await request.json()
 
     if (!username || !password) {
@@ -26,12 +27,7 @@ export async function POST(request: NextRequest) {
     }
 
     // Use service role key to bypass RLS
-    const supabase = createClient(process.env.NEXT_PUBLIC_SUPABASE_URL!, process.env.SUPABASE_SERVICE_ROLE_KEY!, {
-      auth: {
-        autoRefreshToken: false,
-        persistSession: false,
-      },
-    })
+    // Already initialized at top of function
 
     // Update the password
     const { data, error } = await supabase

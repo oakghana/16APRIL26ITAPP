@@ -1,12 +1,11 @@
 import { type NextRequest, NextResponse } from "next/server"
-import { createClient } from "@supabase/supabase-js"
+import { getServerSupabase } from "@/lib/supabase"
 import bcrypt from "bcryptjs"
-
-const supabase = createClient(process.env.NEXT_PUBLIC_SUPABASE_URL!, process.env.SUPABASE_SERVICE_ROLE_KEY!)
 
 export async function POST(request: NextRequest) {
   try {
     console.log("[v0] Starting password reset for all approved users")
+    const supabase = getServerSupabase()
 
     // Generate bcryptjs hash for 'qcc@123'
     const password = "qcc@123"
