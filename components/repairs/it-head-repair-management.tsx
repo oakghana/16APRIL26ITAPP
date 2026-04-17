@@ -417,16 +417,30 @@ export function ITHeadRepairManagement() {
   const safeCurrentPage = Math.min(currentPage, totalPages)
   const paginatedTasks = sortedTasks.slice((safeCurrentPage - 1) * pageSize, safeCurrentPage * pageSize)
 
-  // Filter devices based on search term
+  // Filter devices based on search term and location restriction
   const filteredDevices = devices.filter((device) => {
     const search = deviceSearchTerm.toLowerCase()
-    return (
+    
+    // Search filter
+    const matchesSearch = (
       device.assetTag?.toLowerCase().includes(search) ||
       device.serialNumber?.toLowerCase().includes(search) ||
       device.brand?.toLowerCase().includes(search) ||
       device.model?.toLowerCase().includes(search) ||
       device.type?.toLowerCase().includes(search)
     )
+    
+    // Location filter - for regional IT heads and IT staff, only show devices from their location
+    let matchesLocation = true
+    if ((isRegionalITHead || user?.role === "it_staff") && user?.location) {
+      const userLocationNorm = normalizeLocation(user.location)
+      const deviceLocationNorm = normalizeLocation(device.location)
+      matchesLocation = userLocationNorm === deviceLocationNorm || 
+                       deviceLocationNorm.includes(userLocationNorm) || 
+                       userLocationNorm.includes(deviceLocationNorm)
+    }
+    
+    return matchesSearch && matchesLocation
   })
 
   const createRepairTask = async () => {
