@@ -3,9 +3,7 @@ import { getServerSupabase } from "@/lib/supabase"
 import { canAssignDevices, logAuthzFailure } from "@/lib/authz"
 
 // Use service role key to bypass RLS
-export async function POST(request: NextRequest) {
-  try {
-    const supabase = getServerSupabase()
+interface AssignmentRequest {
   deviceId: string
   staffUserId: string
   notes?: string
@@ -13,6 +11,7 @@ export async function POST(request: NextRequest) {
 
 export async function POST(request: NextRequest) {
   try {
+    const supabase = getServerSupabase()
     const body: AssignmentRequest = await request.json()
 
     // Validate required fields
@@ -126,6 +125,7 @@ export async function POST(request: NextRequest) {
 
 export async function GET(request: NextRequest) {
   try {
+    const supabase = getServerSupabase()
     // Get all staff users for dropdown
     const { data: staff, error } = await supabase
       .from("profiles")
