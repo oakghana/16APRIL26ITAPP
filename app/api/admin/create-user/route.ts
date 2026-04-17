@@ -1,9 +1,8 @@
 import { NextRequest, NextResponse } from "next/server"
-import { createClient } from "@supabase/supabase-js"
+import { getServerSupabase } from "@/lib/supabase"
 import bcrypt from "bcryptjs"
 import { LOCATIONS } from "@/lib/locations"
 
-const supabase = createClient(process.env.NEXT_PUBLIC_SUPABASE_URL!, process.env.SUPABASE_SERVICE_ROLE_KEY!)
 const DEFAULT_PASSWORD_HASH = "$2b$10$y.4.eCKGm0kI0hXv1rhJtuLYpKJH3R/Pfxvn9AU6DVF5PzYHsnmqm"
 
 function normalizeLocation(location?: string | null) {
@@ -25,6 +24,7 @@ function mapStatus(status?: string | null) {
 
 export async function POST(request: NextRequest) {
   try {
+    const supabase = getServerSupabase()
     const body = await request.json()
     const { name, email, phone, role, location, department, password, createdBy, username, status } = body
 

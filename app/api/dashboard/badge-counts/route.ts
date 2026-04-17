@@ -1,13 +1,10 @@
 import { type NextRequest, NextResponse } from "next/server"
-import { createClient } from "@supabase/supabase-js"
+import { getServerSupabase } from "@/lib/supabase"
 
 // Use service role key to bypass RLS
-const supabaseAdmin = createClient(process.env.NEXT_PUBLIC_SUPABASE_URL!, process.env.SUPABASE_SERVICE_ROLE_KEY!)
-
-// Helper to filter data by location in memory
-function filterByLocation(data: any[], location: string, canSeeAll: boolean, field = "location"): any[] {
-  if (canSeeAll || !location) return data
-  const loc = location.toLowerCase()
+export async function GET(request: NextRequest) {
+  try {
+    const supabaseAdmin = getServerSupabase()
   return data.filter((item: any) => {
     const itemLoc = (item[field] || "").toLowerCase()
     return itemLoc.includes(loc) || loc.includes(itemLoc)

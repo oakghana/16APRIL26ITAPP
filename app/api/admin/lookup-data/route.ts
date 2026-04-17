@@ -1,7 +1,14 @@
 import { type NextRequest, NextResponse } from "next/server"
-import { createClient } from "@supabase/supabase-js"
+import { getServerSupabase } from "@/lib/supabase"
 
-const supabase = createClient(process.env.NEXT_PUBLIC_SUPABASE_URL!, process.env.SUPABASE_SERVICE_ROLE_KEY!)
+let supabase: ReturnType<typeof getServerSupabase> | null = null
+
+function getSupa() {
+  if (!supabase) {
+    supabase = getServerSupabase()
+  }
+  return supabase
+}
 
 const TABLE_MAP: Record<string, string> = {
   locations: "lookup_locations",
@@ -21,7 +28,7 @@ export async function GET(request: NextRequest) {
       return NextResponse.json({ error: "Invalid lookup type" }, { status: 400 })
     }
 
-    const { data, error } = await supabase.from(TABLE_MAP[type]).select("*").order("name", { ascending: true })
+    const { data, error } = await getSupa().from(TABLE_MAP[type]).select("*").order("name", { ascending: true })
 
     if (error) throw error
 
@@ -41,7 +48,7 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: "Invalid lookup type" }, { status: 400 })
     }
 
-    const { data, error } = await supabase.from(TABLE_MAP[type]).insert([body]).select().single()
+    const { data, error } = await getSupa().from(TABLE_MAP[type]).insert([body]).select().single()
 
     if (error) throw error
 
@@ -62,7 +69,7 @@ export async function PUT(request: NextRequest) {
       return NextResponse.json({ error: "Invalid parameters" }, { status: 400 })
     }
 
-    const { data, error } = await supabase.from(TABLE_MAP[type]).update(body).eq("id", id).select().single()
+    const { data, error } = await getSupa().from(TABLE_MAP[type]).update(body).eq("id", id).select().single()
 
     if (error) throw error
 
@@ -82,7 +89,7 @@ export async function DELETE(request: NextRequest) {
       return NextResponse.json({ error: "Invalid parameters" }, { status: 400 })
     }
 
-    const { error } = await supabase.from(TABLE_MAP[type]).delete().eq("id", id)
+    const { error } = await getSupa().from(TABLE_MAP[type]).delete().eq("id", id)
 
     if (error) throw error
 

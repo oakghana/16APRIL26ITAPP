@@ -1,11 +1,11 @@
 import { NextResponse } from "next/server"
 import bcryptjs from "bcryptjs"
-import { createClient } from "@supabase/supabase-js"
+import { getServerSupabase } from "@/lib/supabase"
 
 export async function POST() {
   try {
     // Use service role key to bypass RLS
-    const supabase = createClient(process.env.NEXT_PUBLIC_SUPABASE_URL!, process.env.SUPABASE_SERVICE_ROLE_KEY!)
+    const supabase = getServerSupabase()
 
     // Generate proper bcryptjs hash for "ghana@1"
     const password = "ghana@1"
