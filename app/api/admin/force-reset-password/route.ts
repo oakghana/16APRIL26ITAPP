@@ -5,13 +5,6 @@ import bcrypt from "bcryptjs"
 export async function POST(request: NextRequest) {
   try {
     const supabaseAdmin = getServerSupabase()
-      persistSession: false,
-    },
-  }
-)
-
-export async function POST(request: NextRequest) {
-  try {
     const { email, newPassword } = await request.json()
 
     console.log("[v0] Force password reset for:", email)

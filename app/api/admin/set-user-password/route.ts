@@ -5,9 +5,6 @@ import bcrypt from "bcryptjs"
 export async function POST(request: NextRequest) {
   try {
     const supabase = getServerSupabase()
-
-export async function POST(request: NextRequest) {
-  try {
     const { username, password } = await request.json()
 
     if (!username || !password) {

@@ -5,7 +5,6 @@ import { getServerSupabase } from "@/lib/supabase"
 export async function GET(request: NextRequest) {
   try {
     const supabaseAdmin = getServerSupabase()
-  try {
     const { searchParams } = new URL(request.url)
     const activeOnly = searchParams.get("activeOnly") !== "false"
 
