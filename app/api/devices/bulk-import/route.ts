@@ -1,16 +1,12 @@
 import { type NextRequest, NextResponse } from "next/server"
-import { createClient } from "@supabase/supabase-js"
+import { getServerSupabase } from "@/lib/supabase"
 import { validateCsvImport } from "@/lib/device-import/csv-validator"
 import { getCanonicalLocationName, getLocationAliases } from "@/lib/location-filter"
 
 // Use service role key to bypass RLS
-const supabase = createClient(
-  process.env.NEXT_PUBLIC_SUPABASE_URL!,
-  process.env.SUPABASE_SERVICE_ROLE_KEY!
-)
-
 export async function POST(request: NextRequest) {
   try {
+    const supabase = getServerSupabase()
     // Parse form data
     const formData = await request.formData()
     const file = formData.get("file") as File

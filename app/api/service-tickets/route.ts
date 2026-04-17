@@ -1,15 +1,10 @@
 import { NextRequest, NextResponse } from "next/server"
-import { createClient } from "@supabase/supabase-js"
+import { getServerSupabase } from "@/lib/supabase"
 import { isLocationInSameRegion } from "@/lib/location-filter"
-
-// Use service role key to bypass RLS
-const supabaseAdmin = createClient(
-  process.env.NEXT_PUBLIC_SUPABASE_URL!,
-  process.env.SUPABASE_SERVICE_ROLE_KEY!
-)
 
 export async function GET(request: NextRequest) {
   try {
+    const supabaseAdmin = getServerSupabase()
     const { searchParams } = new URL(request.url)
     const location = searchParams.get("location") || ""
     const canSeeAll = searchParams.get("canSeeAll") === "true"
@@ -103,6 +98,7 @@ export async function GET(request: NextRequest) {
 
 export async function POST(request: NextRequest) {
   try {
+    const supabaseAdmin = getServerSupabase()
     const body = await request.json()
 
     console.log("[v0] Creating service ticket:", body)
@@ -165,6 +161,7 @@ export async function POST(request: NextRequest) {
 
 export async function DELETE(request: NextRequest) {
   try {
+    const supabaseAdmin = getServerSupabase()
     const { searchParams } = new URL(request.url)
     const ticketId = searchParams.get("id")
     const userRole = searchParams.get("userRole")
