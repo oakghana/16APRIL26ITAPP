@@ -11,7 +11,7 @@ import { Badge } from "@/components/ui/badge"
 import { useAuth } from "@/lib/auth-context"
 import { toast } from "sonner"
 import {
-  Wifi, AlertTriangle, CheckCircle2, Clock, FileText,
+  Wifi, AlertTriangle, Clock, FileText,
   Send, Save, Calendar, Activity, TrendingDown, Users, Bell
 } from "lucide-react"
 
@@ -518,88 +518,6 @@ export default function WeeklyInternetReportForm() {
                 rows={2}
               />
             )}
-          </div>
-        </CardContent>
-      </Card>
-
-      {/* Speed / Quality */}
-      <Card>
-        <CardHeader>
-          <CardTitle className="text-base flex items-center gap-2">
-            <CheckCircle2 className="h-4 w-4 text-green-600" />
-            Speed & Quality Metrics
-          </CardTitle>
-        </CardHeader>
-        <CardContent className="space-y-4">
-          <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-            <div className="space-y-2">
-              <Label>Avg Download Speed (Mbps)</Label>
-              <Input
-                type="number"
-                min="0"
-                step="0.1"
-                placeholder="e.g. 50.5"
-                value={form.avg_download_speed_mbps}
-                onChange={(e) => handleChange("avg_download_speed_mbps", e.target.value)}
-              />
-            </div>
-            <div className="space-y-2">
-              <Label>Avg Upload Speed (Mbps)</Label>
-              <Input
-                type="number"
-                min="0"
-                step="0.1"
-                placeholder="e.g. 20.0"
-                value={form.avg_upload_speed_mbps}
-                onChange={(e) => handleChange("avg_upload_speed_mbps", e.target.value)}
-              />
-            </div>
-            <div className="space-y-2">
-              <Label>Speed Test Tool Used</Label>
-              <Input
-                placeholder="e.g. Speedtest.net, Fast.com"
-                value={form.speed_test_tool}
-                onChange={(e) => handleChange("speed_test_tool", e.target.value)}
-              />
-            </div>
-          </div>
-        </CardContent>
-      </Card>
-
-      {/* Planned Maintenance */}
-      <Card>
-        <CardHeader>
-          <CardTitle className="text-base flex items-center gap-2">
-            <Calendar className="h-4 w-4 text-blue-600" />
-            Upcoming Maintenance & Notes
-          </CardTitle>
-        </CardHeader>
-        <CardContent className="space-y-4">
-          <div className="space-y-2">
-            <Label>Planned Maintenance Next Week</Label>
-            <Textarea
-              placeholder="Describe any planned maintenance or upgrades scheduled for next week..."
-              value={form.planned_maintenance}
-              onChange={(e) => handleChange("planned_maintenance", e.target.value)}
-              rows={2}
-            />
-          </div>
-          <div className="space-y-2">
-            <Label>Maintenance Window (Date & Time)</Label>
-            <Input
-              placeholder="e.g. Saturday 28 Apr, 10pm – 2am"
-              value={form.maintenance_window}
-              onChange={(e) => handleChange("maintenance_window", e.target.value)}
-            />
-          </div>
-          <div className="space-y-2">
-            <Label>Additional Notes</Label>
-            <Textarea
-              placeholder="Any other relevant information..."
-              value={form.additional_notes}
-              onChange={(e) => handleChange("additional_notes", e.target.value)}
-              rows={3}
-            />
           </div>
         </CardContent>
       </Card>

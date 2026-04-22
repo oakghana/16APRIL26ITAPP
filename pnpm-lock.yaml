@@ -102,8 +102,8 @@ importers:
         specifier: latest
         version: 1.6.1(@remix-run/react@2.17.0(react-dom@19.0.0(react@19.0.0))(react@19.0.0)(typescript@5.9.3))(@sveltejs/kit@2.37.1(@sveltejs/vite-plugin-svelte@6.1.4(svelte@5.38.7)(vite@7.1.5(@types/node@22.0.0)(jiti@2.5.1)(lightningcss@1.30.1)))(svelte@5.38.7)(vite@7.1.5(@types/node@22.0.0)(jiti@2.5.1)(lightningcss@1.30.1)))(next@16.0.10(react-dom@19.0.0(react@19.0.0))(react@19.0.0))(react@19.0.0)(svelte@5.38.7)(vue-router@4.5.1(vue@3.5.21(typescript@5.9.3)))(vue@3.5.21(typescript@5.9.3))
       '@vercel/blob':
-        specifier: 2.0.0
-        version: 2.0.0
+        specifier: ^2.3.1
+        version: 2.3.3
       autoprefixer:
         specifier: ^10.4.20
         version: 10.4.20(postcss@8.5.0)
@@ -421,10 +421,6 @@ packages:
     engines: {node: '>=18'}
     cpu: [x64]
     os: [win32]
-
-  '@fastify/busboy@2.1.1':
-    resolution: {integrity: sha512-vBZP4NlzfOlerQTnba4aqZoMhE/a9HY7HRqoOPaETQcSQuWEIyZMHGfVu6w9wGtGK5fED5qRs2DteVCjOH60sA==}
-    engines: {node: '>=14'}
 
   '@floating-ui/core@1.7.3':
     resolution: {integrity: sha512-sGnvb5dmrJaKEZ+LDIpguvdX3bDlEllmv4/ClQ9awcmCZrlx5jQyyMWFM5kBI+EyNOCDDiKk8il0zeuX3Zlg/w==}
@@ -2024,8 +2020,8 @@ packages:
       vue-router:
         optional: true
 
-  '@vercel/blob@2.0.0':
-    resolution: {integrity: sha512-oAj7Pdy83YKSwIaMFoM7zFeLYWRc+qUpW3PiDSblxQMnGFb43qs4bmfq7dr/+JIfwhs6PTwe1o2YBwKhyjWxXw==}
+  '@vercel/blob@2.3.3':
+    resolution: {integrity: sha512-MtD7VLo6hU07eHR7bmk5SIMD290q574UaNYTe46qeyRT+hWrCy26CoAqfd7PnIefVXvRehRZBzukxuTO9iGTVg==}
     engines: {node: '>=20.0.0'}
 
   '@vue/compiler-core@3.5.21':
@@ -2817,9 +2813,9 @@ packages:
   undici-types@6.11.1:
     resolution: {integrity: sha512-mIDEX2ek50x0OlRgxryxsenE5XaQD4on5U2inY7RApK3SOJpofyw7uW2AyfMKkhAxXIceo2DeWGVGwyvng1GNQ==}
 
-  undici@5.29.0:
-    resolution: {integrity: sha512-raqeBD6NQK4SkWhQzeYKd1KmIG6dllBOTt55Rmkt4HtI9mwdWtJljnrXjAFUBLTSN67HWrOIZ3EPF4kjUw80Bg==}
-    engines: {node: '>=14.0'}
+  undici@6.25.0:
+    resolution: {integrity: sha512-ZgpWDC5gmNiuY9CnLVXEH8rl50xhRCuLNA97fAUnKi8RRuV4E6KG31pDTsLVUKnohJE0I3XDrTeEydAXRw47xg==}
+    engines: {node: '>=18.17'}
 
   update-browserslist-db@1.1.3:
     resolution: {integrity: sha512-UxhIZQ+QInVdunkDAaiazvvT/+fXL5Osr0JZlJulepYu6Jd7qJtDZjlur0emRlT71EN3ScPoE7gvsuIKKNavKw==}
@@ -3064,8 +3060,6 @@ snapshots:
 
   '@esbuild/win32-x64@0.25.9':
     optional: true
-
-  '@fastify/busboy@2.1.1': {}
 
   '@floating-ui/core@1.7.3':
     dependencies:
@@ -4542,13 +4536,13 @@ snapshots:
       vue: 3.5.21(typescript@5.9.3)
       vue-router: 4.5.1(vue@3.5.21(typescript@5.9.3))
 
-  '@vercel/blob@2.0.0':
+  '@vercel/blob@2.3.3':
     dependencies:
       async-retry: 1.3.3
       is-buffer: 2.0.5
       is-node-process: 1.2.0
       throttleit: 2.1.0
-      undici: 5.29.0
+      undici: 6.25.0
 
   '@vue/compiler-core@3.5.21':
     dependencies:
@@ -5372,9 +5366,7 @@ snapshots:
 
   undici-types@6.11.1: {}
 
-  undici@5.29.0:
-    dependencies:
-      '@fastify/busboy': 2.1.1
+  undici@6.25.0: {}
 
   update-browserslist-db@1.1.3(browserslist@4.25.4):
     dependencies:
