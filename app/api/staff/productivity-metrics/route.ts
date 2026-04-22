@@ -161,12 +161,18 @@ export async function GET(request: NextRequest) {
       else if (averageCompletionDays <= 5) speedBonus = 10
       else if (averageCompletionDays <= 7) speedBonus = 5
 
-      // Workload bonus (up to 35 points) — higher ceiling so high-volume resolvers are differentiated
-      const workloadBonus = Math.min(35, Math.sqrt(completedTasks.length) * 3)
+      // Volume Score (0-100) — based on absolute number of completed tasks
+      // Normalize to a 0-100 scale where 50+ completed tasks = 100
+      // This ensures staff with more work output rank higher
+      const volumeScore = Math.min(100, (completedTasks.length / 50) * 100)
 
-      // Final score: completion + on-time + speed + workload throughput
+      // Final score calculation with revised weightings:
+      // 80% - Task Volume (actual number of tasks completed) — PRIMARY METRIC
+      // 10% - Speed Bonus (faster completions)
+      // 5% - On-Time Completion Rate (deadline adherence)
+      // 5% - Completion Rate percentage (secondary metric)
       const productivityScore = Math.round(
-        completionRate * 0.4 + onTimeRate * 0.22 + speedBonus * 0.65 + workloadBonus
+        volumeScore * 0.80 + speedBonus * 0.10 + onTimeRate * 0.05 + completionRate * 0.05
       )
 
       let grading: "Excellent" | "Good" | "Average" | "Below Average" | "Poor"
