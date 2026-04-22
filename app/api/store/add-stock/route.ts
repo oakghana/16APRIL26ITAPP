@@ -178,9 +178,9 @@ export async function POST(request: NextRequest) {
         .update({
           quantity: newQuantity,
           quantity_in_stock: newStockQuantity,
-          unit_price: unit_price || existingItem.unit_price,
+          cost_price: unit_price || existingItem.cost_price,
           supplier: supplier || existingItem.supplier,
-          description: description || existingItem.description,
+          notes: notes || existingItem.notes,
           updated_at: new Date().toISOString(),
         })
         .eq("id", existingItem.id)
@@ -234,12 +234,13 @@ export async function POST(request: NextRequest) {
           name,
           category: normalizedCategory,
           sku: sku || `SKU-${Date.now()}`,
-          siv_number: sku || `SIV-${Date.now()}`,
           quantity: parseInt(quantity),
+          quantity_in_stock: parseInt(quantity),
           unit: unit || "pcs",
           reorder_level: reorder_level ? parseInt(reorder_level) : 5,
           location: forcedLocation,
           supplier: supplier || "",
+          notes: notes || "",
           created_at: new Date().toISOString(),
           updated_at: new Date().toISOString(),
         })

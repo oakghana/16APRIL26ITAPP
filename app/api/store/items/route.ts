@@ -20,8 +20,11 @@ export async function GET(request: NextRequest) {
       .select("*")
       .order("created_at", { ascending: false })
 
-    if (!canSeeAll && location) {
-      // Use ilike for case-insensitive matching so "head_office" matches "Head Office" in DB
+    // Always filter to central_stores for the Add Stock dialog
+    // Accept both "central_stores" and "Central Stores" spellings
+    if (location === "central_stores" || location === "Central Stores") {
+      query = query.or(`location.ilike.central_stores,location.ilike.Central Stores`)
+    } else if (!canSeeAll && location) {
       const locationFuzzy = location.replace(/[_-]+/g, " ").trim()
       query = query.or(`location.ilike.${locationFuzzy},location.ilike.Central Stores`)
     }
