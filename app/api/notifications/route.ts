@@ -4,8 +4,8 @@ import { createClient as createSupabaseAdmin } from "@supabase/supabase-js"
 // Use service role to bypass RLS — this app uses custom auth, not Supabase Auth,
 // so auth.uid() is always NULL and anon-key queries return nothing.
 const supabaseAdmin = createSupabaseAdmin(
-  process.env.NEXT_PUBLIC_SUPABASE_URL ?? "",
-  process.env.SUPABASE_SERVICE_ROLE_KEY ?? ""
+  process.env.NEXT_PUBLIC_SUPABASE_URL ?? "https://placeholder.supabase.co",
+  process.env.SUPABASE_SERVICE_ROLE_KEY ?? "placeholder-build-key"
 )
 
 export async function POST(request: NextRequest) {

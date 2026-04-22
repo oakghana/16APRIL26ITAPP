@@ -106,142 +106,11 @@ export async function POST(request: Request) {
     const userRole = formData.get("userRole") as string
     const userLocation = formData.get("userLocation") as string
 
-    console.log("[v0] PDF Upload POST - Received form data:", {
-      fileName: file?.name,
-      fileSize: file?.size,
-      fileType: file?.type,
-      title,
-      documentType,
-      uploadedBy,
-      uploadedByName,
-      userRole,
-      userLocation,
-    })
-
     if (!file || !title || !documentType || !uploadedBy || !uploadedByName) {
-      console.log("[v0] Missing required fields:", {
-        file: !!file,
-        title: !!title,
-        documentType: !!documentType,
-        uploadedBy: !!uploadedBy,
-        uploadedByName: !!uploadedByName,
-      })
       return NextResponse.json(
         { error: "Missing required fields" },
         { status: 400 }
       )
-    }
-
-    if (file.type && file.type !== "application/pdf") {
-      console.log("[v0] Invalid file type:", file.type)
-      return NextResponse.json(
-        { error: "Only PDF documents can be uploaded" },
-        { status: 400 }
-      )
-    }
-
-    // Validate upload permissions
-    const isAdmin = userRole === "admin"
-    const isITHead = userRole === "it_head"
-    const isRegionalITHead = userRole === "regional_it_head"
-    const isAllowedITStaffUploader =
-      userRole === "it_staff" &&
-      userLocation &&
-      locationsMatch(userLocation, "Head Office")
-
-    const canUploadDocument = isAdmin || isITHead || isRegionalITHead || isAllowedITStaffUploader
-
-    console.log("[v0] Upload permission check:", {
-      isAdmin,
-      isITHead,
-      isRegionalITHead,
-      isAllowedITStaffUploader,
-      canUploadDocument,
-    })
-
-    if (!canUploadDocument) {
-      console.warn(
-        `[v0] Upload rejected - insufficient permissions. Role: ${userRole}, Location: ${userLocation}`
-      )
-      return NextResponse.json(
-        { error: "You do not have permission to upload documents. Only Admin, IT Head, Regional IT Head, and IT Staff at Head Office can upload." },
-        { status: 403 }
-      )
-    }
-
-    // Upload file to Vercel Blob
-    const fileName = `pdf-documents/${Date.now()}_${file.name.replace(/\s+/g, "_")}`
-    let url: string
-
-    try {
-      const blob = await put(fileName, file, {
-        access: "public",
-        contentType: file.type || "application/pdf",
-      })
-
-      url = blob.url
-    } catch (blobError) {
-      console.error("[v0] Error uploading PDF to Vercel Blob:", blobError)
-
-      const message = blobError instanceof Error ? blobError.message : "Unknown blob upload error"
-      const isBlobConfigError = message.toLowerCase().includes("token") || message.toLowerCase().includes("blob")
-
-      return NextResponse.json(
-        {
-          error: isBlobConfigError
-            ? "Document storage is not configured correctly. Please set the Vercel Blob token and try again."
-            : message,
-        },
-        { status: 500 }
-      )
-    }
-
-    console.log("[v0] File uploaded to Vercel Blob successfully:", url)
-
-    const effectiveTargetLocation = isAdmin || isITHead
-      ? targetLocation === "all"
-        ? null
-        : targetLocation
-      : userLocation || null
-
-    // Create database record
-    console.log("[v0] Attempting to insert PDF upload record with data:", {
-      title,
-      description,
-      document_type: documentType,
-      file_name: file.name,
-      file_url: url,
-      file_size: file.size,
-      uploaded_by: uploadedBy,
-      uploaded_by_name: uploadedByName,
-      target_location: effectiveTargetLocation,
-      is_active: true,
-    })
-
-    const { data, error } = await supabase
-      .from("pdf_uploads")
-      .insert({
-        title,
-        description,
-        document_type: documentType,
-        file_name: file.name,
-        file_url: url,
-        file_size: file.size,
-        uploaded_by: uploadedBy,
-        uploaded_by_name: uploadedByName,
-        target_location: effectiveTargetLocation,
-        is_active: true,
-      })
-      .select()
-      .single()
-
-    if (error) {
-      console.error("[v0] Error creating PDF upload record:", error)
-      console.error("[v0] Error details:", { code: error.code, message: error.message, details: error.details })
-      return NextResponse.json({ 
-        error: `Failed to create PDF upload: ${error.message}`,
-        details: error.details 
-      }, { status: 500 })
     }
 
     if (file.type && file.type !== "application/pdf") {
@@ -326,12 +195,8 @@ export async function POST(request: Request) {
       .single()
 
     if (error) {
-      console.error("[v0] Error creating PDF upload record:", error)
-      console.error("[v0] Error details:", { code: error.code, message: error.message, details: error.details })
-      return NextResponse.json({ 
-        error: `Failed to create PDF upload: ${error.message}`,
-        details: error.details 
-      }, { status: 500 })
+      console.error("Error creating PDF upload record:", error)
+      return NextResponse.json({ error: error.message }, { status: 500 })
     }
 
     // Log audit trail for document upload
