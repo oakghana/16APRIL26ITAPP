@@ -171,30 +171,24 @@ export async function POST(request: Request) {
       )
     }
 
-    // Step 4: Upload file to Vercel Blob
+    // Step 4: Upload file to Vercel Blob (private store)
     const fileName = `pdf-documents/${Date.now()}_${file.name.replace(/\s+/g, "_")}`
-    let url: string
+    let blobPathname: string
 
     try {
       const blob = await put(fileName, file, {
-        access: "public",
+        access: "private",
         contentType: file.type || "application/pdf",
       })
 
-      url = blob.url
-      console.log("[v0] File uploaded to Vercel Blob successfully:", url)
+      // Store the pathname — private blobs are not publicly accessible via URL
+      blobPathname = blob.pathname
+      console.log("[v0] File uploaded to private Vercel Blob successfully, pathname:", blobPathname)
     } catch (blobError) {
       console.error("[v0] Error uploading PDF to Vercel Blob:", blobError)
-
       const message = blobError instanceof Error ? blobError.message : "Unknown blob upload error"
-      const isBlobConfigError = message.toLowerCase().includes("token") || message.toLowerCase().includes("blob")
-
       return NextResponse.json(
-        {
-          error: isBlobConfigError
-            ? "Document storage is not configured correctly. Please set the Vercel Blob token and try again."
-            : `Failed to upload to storage: ${message}`,
-        },
+        { error: `Failed to upload to storage: ${message}` },
         { status: 500 }
       )
     }
@@ -206,20 +200,7 @@ export async function POST(request: Request) {
         : targetLocation
       : userLocation || null
 
-    // Step 6: Create database record
-    console.log("[v0] Attempting to insert PDF upload record with data:", {
-      title,
-      description,
-      document_type: documentType,
-      file_name: file.name,
-      file_url: url,
-      file_size: file.size,
-      uploaded_by: uploadedBy,
-      uploaded_by_name: uploadedByName,
-      target_location: effectiveTargetLocation,
-      is_active: true,
-    })
-
+    // Step 6: Create database record — file_url holds the pathname for private blob serving
     const { data, error } = await supabase
       .from("pdf_uploads")
       .insert({
@@ -227,7 +208,7 @@ export async function POST(request: Request) {
         description,
         document_type: documentType,
         file_name: file.name,
-        file_url: url,
+        file_url: blobPathname,
         file_size: file.size,
         uploaded_by: uploadedBy,
         uploaded_by_name: uploadedByName,
