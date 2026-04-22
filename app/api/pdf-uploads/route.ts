@@ -118,6 +118,7 @@ export async function POST(request: Request) {
       userLocation,
     })
 
+    // Step 1: Validate required fields
     if (!file || !title || !documentType || !uploadedBy || !uploadedByName) {
       console.log("[v0] Missing required fields:", {
         file: !!file,
@@ -132,6 +133,7 @@ export async function POST(request: Request) {
       )
     }
 
+    // Step 2: Validate file type
     if (file.type && file.type !== "application/pdf") {
       console.log("[v0] Invalid file type:", file.type)
       return NextResponse.json(
@@ -140,7 +142,7 @@ export async function POST(request: Request) {
       )
     }
 
-    // Validate upload permissions
+    // Step 3: Validate upload permissions
     const isAdmin = userRole === "admin"
     const isITHead = userRole === "it_head"
     const isRegionalITHead = userRole === "regional_it_head"
@@ -164,12 +166,12 @@ export async function POST(request: Request) {
         `[v0] Upload rejected - insufficient permissions. Role: ${userRole}, Location: ${userLocation}`
       )
       return NextResponse.json(
-        { error: "You do not have permission to upload documents. Only Admin, IT Head, Regional IT Head, and IT Staff at Head Office can upload." },
+        { error: `You do not have permission to upload documents. Role: ${userRole} cannot upload. Only Admin, IT Head, Regional IT Head, and IT Staff at Head Office can upload.` },
         { status: 403 }
       )
     }
 
-    // Upload file to Vercel Blob
+    // Step 4: Upload file to Vercel Blob
     const fileName = `pdf-documents/${Date.now()}_${file.name.replace(/\s+/g, "_")}`
     let url: string
 
@@ -180,6 +182,7 @@ export async function POST(request: Request) {
       })
 
       url = blob.url
+      console.log("[v0] File uploaded to Vercel Blob successfully:", url)
     } catch (blobError) {
       console.error("[v0] Error uploading PDF to Vercel Blob:", blobError)
 
@@ -190,21 +193,20 @@ export async function POST(request: Request) {
         {
           error: isBlobConfigError
             ? "Document storage is not configured correctly. Please set the Vercel Blob token and try again."
-            : message,
+            : `Failed to upload to storage: ${message}`,
         },
         { status: 500 }
       )
     }
 
-    console.log("[v0] File uploaded to Vercel Blob successfully:", url)
-
+    // Step 5: Prepare target location based on user role
     const effectiveTargetLocation = isAdmin || isITHead
       ? targetLocation === "all"
         ? null
         : targetLocation
       : userLocation || null
 
-    // Create database record
+    // Step 6: Create database record
     console.log("[v0] Attempting to insert PDF upload record with data:", {
       title,
       description,
@@ -244,97 +246,7 @@ export async function POST(request: Request) {
       }, { status: 500 })
     }
 
-    if (file.type && file.type !== "application/pdf") {
-      return NextResponse.json(
-        { error: "Only PDF documents can be uploaded" },
-        { status: 400 }
-      )
-    }
-
-    // Validate upload permissions
-    const isAdmin = userRole === "admin"
-    const isITHead = userRole === "it_head"
-    const isRegionalITHead = userRole === "regional_it_head"
-    const isAllowedITStaffUploader =
-      userRole === "it_staff" &&
-      userLocation &&
-      locationsMatch(userLocation, "Head Office")
-
-    const canUploadDocument = isAdmin || isITHead || isRegionalITHead || isAllowedITStaffUploader
-
-    if (!canUploadDocument) {
-      console.warn(
-        `[v0] Upload rejected - insufficient permissions. Role: ${userRole}, Location: ${userLocation}`
-      )
-      return NextResponse.json(
-        { error: "You do not have permission to upload documents. Only Admin, IT Head, Regional IT Head, and IT Staff at Head Office or Accra can upload." },
-        { status: 403 }
-      )
-    }
-
-    // Upload file to Vercel Blob
-    const fileName = `pdf-documents/${Date.now()}_${file.name.replace(/\s+/g, "_")}`
-    let url: string
-
-    try {
-      const blob = await put(fileName, file, {
-        access: "public",
-        contentType: file.type || "application/pdf",
-      })
-
-      url = blob.url
-    } catch (blobError) {
-      console.error("[v0] Error uploading PDF to Vercel Blob:", blobError)
-
-      const message = blobError instanceof Error ? blobError.message : "Unknown blob upload error"
-      const isBlobConfigError = message.toLowerCase().includes("token") || message.toLowerCase().includes("blob")
-
-      return NextResponse.json(
-        {
-          error: isBlobConfigError
-            ? "Document storage is not configured correctly. Please set the Vercel Blob token and try again."
-            : message,
-        },
-        { status: 500 }
-      )
-    }
-
-    console.log("[v0] File uploaded to Vercel Blob successfully:", url)
-
-    const effectiveTargetLocation = isAdmin || isITHead
-      ? targetLocation === "all"
-        ? null
-        : targetLocation
-      : userLocation || null
-
-    // Create database record
-    const { data, error } = await supabase
-      .from("pdf_uploads")
-      .insert({
-        title,
-        description,
-        document_type: documentType,
-        file_name: file.name,
-        file_url: url,
-        file_size: file.size,
-        uploaded_by: uploadedBy,
-        uploaded_by_name: uploadedByName,
-        target_location: effectiveTargetLocation,
-        is_active: true,
-      })
-      .select()
-      .single()
-
-    if (error) {
-      console.error("[v0] Error creating PDF upload record:", error)
-      console.error("[v0] Error details:", { code: error.code, message: error.message, details: error.details })
-      return NextResponse.json({ 
-        error: `Failed to create PDF upload: ${error.message}`,
-        details: error.details 
-      }, { status: 500 })
-    }
-
-    // Log audit trail for document upload
+    // Step 7: Log audit trail for document upload
     await logDocumentAudit({
       document_id: data.id,
       action: "document_uploaded",
@@ -349,9 +261,10 @@ export async function POST(request: Request) {
       },
     })
 
+    console.log("[v0] PDF upload successfully created with ID:", data.id)
     return NextResponse.json({ success: true, upload: data })
   } catch (error) {
-    console.error("Error in POST /api/pdf-uploads:", error)
+    console.error("[v0] Unexpected error in POST /api/pdf-uploads:", error)
     return NextResponse.json({ error: "Failed to create PDF upload" }, { status: 500 })
   }
 }
