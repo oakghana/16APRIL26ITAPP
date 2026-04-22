@@ -100,38 +100,34 @@ let uploadedUrl      = null
 try {
   const blobPath = `pdf-documents/simulation/${fileName}`
   const result   = await put(blobPath, testBlob, {
-    access: "private",
+    access: "public",
     contentType: "application/pdf",
     token: BLOB_TOKEN,
   })
-  uploadedPathname = result.pathname
   uploadedUrl      = result.url
+  uploadedPathname = result.pathname
   pass(`Upload succeeded`)
-  pass(`Pathname stored in DB: ${uploadedPathname}`)
-  pass(`Private URL (not publicly accessible): ${uploadedUrl}`)
+  pass(`Public URL stored in DB: ${uploadedUrl}`)
+  pass(`Pathname: ${uploadedPathname}`)
 } catch (err) {
   fail(`Blob upload failed: ${err.message}`)
   console.error("  Detail:", err)
   process.exit(1)
 }
 
-// ── 5. Blob Private Serve (get) ───────────────────────────────────────────────
-section("5. Vercel Blob — Private Serve (get)")
+// ── 5. Blob Public URL Verify ─────────────────────────────────────────────────
+section("5. Vercel Blob — Public URL Verify")
 
 try {
-  const served = await get(uploadedPathname, {
-    access: "private",
-    token: BLOB_TOKEN,
-  })
-  if (!served) {
-    fail("get() returned null — file not found in blob store")
+  const res = await fetch(uploadedUrl, { method: "HEAD" })
+  if (res.ok) {
+    pass(`Public URL is reachable — HTTP ${res.status}`)
+    pass(`Content-Type: ${res.headers.get("content-type")}`)
   } else {
-    pass(`get() succeeded — statusCode: ${served.statusCode}`)
-    pass(`Content-Type: ${served.blob?.contentType}`)
-    pass(`ETag: ${served.blob?.etag}`)
+    fail(`Public URL returned HTTP ${res.status}`)
   }
 } catch (err) {
-  fail(`Blob get() failed: ${err.message}`)
+  fail(`Public URL check failed: ${err.message}`)
 }
 
 // ── 6. Supabase Insert ────────────────────────────────────────────────────────
@@ -149,7 +145,7 @@ const { data: insertData, error: insertError } = await supabase
     description:      "Automated simulation — safe to delete",
     document_type:    "information",
     file_name:        fileName,
-    file_url:         uploadedPathname,
+    file_url:         uploadedUrl,
     file_size:        pdfBuffer.length,
     uploaded_by:      FAKE_USER_ID,
     uploaded_by_name: "Simulation Script",
@@ -186,7 +182,7 @@ if (insertedId) {
     fail(`Fetch failed: ${fetchError.message}`)
   } else {
     pass(`Fetch succeeded — title: "${fetchData.title}"`)
-    pass(`file_url matches: ${fetchData.file_url === uploadedPathname}`)
+    pass(`file_url matches: ${fetchData.file_url === uploadedUrl}`)
   }
 } else {
   skip("Insert failed — skipping fetch")

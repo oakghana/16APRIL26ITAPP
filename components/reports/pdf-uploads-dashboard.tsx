@@ -800,7 +800,7 @@ export function PDFUploadsDashboard() {
                       <TableRow
                         key={upload.id}
                         className="cursor-pointer"
-                        onDoubleClick={() => window.open(`/api/pdf-uploads/serve?pathname=${encodeURIComponent(upload.file_url)}`, "_blank", "noopener,noreferrer")}
+                        onDoubleClick={() => window.open(upload.file_url, "_blank", "noopener,noreferrer")}
                       >
                         <TableCell>
                           <div className="flex items-center gap-3">
@@ -873,7 +873,7 @@ export function PDFUploadsDashboard() {
                             <Button
                               variant="ghost"
                               size="sm"
-                              onClick={() => window.open(`/api/pdf-uploads/serve?pathname=${encodeURIComponent(upload.file_url)}`, "_blank")}
+                              onClick={() => window.open(upload.file_url, "_blank")}
                               title="View PDF"
                             >
                               <Eye className="h-4 w-4" />
@@ -893,7 +893,7 @@ export function PDFUploadsDashboard() {
                               size="sm"
                               onClick={() => {
                                 const link = document.createElement("a")
-                                link.href = `/api/pdf-uploads/serve?pathname=${encodeURIComponent(upload.file_url)}`
+                                link.href = upload.file_url
                                 link.download = upload.file_name
                                 link.click()
                               }}
