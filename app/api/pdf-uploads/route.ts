@@ -171,19 +171,18 @@ export async function POST(request: Request) {
       )
     }
 
-    // Step 4: Upload file to Vercel Blob (private store)
+    // Step 4: Upload file to Vercel Blob (public store)
     const fileName = `pdf-documents/${Date.now()}_${file.name.replace(/\s+/g, "_")}`
-    let blobPathname: string
+    let fileUrl: string
 
     try {
       const blob = await put(fileName, file, {
-        access: "private",
+        access: "public",
         contentType: file.type || "application/pdf",
       })
 
-      // Store the pathname — private blobs are not publicly accessible via URL
-      blobPathname = blob.pathname
-      console.log("[v0] File uploaded to private Vercel Blob successfully, pathname:", blobPathname)
+      fileUrl = blob.url
+      console.log("[v0] File uploaded to Vercel Blob successfully:", fileUrl)
     } catch (blobError) {
       console.error("[v0] Error uploading PDF to Vercel Blob:", blobError)
       const message = blobError instanceof Error ? blobError.message : "Unknown blob upload error"
@@ -200,7 +199,7 @@ export async function POST(request: Request) {
         : targetLocation
       : userLocation || null
 
-    // Step 6: Create database record — file_url holds the pathname for private blob serving
+    // Step 6: Create database record
     const { data, error } = await supabase
       .from("pdf_uploads")
       .insert({
@@ -208,7 +207,7 @@ export async function POST(request: Request) {
         description,
         document_type: documentType,
         file_name: file.name,
-        file_url: blobPathname,
+        file_url: fileUrl,
         file_size: file.size,
         uploaded_by: uploadedBy,
         uploaded_by_name: uploadedByName,
