@@ -31,6 +31,7 @@ interface SentNotification {
 }
 
 const ROLE_OPTIONS = [
+  { value: 'all_staff', label: 'All Staff' },
   { value: 'it_staff', label: 'IT Staff' },
   { value: 'service_desk_staff', label: 'Service Desk Staff' },
   { value: 'service_desk_head', label: 'Service Desk Head' },
@@ -38,6 +39,8 @@ const ROLE_OPTIONS = [
   { value: 'staff', label: 'Regular Staff' },
   { value: 'user', label: 'All Users' },
 ]
+
+const ROLE_LABELS = Object.fromEntries(ROLE_OPTIONS.map((role) => [role.value, role.label]))
 
 const NOTIFICATION_TYPES = [
   { value: 'info', label: 'Info' },
@@ -71,7 +74,7 @@ export const AdminBroadcastPanel: React.FC<AdminBroadcastPanelProps> = ({
   // Form states
   const [title, setTitle] = useState('')
   const [message, setMessage] = useState('')
-  const [targetRole, setTargetRole] = useState('service_desk_staff')
+  const [targetRole, setTargetRole] = useState('all_staff')
   const [targetLocation, setTargetLocation] = useState('')
   const [notificationType, setNotificationType] = useState('info')
 
@@ -95,7 +98,7 @@ export const AdminBroadcastPanel: React.FC<AdminBroadcastPanelProps> = ({
     setEditingNotif(null)
     setTitle('')
     setMessage('')
-    setTargetRole('service_desk_staff')
+    setTargetRole('all_staff')
     setTargetLocation('')
     setNotificationType('info')
     setDialogOpen(true)
@@ -221,7 +224,7 @@ export const AdminBroadcastPanel: React.FC<AdminBroadcastPanelProps> = ({
                     <p className="text-xs text-muted-foreground line-clamp-2 mt-0.5">{notif.message}</p>
                     <div className="flex flex-wrap items-center gap-2 mt-2">
                       <Badge variant="secondary" className="text-[10px] px-1.5 py-0">
-                        {notif.target_role}
+                        {ROLE_LABELS[notif.target_role] || notif.target_role}
                       </Badge>
                       {notif.target_location_name && (
                         <Badge variant="outline" className="text-[10px] px-1.5 py-0">

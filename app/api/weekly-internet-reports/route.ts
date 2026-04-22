@@ -229,6 +229,74 @@ export async function PATCH(request: NextRequest) {
   }
 }
 
+export async function DELETE(request: NextRequest) {
+  try {
+    const supabaseAdmin = createClient(
+      (process.env.NEXT_PUBLIC_SUPABASE_URL ?? "https://placeholder.supabase.co"),
+      (process.env.SUPABASE_SERVICE_ROLE_KEY ?? "placeholder-build-key")
+    )
+
+    const { searchParams } = new URL(request.url)
+    const id = searchParams.get("id")
+    const requestedBy = searchParams.get("requestedBy")
+    const requestedByRole = searchParams.get("requestedByRole")
+
+    if (!id || !requestedBy) {
+      return NextResponse.json({ error: "id and requestedBy are required" }, { status: 400 })
+    }
+
+    if (requestedByRole !== "admin") {
+      return NextResponse.json({ error: "Only admins can delete weekly reports" }, { status: 403 })
+    }
+
+    const { data: existingReport, error: fetchError } = await supabaseAdmin
+      .from("weekly_internet_reports")
+      .select("id, submitted_by, submitted_by_name, week_number, year, location")
+      .eq("id", id)
+      .single()
+
+    if (fetchError || !existingReport) {
+      return NextResponse.json({ error: fetchError?.message || "Report not found" }, { status: 404 })
+    }
+
+    const { error: notificationsError } = await supabaseAdmin
+      .from("notifications")
+      .delete()
+      .eq("reference_type", "weekly_internet_report")
+      .eq("reference_id", id)
+
+    if (notificationsError) {
+      console.warn("[weekly-reports] Failed to delete linked notifications:", notificationsError)
+    }
+
+    const { error } = await supabaseAdmin
+      .from("weekly_internet_reports")
+      .delete()
+      .eq("id", id)
+
+    if (error) {
+      return NextResponse.json({ error: error.message }, { status: 500 })
+    }
+
+    await supabaseAdmin.from("notifications").insert({
+      user_id: existingReport.submitted_by,
+      title: "Weekly Report Removed",
+      message: `Your weekly internet services report for week ${existingReport.week_number}/${existingReport.year} was removed by admin.`,
+      type: "warning",
+      category: "weekly_report",
+      is_read: false,
+      read_at: null,
+      reference_type: "weekly_internet_report",
+      reference_id: id,
+    })
+
+    return NextResponse.json({ success: true })
+  } catch (error) {
+    console.error("[weekly-reports] DELETE error:", error)
+    return NextResponse.json({ error: "Failed to delete report" }, { status: 500 })
+  }
+}
+
 // Helper: get ISO week number
 function getWeekNumber(date: Date): number {
   const d = new Date(Date.UTC(date.getFullYear(), date.getMonth(), date.getDate()))

@@ -90,6 +90,11 @@ export async function GET(request: Request) {
 
 export async function POST(request: Request) {
   try {
+    const supabase = createClient(
+      (process.env.NEXT_PUBLIC_SUPABASE_URL ?? "https://placeholder.supabase.co"),
+      (process.env.SUPABASE_SERVICE_ROLE_KEY ?? "placeholder-build-key")
+    )
+
     const formData = await request.formData()
     const file = formData.get("file") as File
     const title = formData.get("title") as string
@@ -104,6 +109,13 @@ export async function POST(request: Request) {
     if (!file || !title || !documentType || !uploadedBy || !uploadedByName) {
       return NextResponse.json(
         { error: "Missing required fields" },
+        { status: 400 }
+      )
+    }
+
+    if (file.type && file.type !== "application/pdf") {
+      return NextResponse.json(
+        { error: "Only PDF documents can be uploaded" },
         { status: 400 }
       )
     }
@@ -131,12 +143,30 @@ export async function POST(request: Request) {
 
     // Upload file to Vercel Blob
     const fileName = `pdf-documents/${Date.now()}_${file.name.replace(/\s+/g, "_")}`
-    const fileBuffer = await file.arrayBuffer()
+    let url: string
 
-    const { url } = await put(fileName, fileBuffer, {
-      access: "public",
-      contentType: "application/pdf",
-    })
+    try {
+      const blob = await put(fileName, file, {
+        access: "public",
+        contentType: file.type || "application/pdf",
+      })
+
+      url = blob.url
+    } catch (blobError) {
+      console.error("[v0] Error uploading PDF to Vercel Blob:", blobError)
+
+      const message = blobError instanceof Error ? blobError.message : "Unknown blob upload error"
+      const isBlobConfigError = message.toLowerCase().includes("token") || message.toLowerCase().includes("blob")
+
+      return NextResponse.json(
+        {
+          error: isBlobConfigError
+            ? "Document storage is not configured correctly. Please set the Vercel Blob token and try again."
+            : message,
+        },
+        { status: 500 }
+      )
+    }
 
     console.log("[v0] File uploaded to Vercel Blob successfully:", url)
 
@@ -192,6 +222,11 @@ export async function POST(request: Request) {
 
 export async function PATCH(request: Request) {
   try {
+    const supabase = createClient(
+      (process.env.NEXT_PUBLIC_SUPABASE_URL ?? "https://placeholder.supabase.co"),
+      (process.env.SUPABASE_SERVICE_ROLE_KEY ?? "placeholder-build-key")
+    )
+
     const { id, title, description, documentType, targetLocation, userRole, userId, userName } = await request.json()
 
     if (!id || !title || !documentType) {
@@ -243,6 +278,11 @@ export async function PATCH(request: Request) {
 
 export async function DELETE(request: Request) {
   try {
+    const supabase = createClient(
+      (process.env.NEXT_PUBLIC_SUPABASE_URL ?? "https://placeholder.supabase.co"),
+      (process.env.SUPABASE_SERVICE_ROLE_KEY ?? "placeholder-build-key")
+    )
+
     const { searchParams } = new URL(request.url)
     const id = searchParams.get("id")
     const userId = searchParams.get("userId")

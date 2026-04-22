@@ -102,6 +102,12 @@ const navigationItems: NavigationItem[] = [
     roles: ["admin"],
   },
   {
+    name: "Staff Performance",
+    href: "/dashboard/staff-performance-report",
+    icon: BarChart3,
+    roles: ["it_staff", "it_head", "it_store_head", "regional_it_head", "admin"],
+  },
+  {
     name: "System Settings",
     href: "/dashboard/system-settings",
     icon: Settings,

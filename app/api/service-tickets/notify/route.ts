@@ -8,6 +8,9 @@ const supabaseAdmin = createClient(
 
 // Maps broadcast target_role values to the actual role values stored in profiles
 const ROLE_MAP: Record<string, string[]> = {
+  all_staff:          ["it_head", "regional_it_head", "it_staff", "it_store_head",
+                       "service_desk_staff", "service_desk_head", "department_head",
+                       "staff", "user"],
   it_staff:           ["it_staff"],
   service_desk_staff: ["service_desk_staff"],
   service_desk_head:  ["service_desk_head"],

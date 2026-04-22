@@ -279,6 +279,11 @@ export function ModernSidebar({ isOpen, setIsOpen, className, onCollapseChange }
             href: "/dashboard/store-summary-report",
             icon: FileText,
           },
+          {
+            name: "Staff Performance Report",
+            href: "/dashboard/staff-performance-report",
+            icon: Target,
+          },
           { name: "IT Documents", href: "/dashboard/it-documents", icon: FileText },
           { name: "My Complaints", href: "/dashboard/complaints", icon: MessageSquare },
         ],
@@ -310,6 +315,11 @@ export function ModernSidebar({ isOpen, setIsOpen, className, onCollapseChange }
             href: "/dashboard/repairs",
             icon: Wrench,
             badge: counts.repairs > 0 ? counts.repairs : undefined,
+          },
+          {
+            name: "Staff Performance Report",
+            href: "/dashboard/staff-performance-report",
+            icon: Target,
           },
           { name: "IT Documents", href: "/dashboard/it-documents", icon: FileText },
           { name: "Users", href: "/dashboard/users", icon: Users },

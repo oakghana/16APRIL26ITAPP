@@ -16,7 +16,7 @@ import { useAuth } from "@/lib/auth-context"
 import { toast } from "sonner"
 import {
   Wifi, TrendingDown, TrendingUp, CheckCircle2, AlertTriangle,
-  Clock, ChevronDown, ChevronUp, Eye, ThumbsUp, Filter
+  Clock, ChevronDown, ChevronUp, Eye, ThumbsUp, Filter, Trash2
 } from "lucide-react"
 
 interface WeeklyReport {
@@ -81,6 +81,8 @@ export default function WeeklyReportsAdminView() {
   const [acknowledgeId, setAcknowledgeId] = useState<string | null>(null)
   const [ackNotes, setAckNotes] = useState("")
   const [ackLoading, setAckLoading] = useState(false)
+  const [deleteId, setDeleteId] = useState<string | null>(null)
+  const [deleteLoading, setDeleteLoading] = useState(false)
   const [filterYear, setFilterYear] = useState(new Date().getFullYear().toString())
   const [filterStatus, setFilterStatus] = useState("all")
   const [filterLocation, setFilterLocation] = useState("all")
@@ -134,6 +136,37 @@ export default function WeeklyReportsAdminView() {
       toast.error(e instanceof Error ? e.message : "Failed to acknowledge report")
     } finally {
       setAckLoading(false)
+    }
+  }
+
+  const handleDeleteReport = async () => {
+    if (!deleteId || !user?.id) return
+
+    setDeleteLoading(true)
+    try {
+      const params = new URLSearchParams({
+        id: deleteId,
+        requestedBy: user.id,
+        requestedByRole: user.role,
+      })
+
+      const res = await fetch(`/api/weekly-internet-reports?${params.toString()}`, {
+        method: "DELETE",
+      })
+      const data = await res.json()
+
+      if (!res.ok) throw new Error(data.error || "Failed to delete report")
+
+      toast.success("Weekly report deleted")
+      if (expandedId === deleteId) {
+        setExpandedId(null)
+      }
+      setDeleteId(null)
+      loadReports()
+    } catch (e) {
+      toast.error(e instanceof Error ? e.message : "Failed to delete report")
+    } finally {
+      setDeleteLoading(false)
     }
   }
 
@@ -392,6 +425,46 @@ export default function WeeklyReportsAdminView() {
                             </Button>
                             <Button onClick={handleAcknowledge} disabled={ackLoading}>
                               {ackLoading ? "Acknowledging..." : "Acknowledge"}
+                            </Button>
+                          </DialogFooter>
+                        </DialogContent>
+                      </Dialog>
+                    </div>
+                  )}
+
+                  {user?.role === "admin" && (
+                    <div className="pt-2">
+                      <Dialog open={deleteId === report.id} onOpenChange={(open) => {
+                        if (!open) {
+                          setDeleteId(null)
+                        }
+                      }}>
+                        <DialogTrigger asChild>
+                          <Button
+                            size="sm"
+                            variant="destructive"
+                            onClick={() => setDeleteId(report.id)}
+                          >
+                            <Trash2 className="h-4 w-4 mr-1.5" />
+                            Delete Report
+                          </Button>
+                        </DialogTrigger>
+                        <DialogContent>
+                          <DialogHeader>
+                            <DialogTitle>Delete Weekly Report</DialogTitle>
+                            <DialogDescription>
+                              This will permanently remove {report.submitted_by_name}&apos;s report for week {report.week_number}/{report.year}.
+                            </DialogDescription>
+                          </DialogHeader>
+                          <div className="rounded-md border border-red-200 bg-red-50 p-3 text-sm text-red-700">
+                            Use this only for irrelevant or incorrect reports. This action cannot be undone.
+                          </div>
+                          <DialogFooter>
+                            <Button variant="outline" onClick={() => setDeleteId(null)}>
+                              Cancel
+                            </Button>
+                            <Button variant="destructive" onClick={handleDeleteReport} disabled={deleteLoading}>
+                              {deleteLoading ? "Deleting..." : "Delete Report"}
                             </Button>
                           </DialogFooter>
                         </DialogContent>
