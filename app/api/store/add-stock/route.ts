@@ -228,12 +228,16 @@ export async function POST(request: NextRequest) {
       })
     } else {
       // Create new item
+      // Generate a unique SIV number (Stock Item Voucher)
+      const sivNumber = `SIV-${Date.now()}-${Math.random().toString(36).substring(7).toUpperCase()}`
+      
       const { data: newItem, error: insertError } = await supabaseAdmin
         .from("store_items")
         .insert({
           name,
           category: normalizedCategory,
           sku: sku || `SKU-${Date.now()}`,
+          siv_number: sivNumber,
           quantity: parseInt(quantity),
           quantity_in_stock: parseInt(quantity),
           unit: unit || "pcs",
