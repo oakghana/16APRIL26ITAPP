@@ -167,12 +167,12 @@ export async function GET(request: NextRequest) {
       const volumeScore = Math.min(100, (completedTasks.length / 50) * 100)
 
       // Final score calculation with revised weightings:
-      // 65% - Task Volume (actual number of tasks completed) — PRIMARY METRIC
-      // 20% - On-Time Completion Rate (deadline adherence)
+      // 80% - Task Volume (actual number of tasks completed) — PRIMARY METRIC
       // 10% - Speed Bonus (faster completions)
+      // 5% - On-Time Completion Rate (deadline adherence)
       // 5% - Completion Rate percentage (secondary metric)
       const productivityScore = Math.round(
-        volumeScore * 0.65 + onTimeRate * 0.20 + speedBonus * 0.10 + completionRate * 0.05
+        volumeScore * 0.80 + speedBonus * 0.10 + onTimeRate * 0.05 + completionRate * 0.05
       )
 
       let grading: "Excellent" | "Good" | "Average" | "Below Average" | "Poor"
