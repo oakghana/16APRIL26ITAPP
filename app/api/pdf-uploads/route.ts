@@ -316,9 +316,16 @@ export async function DELETE(request: Request) {
     const id = searchParams.get("id")
     const userId = searchParams.get("userId")
     const userName = searchParams.get("userName")
+    const userRole = searchParams.get("userRole")
 
     if (!id) {
       return NextResponse.json({ error: "Missing upload ID" }, { status: 400 })
+    }
+
+    // Only admins can delete documents
+    if (userRole !== "admin") {
+      console.warn(`[v0] Delete rejected - insufficient permissions. Role: ${userRole}, User: ${userId}`)
+      return NextResponse.json({ error: "Only administrators can delete documents" }, { status: 403 })
     }
 
     // Get the document details before deletion
@@ -361,6 +368,7 @@ export async function DELETE(request: Request) {
       })
     }
 
+    console.log(`[v0] Document deleted successfully - ID: ${id}, Deleted by: ${userName}`)
     return NextResponse.json({ success: true })
   } catch (error) {
     console.error("Error in DELETE /api/pdf-uploads:", error)

@@ -138,7 +138,7 @@ export function PDFUploadsDashboard() {
     (user.role === "it_staff" && user.location && locationsMatch(user.location, "Head Office"))
   )
   const canEdit = user && ["admin", "it_head"].includes(user.role)
-  const canDelete = user && ["admin", "it_head"].includes(user.role)
+  const canDelete = user && user.role === "admin"
   const canConfirmUploads = user && user.role === "admin"
   const isLocationRestrictedUser = !!user && !["admin", "it_head"].includes(user.role)
 
@@ -394,6 +394,9 @@ export function PDFUploadsDashboard() {
       }
       if (user?.full_name || user?.name || user?.username) {
         params.append("userName", user.full_name || user.name || user.username)
+      }
+      if (user?.role) {
+        params.append("userRole", user.role)
       }
 
       const response = await fetch(`/api/pdf-uploads?${params.toString()}`, {
