@@ -1,6 +1,13 @@
 import { NextResponse, NextRequest } from "next/server"
 import { createClient } from "@supabase/supabase-js"
 
+function normalizeValue(value: string | null | undefined) {
+  return (value || "")
+    .trim()
+    .replace(/\s+/g, " ")
+    .toLowerCase()
+}
+
 export async function POST(request: NextRequest) {
   try {
     const supabaseAdmin = createClient(
@@ -32,14 +39,11 @@ export async function POST(request: NextRequest) {
       )
     }
 
-    // Get all staff members in the same department AND location
-    const { data: staffMembers, error: staffError } = await supabaseAdmin
+    // Fetch all eligible users, then match department/location in code so case/spacing mismatches do not break linking.
+    const { data: candidates, error: staffError } = await supabaseAdmin
       .from("profiles")
-      .select("id, full_name, email, department, location")
-      .eq("department", headProfile.department)
-      .eq("location", headProfile.location)
-      .eq("role", "staff")
-      .eq("is_active", true)
+      .select("id, full_name, email, department, location, role, is_active, status")
+      .or("is_active.eq.true,status.eq.approved")
 
     if (staffError) {
       console.error("[v0] Error fetching staff members:", staffError)
@@ -48,6 +52,19 @@ export async function POST(request: NextRequest) {
         { status: 500 }
       )
     }
+
+    const excludedRoles = new Set(["admin", "it_head", "regional_it_head", "service_provider", "department_head"])
+    const targetDepartment = normalizeValue(headProfile.department)
+    const targetLocation = normalizeValue(headProfile.location)
+
+    const staffMembers = (candidates || []).filter((member: any) => {
+      if (!member || member.id === department_head_id) return false
+      if (excludedRoles.has(member.role)) return false
+      return (
+        normalizeValue(member.department) === targetDepartment &&
+        normalizeValue(member.location) === targetLocation
+      )
+    })
 
     if (!staffMembers || staffMembers.length === 0) {
       return NextResponse.json({
@@ -87,7 +104,7 @@ export async function POST(request: NextRequest) {
     console.log(
       "[v0] Successfully auto-linked",
       staffIds.length,
-      `staff members to ${headProfile.full_name} (${headProfile.department} @ ${headProfile.location})`
+      `eligible users to ${headProfile.full_name} (${headProfile.department} @ ${headProfile.location})`
     )
 
     return NextResponse.json({

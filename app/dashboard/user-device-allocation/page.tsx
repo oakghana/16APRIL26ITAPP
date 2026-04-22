@@ -11,6 +11,7 @@ import { Search, Monitor, Wrench, Archive, CheckCircle, Download, User, MapPin, 
 import { useAuth } from "@/lib/auth-context"
 import { useRouter } from "next/navigation"
 import { getCanonicalLocationName } from "@/lib/location-filter"
+import { safeJsonParse, safeStorage } from "@/lib/utils"
 
 interface Device {
   id: string

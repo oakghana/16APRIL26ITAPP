@@ -12,7 +12,8 @@ import { useAuth } from "@/lib/auth-context"
 import { toast } from "sonner"
 import {
   Wifi, AlertTriangle, CheckCircle2, Clock, FileText,
-  Send, Save, Calendar, Activity, TrendingDown, Users, Bell
+  Send, Save, Calendar, Activity, TrendingDown, Users, Bell,
+  Paperclip, Upload, X, ImageIcon
 } from "lucide-react"
 
 interface WeeklyReport {
@@ -44,6 +45,7 @@ interface WeeklyReport {
   planned_maintenance: string
   maintenance_window: string
   additional_notes: string
+  attachments: string[]
   status?: string
 }
 
@@ -108,6 +110,7 @@ const emptyReport = (): WeeklyReport => ({
   planned_maintenance: "",
   maintenance_window: "",
   additional_notes: "",
+  attachments: [],
 })
 
 const STATUS_OPTIONS = [
@@ -123,6 +126,7 @@ export default function WeeklyInternetReportForm() {
   const [loading, setLoading] = useState(false)
   const [existingReport, setExistingReport] = useState<WeeklyReport | null>(null)
   const [loadingExisting, setLoadingExisting] = useState(true)
+  const [uploadingFiles, setUploadingFiles] = useState(false)
   const friday = isFriday()
   const daysLeft = daysUntilFriday()
 
@@ -163,8 +167,38 @@ export default function WeeklyInternetReportForm() {
     loadExistingReport()
   }, [loadExistingReport])
 
-  const handleChange = (field: keyof WeeklyReport, value: string | boolean) => {
+  const handleChange = (field: keyof WeeklyReport, value: string | boolean | string[]) => {
     setForm(prev => ({ ...prev, [field]: value }))
+  }
+
+  const handleFileUpload = async (files: FileList | null) => {
+    if (!files || files.length === 0) return
+    setUploadingFiles(true)
+    const uploaded: string[] = []
+    try {
+      for (const file of Array.from(files)) {
+        const formData = new FormData()
+        formData.append("file", file)
+        formData.append("folder", "weekly-reports")
+        const res = await fetch("/api/upload-attachment", { method: "POST", body: formData })
+        const data = await res.json()
+        if (res.ok && data.url) {
+          uploaded.push(data.url)
+        } else {
+          toast.error(`Failed to upload ${file.name}: ${data.error || "Unknown error"}`)
+        }
+      }
+      if (uploaded.length > 0) {
+        setForm(prev => ({ ...prev, attachments: [...(prev.attachments || []), ...uploaded] }))
+        toast.success(`${uploaded.length} file(s) uploaded`)
+      }
+    } finally {
+      setUploadingFiles(false)
+    }
+  }
+
+  const removeAttachment = (url: string) => {
+    setForm(prev => ({ ...prev, attachments: (prev.attachments || []).filter(a => a !== url) }))
   }
 
   const handleSubmit = async (submitStatus: "draft" | "submitted") => {
@@ -566,32 +600,15 @@ export default function WeeklyInternetReportForm() {
         </CardContent>
       </Card>
 
-      {/* Planned Maintenance */}
+      {/* Attachments / File Upload */}
       <Card>
         <CardHeader>
           <CardTitle className="text-base flex items-center gap-2">
-            <Calendar className="h-4 w-4 text-blue-600" />
-            Upcoming Maintenance & Notes
+            <Paperclip className="h-4 w-4 text-indigo-600" />
+            Attachments
           </CardTitle>
         </CardHeader>
         <CardContent className="space-y-4">
-          <div className="space-y-2">
-            <Label>Planned Maintenance Next Week</Label>
-            <Textarea
-              placeholder="Describe any planned maintenance or upgrades scheduled for next week..."
-              value={form.planned_maintenance}
-              onChange={(e) => handleChange("planned_maintenance", e.target.value)}
-              rows={2}
-            />
-          </div>
-          <div className="space-y-2">
-            <Label>Maintenance Window (Date & Time)</Label>
-            <Input
-              placeholder="e.g. Saturday 28 Apr, 10pm – 2am"
-              value={form.maintenance_window}
-              onChange={(e) => handleChange("maintenance_window", e.target.value)}
-            />
-          </div>
           <div className="space-y-2">
             <Label>Additional Notes</Label>
             <Textarea
@@ -601,6 +618,58 @@ export default function WeeklyInternetReportForm() {
               rows={3}
             />
           </div>
+          {/* Upload area */}
+          <div
+            className="border-2 border-dashed border-muted-foreground/30 rounded-lg p-6 text-center cursor-pointer hover:border-primary/50 transition-colors"
+            onDragOver={(e) => e.preventDefault()}
+            onDrop={(e) => { e.preventDefault(); handleFileUpload(e.dataTransfer.files) }}
+            onClick={() => document.getElementById("attachment-input")?.click()}
+          >
+            <input
+              id="attachment-input"
+              type="file"
+              multiple
+              accept="image/*,.pdf,.doc,.docx,.xls,.xlsx"
+              className="hidden"
+              onChange={(e) => handleFileUpload(e.target.files)}
+            />
+            {uploadingFiles ? (
+              <div className="flex flex-col items-center gap-2 text-muted-foreground">
+                <Upload className="h-8 w-8 animate-bounce" />
+                <span className="text-sm">Uploading...</span>
+              </div>
+            ) : (
+              <div className="flex flex-col items-center gap-2 text-muted-foreground">
+                <ImageIcon className="h-8 w-8" />
+                <span className="text-sm font-medium">Click or drag files here to upload</span>
+                <span className="text-xs">Images, PDF, Word, Excel — max 10 MB each</span>
+              </div>
+            )}
+          </div>
+          {/* Uploaded file list */}
+          {(form.attachments || []).length > 0 && (
+            <div className="space-y-2">
+              {(form.attachments || []).map((url) => {
+                const fileName = url.split("/").pop()?.replace(/^\d+_/, "") || url
+                const isImage = /\.(jpg|jpeg|png|gif|webp)$/i.test(fileName)
+                return (
+                  <div key={url} className="flex items-center gap-2 p-2 rounded border bg-muted/30">
+                    {isImage ? (
+                      <img src={url} alt={fileName} className="h-10 w-10 object-cover rounded" />
+                    ) : (
+                      <FileText className="h-8 w-8 text-muted-foreground shrink-0" />
+                    )}
+                    <a href={url} target="_blank" rel="noreferrer" className="flex-1 text-sm truncate text-primary hover:underline">
+                      {fileName}
+                    </a>
+                    <button type="button" onClick={() => removeAttachment(url)} className="text-muted-foreground hover:text-destructive">
+                      <X className="h-4 w-4" />
+                    </button>
+                  </div>
+                )
+              })}
+            </div>
+          )}
         </CardContent>
       </Card>
 

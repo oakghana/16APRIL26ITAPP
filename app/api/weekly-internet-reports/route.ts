@@ -84,6 +84,7 @@ export async function POST(request: NextRequest) {
       planned_maintenance,
       maintenance_window,
       additional_notes,
+      attachments,
       status: reportStatus,
     } = body
 
@@ -128,6 +129,7 @@ export async function POST(request: NextRequest) {
       planned_maintenance: planned_maintenance || null,
       maintenance_window: maintenance_window || null,
       additional_notes: additional_notes || null,
+      attachments: Array.isArray(attachments) ? attachments : [],
       status: reportStatus || "submitted",
       submitted_at: reportStatus === "submitted" ? new Date().toISOString() : null,
       updated_at: new Date().toISOString(),

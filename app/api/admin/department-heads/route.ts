@@ -1,6 +1,13 @@
 import { NextResponse } from "next/server"
 import { createClient } from "@supabase/supabase-js"
 
+function normalizeValue(value: string | null | undefined) {
+  return (value || "")
+    .trim()
+    .replace(/\s+/g, " ")
+    .toLowerCase()
+}
+
 const supabaseAdmin = createClient(
   (process.env.NEXT_PUBLIC_SUPABASE_URL ?? "https://placeholder.supabase.co"),
   (process.env.SUPABASE_SERVICE_ROLE_KEY ?? "placeholder-build-key")
@@ -8,34 +15,43 @@ const supabaseAdmin = createClient(
 
 export async function GET() {
   try {
-    // Get all department heads with staff count
-    const { data: heads, error } = await supabaseAdmin
-      .from("profiles")
-      .select("id, full_name, email, department")
-      .eq("role", "department_head")
-      .eq("is_active", true)
+    const [{ data: heads, error: headsError }, { data: allProfiles, error: profilesError }] = await Promise.all([
+      supabaseAdmin
+        .from("profiles")
+        .select("id, full_name, email, department, location, role, is_active, status")
+        .eq("role", "department_head")
+        .or("is_active.eq.true,status.eq.approved"),
+      supabaseAdmin
+        .from("profiles")
+        .select("id, department, location, role, is_active, status")
+        .or("is_active.eq.true,status.eq.approved"),
+    ])
 
-    if (error) throw error
+    if (headsError) throw headsError
+    if (profilesError) throw profilesError
 
-    // Count staff for each head
-    const headsWithCounts = await Promise.all(
-      (heads || []).map(async (head: any) => {
-        const { count } = await supabaseAdmin
-          .from("profiles")
-          .select("*", { count: "exact", head: true })
-          .eq("department", head.department)
-          .eq("role", "staff")
-          .eq("is_active", true)
+    const excludedRoles = new Set(["admin", "it_head", "regional_it_head", "service_provider", "department_head"])
+    const eligibleUsers = (allProfiles || []).filter((profile: any) => !excludedRoles.has(profile.role))
 
-        return {
-          id: head.id,
-          name: head.full_name,
-          email: head.email,
-          department: head.department,
-          staff_count: count || 0,
-        }
+    const headsWithCounts = (heads || []).map((head: any) => {
+      const targetDepartment = normalizeValue(head.department)
+      const targetLocation = normalizeValue(head.location)
+      const matchedUsers = eligibleUsers.filter((profile: any) => {
+        return (
+          normalizeValue(profile.department) === targetDepartment &&
+          normalizeValue(profile.location) === targetLocation
+        )
       })
-    )
+
+      return {
+        id: head.id,
+        name: head.full_name,
+        email: head.email,
+        department: head.department,
+        location: head.location,
+        staff_count: matchedUsers.length,
+      }
+    })
 
     return NextResponse.json({ department_heads: headsWithCounts })
   } catch (error) {

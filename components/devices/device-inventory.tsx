@@ -2,6 +2,7 @@
 
 import { useState, useEffect, useMemo } from "react"
 import { Button } from "@/components/ui/button"
+import { Checkbox } from "@/components/ui/checkbox"
 import { Input } from "@/components/ui/input"
 import { Card, CardContent } from "@/components/ui/card"
 import { Badge } from "@/components/ui/badge"
@@ -13,21 +14,22 @@ import { BulkDeviceImportDialog } from "./bulk-device-import-dialog"
 import { DeviceLocationReallocationDialog } from "./device-location-reallocation-dialog"
 import { DeviceQuickEntryDialog } from "./device-quick-entry-dialog"
 import { RepairServiceProviderDialog } from "./repair-service-provider-dialog"
-import { Plus, Monitor, Smartphone, Printer, HardDrive, Laptop, Server, UsbIcon, Download, Upload, FileDown } from "lucide-react"
+import { Plus, Monitor, Smartphone, Printer, HardDrive, Laptop, Server, UsbIcon, Download, Upload, FileDown, Search } from "lucide-react"
 import { createClient } from "@/lib/supabase/client"
 import { useAuth } from "@/lib/auth-context"
-import { canSeeAllLocations, getCanonicalLocationName, normalizeLocation } from "@/lib/location-filter"
+import { canSeeAllLocations, getCanonicalLocationName, locationsMatch, normalizeLocation } from "@/lib/location-filter"
 import { toast } from "@/hooks/use-toast"
 import { deviceLocationService } from "@/lib/device-location-service"
 import { notificationService } from "@/lib/notification-service"
 import { DataPagination } from "@/components/ui/data-pagination"
 import { SortControls } from "@/components/ui/sort-controls"
 import { sortItems } from "@/lib/sort-utils"
+import { buildDeviceTypeOptions, normalizeDeviceTypeCode } from "@/lib/device-types"
 
 interface Device {
   id: string
   name: string
-  type: "laptop" | "desktop" | "printer" | "mobile" | "server" | "other"
+  type: string
   serialNumber: string
   assetTag: string
   model: string
@@ -37,7 +39,7 @@ interface Device {
   assignedTo: string
   assignedDate: string
   lastUpdated: string
-  deviceType: "laptop" | "desktop" | "printer" | "mobile" | "server" | "other"
+  deviceType: string
   purchaseDate: string
   warrantyExpiry: string
   region_id?: string
@@ -48,26 +50,34 @@ const deviceTypeIcons = {
   laptop: Laptop,
   desktop: Monitor,
   printer: Printer,
+  photocopier: Printer,
   mobile: Smartphone,
+  handset: Smartphone,
   server: Server,
   monitor: Monitor,
   scanner: Printer,
   ups: HardDrive,
   stabiliser: HardDrive,
   network_cable: UsbIcon,
+  network_adapter: UsbIcon,
   switch: Server,
   router: Server,
   projector: Monitor,
+  cctv_camera: Monitor,
   keyboard: Monitor,
   mouse: Monitor,
   webcam: Monitor,
   headset: Smartphone,
+  external_drive: HardDrive,
   external_hdd: HardDrive,
   flash_drive: HardDrive,
-  network_adapter: UsbIcon,
   docking_station: Monitor,
+  adapter: UsbIcon,
+  charger: UsbIcon,
+  battery: HardDrive,
   toner: Printer,
   ink: Printer,
+  cable: UsbIcon,
   power_cable: UsbIcon,
   hdmi_cable: UsbIcon,
   vga_cable: UsbIcon,
@@ -154,6 +164,11 @@ export function DeviceInventory() {
   const [dbLocations, setDbLocations] = useState<{ code: string; name: string; region_id?: string }[]>([])
   const [dbRegions, setDbRegions] = useState<{ id: string; code: string; name: string }[]>([])
   const [dbDistricts, setDbDistricts] = useState<{ id: string; code: string; name: string; region_id: string }[]>([])
+  const [dbDeviceTypes, setDbDeviceTypes] = useState<Array<{ code: string; name: string }>>([])
+  const [assignableUsers, setAssignableUsers] = useState<Array<{ id: string; name: string; location: string }>>([])
+  const [editAssigneeSearchOpen, setEditAssigneeSearchOpen] = useState(false)
+  const [editAssigneeSearchQuery, setEditAssigneeSearchQuery] = useState("")
+  const [editUseCustomAssignee, setEditUseCustomAssignee] = useState(false)
 
   const supabase = createClient()
   const canSelectAllLocations = user ? canSeeAllLocations(user) : false
@@ -162,6 +177,8 @@ export function DeviceInventory() {
     loadDevices()
     loadLocations()
     loadRegionsAndDistricts()
+    loadDeviceTypes()
+    loadAssignableUsers()
     checkDevicesWithoutLocation()
   }, [])
 
@@ -247,6 +264,32 @@ export function DeviceInventory() {
     }
   }
 
+  const loadDeviceTypes = async () => {
+    try {
+      const response = await fetch("/api/admin/lookup-data?type=device_types")
+      if (!response.ok) return
+      const data = await response.json()
+      setDbDeviceTypes(buildDeviceTypeOptions(data.filter((type: any) => type.is_active)))
+    } catch (error) {
+      console.error("Error loading device types:", error)
+    }
+  }
+
+  const loadAssignableUsers = async () => {
+    try {
+      const response = await fetch("/api/staff/list?allUsers=true")
+      if (!response.ok) return
+      const data = await response.json()
+      setAssignableUsers(
+        (data.staff || [])
+          .filter((member: any) => member.is_active !== false)
+          .map((member: any) => ({ id: member.id, name: member.name, location: member.location }))
+      )
+    } catch (error) {
+      console.error("Error loading assignable users:", error)
+    }
+  }
+
   // Auto-populate region when location changes
   const handleLocationChange = (locationCode: string) => {
     const selectedLocation = dbLocations.find((loc) => loc.code === locationCode)
@@ -286,17 +329,17 @@ export function DeviceInventory() {
       const mappedDevices: Device[] = data.map((device: any) => ({
         id: device.id,
         name: `${device.brand} ${device.model}`,
-        type: device.device_type?.toLowerCase() || "other",
+        type: normalizeDeviceTypeCode(device.device_type),
         serialNumber: device.serial_number,
         assetTag: device.asset_tag || "",
         model: device.model,
         brand: device.brand,
         status: device.status || "active",
-        location: (device.location || "Head Office") as Device["location"],
+        location: device.location || "Head Office",
         assignedTo: device.assigned_to || "Unassigned",
         assignedDate: device.purchase_date || device.created_at,
         lastUpdated: device.updated_at || device.created_at,
-        deviceType: device.device_type?.toLowerCase() || "other",
+        deviceType: normalizeDeviceTypeCode(device.device_type),
         purchaseDate: device.purchase_date || "",
         warrantyExpiry: device.warranty_expiry || "",
         region_id: device.region_id || "",
@@ -390,7 +433,7 @@ export function DeviceInventory() {
   const handleEditDevice = (device: Device) => {
     setSelectedDevice(device)
     setEditFormData({
-      device_type: device.deviceType,
+      device_type: normalizeDeviceTypeCode(device.deviceType),
       brand: device.brand,
       model: device.model,
       serial_number: device.serialNumber,
@@ -403,6 +446,9 @@ export function DeviceInventory() {
       region_id: device.region_id || "",
       district_id: device.district_id || "",
     })
+    setEditAssigneeSearchOpen(false)
+    setEditAssigneeSearchQuery("")
+    setEditUseCustomAssignee(false)
     setEditDeviceOpen(true)
     setEditError("")
   }
@@ -476,6 +522,25 @@ export function DeviceInventory() {
       setEditLoading(false)
     }
   }
+
+  const editDeviceTypeOptions = useMemo(
+    () => buildDeviceTypeOptions(dbDeviceTypes, editFormData.device_type),
+    [dbDeviceTypes, editFormData.device_type]
+  )
+
+  const editAssigneeOptions = useMemo(() => {
+    const matched = assignableUsers.filter((member) => locationsMatch(member.location, editFormData.location))
+    if (editFormData.assigned_to && !matched.some((member) => member.name === editFormData.assigned_to)) {
+      return [{ id: "current", name: editFormData.assigned_to, location: editFormData.location }, ...matched]
+    }
+    return matched
+  }, [assignableUsers, editFormData.assigned_to, editFormData.location])
+
+  const filteredEditAssigneeOptions = useMemo(() => {
+    const query = editAssigneeSearchQuery.trim().toLowerCase()
+    if (!query) return editAssigneeOptions
+    return editAssigneeOptions.filter((member) => member.name.toLowerCase().includes(query))
+  }, [editAssigneeOptions, editAssigneeSearchQuery])
 
   const handleExportToExcel = () => {
     try {
@@ -933,12 +998,11 @@ export function DeviceInventory() {
                   <SelectValue />
                 </SelectTrigger>
                 <SelectContent>
-                  <SelectItem value="laptop">Laptop</SelectItem>
-                  <SelectItem value="desktop">Desktop</SelectItem>
-                  <SelectItem value="printer">Printer</SelectItem>
-                  <SelectItem value="mobile">Mobile Device</SelectItem>
-                  <SelectItem value="server">Server</SelectItem>
-                  <SelectItem value="other">Other</SelectItem>
+                  {editDeviceTypeOptions.map((type) => (
+                    <SelectItem key={type.code} value={type.code}>
+                      {type.name}
+                    </SelectItem>
+                  ))}
                 </SelectContent>
               </Select>
             </div>
@@ -989,10 +1053,56 @@ export function DeviceInventory() {
             </div>
             <div className="space-y-2">
               <label className="text-sm font-medium">Assigned To</label>
-              <Input
-                value={editFormData.assigned_to}
-                onChange={(e) => setEditFormData({ ...editFormData, assigned_to: e.target.value })}
-              />
+              <div className="flex items-center gap-2">
+                <Button
+                  type="button"
+                  variant="outline"
+                  size="sm"
+                  onClick={() => setEditAssigneeSearchOpen((prev) => !prev)}
+                >
+                  <Search className="h-4 w-4 mr-2" />Search Users
+                </Button>
+                <div className="flex items-center gap-2 text-sm">
+                  <Checkbox
+                    id="editAssignedToCustom"
+                    checked={editUseCustomAssignee}
+                    onCheckedChange={(checked) => setEditUseCustomAssignee(Boolean(checked))}
+                  />
+                  <label htmlFor="editAssignedToCustom" className="text-sm font-normal">Use custom assignee</label>
+                </div>
+              </div>
+              {editAssigneeSearchOpen && !editUseCustomAssignee && (
+                <Input
+                  value={editAssigneeSearchQuery}
+                  onChange={(e) => setEditAssigneeSearchQuery(e.target.value)}
+                  placeholder="Search users at this location"
+                />
+              )}
+              {editUseCustomAssignee ? (
+                <Input
+                  value={editFormData.assigned_to}
+                  onChange={(e) => setEditFormData({ ...editFormData, assigned_to: e.target.value })}
+                  placeholder="Enter custom user or department"
+                />
+              ) : (
+                <Select
+                  value={editFormData.assigned_to || "__unassigned__"}
+                  onValueChange={(value) => setEditFormData({ ...editFormData, assigned_to: value === "__unassigned__" ? "" : value })}
+                >
+                  <SelectTrigger>
+                    <SelectValue placeholder="Select user at this location" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="__unassigned__">Unassigned</SelectItem>
+                    {filteredEditAssigneeOptions.map((member) => (
+                      <SelectItem key={`${member.id}-${member.name}`} value={member.name}>
+                        {member.name}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              )}
+              <p className="text-xs text-muted-foreground">Users are filtered to the device location. Switch to custom if the person is not listed.</p>
             </div>
             <div className="space-y-2">
               <label className="text-sm font-medium">Purchase Date</label>

@@ -1,0 +1,265 @@
+
+> my-v0-project@0.1.0 build C:\aprilitapp\IT-APP
+> next build
+
+[baseline-browser-mapping] The data in this module is over two months old.  To ensure accurate Baseline data, please update: `npm i baseline-browser-mapping@latest -D`
+   Γû▓ Next.js 16.0.10 (Turbopack)
+   - Environments: .env.local
+
+   Creating an optimized production build ...
+[baseline-browser-mapping] The data in this module is over two months old.  To ensure accurate Baseline data, please update: `npm i baseline-browser-mapping@latest -D`
+ Γ£ô Compiled successfully in 38.3s
+   Skipping validation of types
+   Collecting page data using 11 workers ...
+[baseline-browser-mapping] The data in this module is over two months old.  To ensure accurate Baseline data, please update: `npm i baseline-browser-mapping@latest -D`
+[baseline-browser-mapping] The data in this module is over two months old.  To ensure accurate Baseline data, please update: `npm i baseline-browser-mapping@latest -D`
+[baseline-browser-mapping] The data in this module is over two months old.  To ensure accurate Baseline data, please update: `npm i baseline-browser-mapping@latest -D`
+[baseline-browser-mapping] The data in this module is over two months old.  To ensure accurate Baseline data, please update: `npm i baseline-browser-mapping@latest -D`
+[baseline-browser-mapping] The data in this module is over two months old.  To ensure accurate Baseline data, please update: `npm i baseline-browser-mapping@latest -D`
+[baseline-browser-mapping] The data in this module is over two months old.  To ensure accurate Baseline data, please update: `npm i baseline-browser-mapping@latest -D`
+[baseline-browser-mapping] The data in this module is over two months old.  To ensure accurate Baseline data, please update: `npm i baseline-browser-mapping@latest -D`
+[baseline-browser-mapping] The data in this module is over two months old.  To ensure accurate Baseline data, please update: `npm i baseline-browser-mapping@latest -D`
+[baseline-browser-mapping] The data in this module is over two months old.  To ensure accurate Baseline data, please update: `npm i baseline-browser-mapping@latest -D`
+[baseline-browser-mapping] The data in this module is over two months old.  To ensure accurate Baseline data, please update: `npm i baseline-browser-mapping@latest -D`
+[baseline-browser-mapping] The data in this module is over two months old.  To ensure accurate Baseline data, please update: `npm i baseline-browser-mapping@latest -D`
+   Generating static pages using 11 workers (0/218) ...
+[baseline-browser-mapping] The data in this module is over two months old.  To ensure accurate Baseline data, please update: `npm i baseline-browser-mapping@latest -D`
+[baseline-browser-mapping] The data in this module is over two months old.  To ensure accurate Baseline data, please update: `npm i baseline-browser-mapping@latest -D`
+[baseline-browser-mapping] The data in this module is over two months old.  To ensure accurate Baseline data, please update: `npm i baseline-browser-mapping@latest -D`
+[baseline-browser-mapping] The data in this module is over two months old.  To ensure accurate Baseline data, please update: `npm i baseline-browser-mapping@latest -D`
+[baseline-browser-mapping] The data in this module is over two months old.  To ensure accurate Baseline data, please update: `npm i baseline-browser-mapping@latest -D`
+[baseline-browser-mapping] The data in this module is over two months old.  To ensure accurate Baseline data, please update: `npm i baseline-browser-mapping@latest -D`
+[baseline-browser-mapping] The data in this module is over two months old.  To ensure accurate Baseline data, please update: `npm i baseline-browser-mapping@latest -D`
+[baseline-browser-mapping] The data in this module is over two months old.  To ensure accurate Baseline data, please update: `npm i baseline-browser-mapping@latest -D`
+[baseline-browser-mapping] The data in this module is over two months old.  To ensure accurate Baseline data, please update: `npm i baseline-browser-mapping@latest -D`
+   Generating static pages using 11 workers (54/218) 
+   Generating static pages using 11 workers (108/218) 
+   Generating static pages using 11 workers (163/218) 
+ Γ£ô Generating static pages using 11 workers (218/218) in 7.1s
+   Finalizing page optimization ...
+
+Route (app)
+Γöî Γùï /
+Γö£ Γùï /_not-found
+Γö£ Γùï /admin/reset-password-debug
+Γö£ ╞Æ /api/admin/approve-user
+Γö£ ╞Æ /api/admin/auto-link-department-staff
+Γö£ ╞Æ /api/admin/backup-database
+Γö£ ╞Æ /api/admin/create-user
+Γö£ ╞Æ /api/admin/delete-data
+Γö£ ╞Æ /api/admin/delete-user
+Γö£ ╞Æ /api/admin/department-heads
+Γö£ ╞Æ /api/admin/force-reset-password
+Γö£ ╞Æ /api/admin/link-department-staff
+Γö£ ╞Æ /api/admin/lookup-data
+Γö£ ╞Æ /api/admin/notifications
+Γö£ ╞Æ /api/admin/pending-users
+Γö£ ╞Æ /api/admin/reject-user
+Γö£ ╞Æ /api/admin/reset-all-approved-passwords
+Γö£ ╞Æ /api/admin/reset-all-passwords
+Γö£ ╞Æ /api/admin/reset-all-passwords-ghana
+Γö£ ╞Æ /api/admin/reset-password
+Γö£ ╞Æ /api/admin/reset-passwords-now
+Γö£ ╞Æ /api/admin/reset-recent-passwords
+Γö£ ╞Æ /api/admin/reset-today-passwords
+Γö£ ╞Æ /api/admin/restore-database
+Γö£ ╞Æ /api/admin/service-providers
+Γö£ ╞Æ /api/admin/set-password-for-user
+Γö£ ╞Æ /api/admin/set-user-password
+Γö£ ╞Æ /api/admin/setup-admin
+Γö£ ╞Æ /api/admin/simulate-login
+Γö£ ╞Æ /api/admin/staff-list
+Γö£ ╞Æ /api/admin/system-settings
+Γö£ ╞Æ /api/admin/test-password
+Γö£ ╞Æ /api/admin/unlink-department-staff
+Γö£ ╞Æ /api/admin/update-user
+Γö£ ╞Æ /api/auth/change-password
+Γö£ ╞Æ /api/auth/login
+Γö£ ╞Æ /api/auth/logout
+Γö£ ╞Æ /api/auth/register
+Γö£ ╞Æ /api/auth/test-login
+Γö£ ╞Æ /api/auth/update-profile
+Γö£ ╞Æ /api/dashboard/badge-counts
+Γö£ ╞Æ /api/dashboard/stats
+Γö£ ╞Æ /api/debug/generate-hash
+Γö£ ╞Æ /api/debug/simulate-login-test
+Γö£ ╞Æ /api/debug/test-hash
+Γö£ ╞Æ /api/debug/test-login
+Γö£ ╞Æ /api/debug/verify-joseph-hash
+Γö£ ╞Æ /api/devices
+Γö£ ╞Æ /api/devices/assign-to-staff
+Γö£ ╞Æ /api/devices/bulk-import
+Γö£ ╞Æ /api/devices/by-location
+Γö£ ╞Æ /api/devices/delete
+Γö£ ╞Æ /api/devices/department-devices
+Γö£ ╞Æ /api/devices/duplicates
+Γö£ ╞Æ /api/devices/location-summary
+Γö£ ╞Æ /api/devices/reallocate-locations
+Γö£ ╞Æ /api/devices/summary-report
+Γö£ ╞Æ /api/devices/under-repair
+Γö£ ╞Æ /api/devices/update-device
+Γö£ ╞Æ /api/devices/user-allocation-summary
+Γö£ ╞Æ /api/devices/validate-location
+Γö£ ╞Æ /api/investigate-vr
+Γö£ ╞Æ /api/it-forms/approve
+Γö£ ╞Æ /api/it-forms/department-head-approve
+Γö£ ╞Æ /api/it-forms/department-head-requisitions
+Γö£ ╞Æ /api/it-forms/hod-approval-tracker
+Γö£ ╞Æ /api/it-forms/issue
+Γö£ ╞Æ /api/it-forms/it-head-approve
+Γö£ ╞Æ /api/it-forms/maintenance-repairs
+Γö£ ╞Æ /api/it-forms/my-requisitions
+Γö£ ╞Æ /api/it-forms/new-gadget
+Γö£ ╞Æ /api/it-forms/requisitions
+Γö£ ╞Æ /api/it-forms/service-desk-process
+Γö£ ╞Æ /api/it-forms/store-issue
+Γö£ ╞Æ /api/knowledge-base
+Γö£ ╞Æ /api/locations
+Γö£ ╞Æ /api/notifications
+Γö£ ╞Æ /api/notifications/send
+Γö£ ╞Æ /api/pdf-uploads
+Γö£ ╞Æ /api/pdf-uploads/admin-confirm
+Γö£ ╞Æ /api/pdf-uploads/audit-trail
+Γö£ ╞Æ /api/pdf-uploads/confirm
+Γö£ ╞Æ /api/pdf-uploads/history
+Γö£ ╞Æ /api/pdf-uploads/restore
+Γö£ ╞Æ /api/profile/update
+Γö£ ╞Æ /api/regional-needs-analysis
+Γö£ ╞Æ /api/repairs
+Γö£ ╞Æ /api/repairs/all-repairs
+Γö£ ╞Æ /api/repairs/confirm-status
+Γö£ ╞Æ /api/repairs/create
+Γö£ ╞Æ /api/repairs/delete
+Γö£ ╞Æ /api/repairs/invoice
+Γö£ ╞Æ /api/repairs/invoice/approve
+Γö£ ╞Æ /api/repairs/invoices
+Γö£ ╞Æ /api/repairs/regional-repairs
+Γö£ ╞Æ /api/repairs/service-desk-requests
+Γö£ ╞Æ /api/repairs/service-provider/all-available
+Γö£ ╞Æ /api/repairs/service-provider/my-devices
+Γö£ ╞Æ /api/repairs/service-provider/self-assign
+Γö£ ╞Æ /api/repairs/tasks
+Γö£ ╞Æ /api/repairs/update
+Γö£ ╞Æ /api/send-email
+Γö£ ╞Æ /api/service-providers
+Γö£ ╞Æ /api/service-tickets
+Γö£ ╞Æ /api/service-tickets/assign
+Γö£ ╞Æ /api/service-tickets/complete
+Γö£ ╞Æ /api/service-tickets/confirm-all
+Γö£ ╞Æ /api/service-tickets/delayed-alerts
+Γö£ ╞Æ /api/service-tickets/delete
+Γö£ ╞Æ /api/service-tickets/escalate
+Γö£ ╞Æ /api/service-tickets/hold
+Γö£ ╞Æ /api/service-tickets/message
+Γö£ ╞Æ /api/service-tickets/notify
+Γö£ ╞Æ /api/service-tickets/reassign
+Γö£ ╞Æ /api/service-tickets/update
+Γö£ ╞Æ /api/staff-members
+Γö£ ╞Æ /api/staff/department-members
+Γö£ ╞Æ /api/staff/list
+Γö£ ╞Æ /api/staff/my-productivity
+Γö£ ╞Æ /api/staff/productivity-metrics
+Γö£ ╞Æ /api/store/add-stock
+Γö£ ╞Æ /api/store/all-transactions
+Γö£ ╞Æ /api/store/allocate-requisition
+Γö£ ╞Æ /api/store/analytics
+Γö£ ╞Æ /api/store/approve-requisition
+Γö£ ╞Æ /api/store/assign-item
+Γö£ ╞Æ /api/store/assign-stock
+Γö£ ╞Æ /api/store/assignments
+Γö£ ╞Æ /api/store/auto-approve-requisition
+Γö£ ╞Æ /api/store/categories
+Γö£ ╞Æ /api/store/delete-item
+Γö£ ╞Æ /api/store/delete-requisition
+Γö£ ╞Æ /api/store/delete-transaction
+Γö£ ╞Æ /api/store/edit-requisition
+Γö£ ╞Æ /api/store/force-delete-item
+Γö£ ╞Æ /api/store/inventory-analytics
+Γö£ ╞Æ /api/store/issue-requisition
+Γö£ ╞Æ /api/store/item-history
+Γö£ ╞Æ /api/store/items
+Γö£ ╞Æ /api/store/merge-items
+Γö£ ╞Æ /api/store/regional-requisitions
+Γö£ ╞Æ /api/store/requisitions
+Γö£ ╞Æ /api/store/stock-additions
+Γö£ ╞Æ /api/store/stock-balance-report
+Γö£ ╞Æ /api/store/stock-items
+Γö£ ╞Æ /api/store/stock-transfer-requests
+Γö£ ╞Æ /api/store/summary-report
+Γö£ ╞Æ /api/store/transactions
+Γö£ ╞Æ /api/store/transfer-central-stores
+Γö£ ╞Æ /api/store/transfer-item
+Γö£ ╞Æ /api/store/update-assignment
+Γö£ ╞Æ /api/store/update-item
+Γö£ ╞Æ /api/store/update-requisition
+Γö£ ╞Æ /api/users
+Γö£ ╞Æ /api/users/create
+Γö£ ╞Æ /api/users/list
+Γö£ ╞Æ /api/weekly-internet-reports
+Γö£ ╞Æ /api/weekly-internet-reports/regional-heads
+Γö£ Γùï /create-account
+Γö£ Γùï /dashboard
+Γö£ Γùï /dashboard/admin
+Γö£ Γùï /dashboard/admin/department-heads
+Γö£ Γùï /dashboard/admin/invoices
+Γö£ Γùï /dashboard/admin/password-reset
+Γö£ Γùï /dashboard/analytics
+Γö£ Γùï /dashboard/assign-it-devices
+Γö£ Γùï /dashboard/assign-stock
+Γö£ Γùï /dashboard/assigned-repairs
+Γö£ Γùï /dashboard/assigned-tasks
+Γö£ Γùï /dashboard/broadcast-notifications
+Γö£ Γùï /dashboard/complaints
+Γö£ Γùï /dashboard/department-head
+Γö£ Γùï /dashboard/device-summary-report
+Γö£ Γùï /dashboard/devices
+Γö£ Γùï /dashboard/help-guide
+Γö£ Γùï /dashboard/it-documents
+Γö£ Γùï /dashboard/it-forms/approvals
+Γö£ Γùï /dashboard/it-forms/department-head-approvals
+Γö£ Γùï /dashboard/it-forms/equipment-requisition
+Γö£ Γùï /dashboard/it-forms/it-head-admin
+Γö£ Γùï /dashboard/it-forms/maintenance-repairs
+Γö£ Γùï /dashboard/it-forms/my-requisitions
+Γö£ Γùï /dashboard/it-forms/new-gadget
+Γö£ Γùï /dashboard/it-forms/service-desk
+Γö£ Γùï /dashboard/it-forms/store-issuance
+Γö£ Γùï /dashboard/it-reports
+Γö£ Γùï /dashboard/it-staff-status
+Γö£ Γùï /dashboard/lookup-data
+Γö£ Γùï /dashboard/notifications
+Γö£ Γùï /dashboard/regional-needs-analysis
+Γö£ Γùï /dashboard/regional-store-requisitions
+Γö£ Γùï /dashboard/repairs
+Γö£ Γùï /dashboard/repairs/global-tracker
+Γö£ Γùï /dashboard/repairs/regional
+Γö£ Γùï /dashboard/service-desk
+Γö£ Γùï /dashboard/service-provider
+Γö£ Γùï /dashboard/service-provider/my-repairs
+Γö£ Γùï /dashboard/settings
+Γö£ Γùï /dashboard/staff-performance-report
+Γö£ Γùï /dashboard/stock-transfer-requests
+Γö£ Γùï /dashboard/store-analytics
+Γö£ Γùï /dashboard/store-inventory
+Γö£ Γùï /dashboard/store-overview
+Γö£ Γùï /dashboard/store-requisitions
+Γö£ Γùï /dashboard/store-snapshot
+Γö£ Γùï /dashboard/store-summary-report
+Γö£ Γùï /dashboard/system-settings
+Γö£ Γùï /dashboard/updates
+Γö£ Γùï /dashboard/user-accounts
+Γö£ Γùï /dashboard/user-approvals
+Γö£ Γùï /dashboard/user-device-allocation
+Γö£ Γùï /dashboard/users
+Γö£ Γùï /dashboard/weekly-internet-report
+Γö£ Γùï /offline
+Γö£ Γùï /register
+Γö£ Γùï /setup-admin
+Γöö Γùï /test-password-setup
+
+
+╞Æ Proxy (Middleware)
+
+Γùï  (Static)   prerendered as static content
+╞Æ  (Dynamic)  server-rendered on demand
+

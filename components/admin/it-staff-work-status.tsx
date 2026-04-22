@@ -24,7 +24,7 @@ import {
 } from "lucide-react"
 import { useAuth } from "@/lib/auth-context"
 import { cn } from "@/lib/utils"
-import { applyLocationFilter, getCanonicalLocationName } from "@/lib/location-filter"
+import { getCanonicalLocationName } from "@/lib/location-filter"
 
 interface ITStaffMember {
   id: string
@@ -107,34 +107,37 @@ export function ITStaffWorkStatus() {
   const loadStaffMembers = async () => {
     try {
       setLoading(true)
-      let query = supabase
-        .from("profiles")
-        .select("*")
-        .in("role", ["it_staff", "it_head", "regional_it_head", "service_desk_head", "service_desk_staff"])
-        .or("status.eq.approved,status.eq.active,is_active.eq.true")
 
-      if (user && user.role === "regional_it_head") {
-        query = applyLocationFilter(query, user)
-      }
-
-      const { data, error } = await query
-
-      if (error) {
-        console.error("Error loading IT staff:", error)
+      // Fetch via API (uses service-role key, bypasses RLS)
+      const userRole = user?.role || "it_head"
+      const res = await fetch(`/api/staff/list?userRole=${userRole}`)
+      if (!res.ok) {
+        console.error("Error loading IT staff:", await res.text())
         setStaffMembers([])
         return
+      }
+      const listData = await res.json()
+      let profiles: any[] = listData.staff || []
+
+      // For regional IT head, filter by their location
+      if (user && user.role === "regional_it_head" && user.location) {
+        const canonicalUserLocation = getCanonicalLocationName(user.location)
+        profiles = profiles.filter((p: any) => {
+          if (!p.location) return false
+          return getCanonicalLocationName(p.location) === canonicalUserLocation
+        })
       }
 
       // Fetch task data for each staff member
       const staffWithTasks: ITStaffMember[] = await Promise.all(
-        (data || []).map(async (profile) => {
+        (profiles || []).map(async (profile) => {
           // Fetch repair requests assigned to this staff
           const { data: repairData } = await supabase
             .from("repair_requests")
             .select("id, status, created_at, updated_at")
             .eq("assigned_to", profile.id)
 
-          const staffName = (profile.full_name || profile.email || "").toLowerCase().trim()
+          const staffName = (profile.name || profile.email || "").toLowerCase().trim()
 
           // Fetch service tickets assigned to this staff (match by id or assigned name)
           const { data: ticketData } = await supabase
@@ -185,10 +188,10 @@ export function ITStaffWorkStatus() {
 
           return {
             id: profile.id,
-            name: profile.full_name || profile.email,
+            name: profile.name || profile.email,
             email: profile.email,
             location: profile.location || 'Unknown',
-            joinDate: profile.created_at,
+            joinDate: new Date().toISOString(),
             totalTasksAssigned: totalTasks,
             completedTasks,
             inProgressTasks,
@@ -196,7 +199,7 @@ export function ITStaffWorkStatus() {
             averageCompletionTime: avgCompletionTime,
             performanceScore,
             currentWorkload,
-            lastActivity: profile.updated_at || profile.created_at,
+            lastActivity: new Date().toISOString(),
             specializations: profile.role === 'it_head' ? ['Management', 'Strategy'] 
               : profile.role === 'regional_it_head' ? ['Regional Support', 'Coordination']
               : ['Hardware', 'Software'],

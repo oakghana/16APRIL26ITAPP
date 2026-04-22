@@ -8,35 +8,41 @@ const supabaseAdmin = createClient(
 
 export async function GET() {
   try {
-    // Get all staff members
-    const { data: staff, error } = await supabaseAdmin
+    // Get ALL profiles except pure admin/IT management roles
+    // Use exclusion so any role not in this list is still included
+    const { data: allProfiles, error: fetchError } = await supabaseAdmin
       .from("profiles")
-      .select("id, full_name, email, department")
-      .eq("role", "staff")
-      .eq("is_active", true)
+      .select("id, full_name, email, department, location, role, is_active, status")
+      .or("is_active.eq.true,status.eq.approved")
+      .order("full_name")
 
-    if (error) throw error
+    // Exclude roles that should not be assigned to a department head
+    const excludedRoles = new Set(["admin", "it_head", "regional_it_head", "service_provider"])
 
-    // Check which staff have department heads assigned
-    const staffWithLinking = await Promise.all(
-      (staff || []).map(async (member: any) => {
-        // Check if there's a department_head_links entry for this staff
-        const { data: link } = await supabaseAdmin
+    if (fetchError) throw fetchError
+    const staff = (allProfiles || []).filter((u: any) => !excludedRoles.has(u.role))
+
+    // Fetch all department_head_links in one query
+    const staffIds = staff.map((u: any) => u.id)
+    const { data: links } = staffIds.length
+      ? await supabaseAdmin
           .from("department_head_links")
-          .select("department_head_id")
-          .eq("staff_id", member.id)
-          .maybeSingle()
+          .select("staff_id, department_head_id")
+          .in("staff_id", staffIds)
+      : { data: [] }
 
-        return {
-          id: member.id,
-          name: member.full_name,
-          email: member.email,
-          department: member.department,
-          linked: !!link,
-          department_head_id: link?.department_head_id || null,
-        }
-      })
-    )
+    const linkMap = new Map((links || []).map((l: any) => [l.staff_id, l.department_head_id]))
+
+    const staffWithLinking = staff.map((member: any) => ({
+      id: member.id,
+      name: member.full_name,
+      email: member.email,
+      department: member.department,
+      location: member.location,
+      role: member.role,
+      linked: linkMap.has(member.id),
+      department_head_id: linkMap.get(member.id) || null,
+    }))
 
     return NextResponse.json({ staff: staffWithLinking })
   } catch (error) {

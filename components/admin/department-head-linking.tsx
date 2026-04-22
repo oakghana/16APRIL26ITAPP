@@ -6,6 +6,7 @@ import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Badge } from "@/components/ui/badge"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import {
   Dialog,
   DialogContent,
@@ -15,7 +16,7 @@ import {
   DialogTrigger,
 } from "@/components/ui/dialog"
 import { Checkbox } from "@/components/ui/checkbox"
-import { Search, Users, Link2, Unlink2, ChevronRight, Zap } from "lucide-react"
+import { Search, Users, Link2, Unlink2, ChevronRight, Zap, Grid3x3 } from "lucide-react"
 import { useToast } from "@/hooks/use-toast"
 
 interface DepartmentHead {
@@ -23,6 +24,7 @@ interface DepartmentHead {
   name: string
   email: string
   department?: string
+  location?: string
   staff_count: number
 }
 
@@ -31,6 +33,7 @@ interface StaffMember {
   name: string
   email: string
   department: string
+  location?: string
   linked: boolean
   department_head_id?: string | null
 }
@@ -42,10 +45,13 @@ export function DepartmentHeadLinking() {
   const [loading, setLoading] = useState(true)
   const [selectedHeadId, setSelectedHeadId] = useState<string | null>(null)
   const [searchTerm, setSearchTerm] = useState("")
+  const [staffSearchTerm, setStaffSearchTerm] = useState("")
   const [isLinkingOpen, setIsLinkingOpen] = useState(false)
   const [selectedStaff, setSelectedStaff] = useState<string[]>([])
   const [isSubmitting, setIsSubmitting] = useState(false)
   const [isAutoLinking, setIsAutoLinking] = useState(false)
+  const [isAutoLinkingAll, setIsAutoLinkingAll] = useState(false)
+  const [activeTab, setActiveTab] = useState("mapping")
 
   useEffect(() => {
     loadDepartmentHeads()
@@ -184,9 +190,40 @@ export function DepartmentHeadLinking() {
     }
   }
 
+  const handleAutoLinkAllStaff = async () => {
+    setIsAutoLinkingAll(true)
+    try {
+      const response = await fetch("/api/admin/auto-link-all-department-staff", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+      })
+
+      const data = await response.json()
+      if (!response.ok) throw new Error(data.error || "Failed to auto-link all staff")
+
+      toast({
+        title: "Auto-Link All Success",
+        description: data.message || `Successfully linked ${data.linked_count} user(s) across all department heads`,
+      })
+
+      loadDepartmentHeads()
+      loadStaff()
+    } catch (error) {
+      console.error("[v0] Error auto-linking all staff:", error)
+      toast({
+        title: "Error",
+        description: error instanceof Error ? error.message : "Failed to auto-link all staff",
+        variant: "destructive",
+      })
+    } finally {
+      setIsAutoLinkingAll(false)
+    }
+  }
+
   const selectedHead = departmentHeads.find((h) => h.id === selectedHeadId)
   const linkedStaffForHead = staff.filter((s) => s.department_head_id === selectedHeadId)
-  const availableStaffForHead = staff.filter((s) => !s.department_head_id || s.department_head_id === selectedHeadId)
+  // Show all staff - both unlinked and linked to other heads (for reassignment)
+  const availableStaffForHead = staff
 
   const filteredStaff = availableStaffForHead.filter(
     (s) =>
@@ -207,7 +244,8 @@ export function DepartmentHeadLinking() {
 
       <Card className="bg-blue-50 dark:bg-blue-950/30 border-blue-200 dark:border-blue-800">
         <CardContent className="pt-6">
-          <div className="flex gap-3">
+          <div className="flex flex-col gap-4 md:flex-row md:items-start md:justify-between">
+            <div className="flex gap-3">
             <Zap className="h-5 w-5 text-blue-600 dark:text-blue-400 flex-shrink-0 mt-0.5" />
             <div>
               <h3 className="font-semibold text-blue-900 dark:text-blue-100">Auto-Link Feature</h3>
@@ -216,9 +254,33 @@ export function DepartmentHeadLinking() {
               </p>
             </div>
           </div>
+            <Button
+              onClick={handleAutoLinkAllStaff}
+              disabled={isAutoLinkingAll}
+              variant="outline"
+              className="gap-2 bg-white/80"
+            >
+              <Zap className="h-4 w-4" />
+              {isAutoLinkingAll ? "Auto-Linking All..." : "Auto-Link All HODs"}
+            </Button>
+          </div>
         </CardContent>
       </Card>
 
+      <Tabs value={activeTab} onValueChange={setActiveTab} className="space-y-4">
+        <TabsList className="grid w-full grid-cols-2">
+          <TabsTrigger value="mapping" className="gap-2">
+            <Link2 className="h-4 w-4" />
+            HOD Mapping
+          </TabsTrigger>
+          <TabsTrigger value="directory" className="gap-2">
+            <Grid3x3 className="h-4 w-4" />
+            Staff Directory
+          </TabsTrigger>
+        </TabsList>
+
+        {/* HOD Mapping Tab */}
+        <TabsContent value="mapping" className="space-y-4">
       <div className="grid gap-6 lg:grid-cols-3">
         {/* Department Heads List */}
         <Card className="lg:col-span-1">
@@ -247,6 +309,10 @@ export function DepartmentHeadLinking() {
                     <div className="flex-1">
                       <p className="font-medium">{head.name}</p>
                       <p className="text-xs text-muted-foreground">{head.email}</p>
+                      <p className="text-xs text-muted-foreground mt-1">
+                        {head.department || "No department"}
+                        {head.location ? ` • ${head.location}` : ""}
+                      </p>
                     </div>
                     <Badge variant="secondary">{head.staff_count}</Badge>
                   </div>
@@ -310,27 +376,51 @@ export function DepartmentHeadLinking() {
                         {filteredStaff.length === 0 ? (
                           <p className="text-sm text-muted-foreground text-center py-4">No staff available</p>
                         ) : (
-                          filteredStaff.map((member) => (
-                            <label
-                              key={member.id}
-                              className="flex items-center gap-3 p-2 rounded hover:bg-gray-100 dark:hover:bg-gray-800 cursor-pointer"
-                            >
-                              <Checkbox
-                                checked={selectedStaff.includes(member.id)}
-                                onCheckedChange={(checked) => {
-                                  setSelectedStaff(
-                                    checked
-                                      ? [...selectedStaff, member.id]
-                                      : selectedStaff.filter((id) => id !== member.id)
-                                  )
-                                }}
-                              />
-                              <div className="flex-1 min-w-0">
-                                <p className="text-sm font-medium">{member.name}</p>
-                                <p className="text-xs text-muted-foreground truncate">{member.email}</p>
-                              </div>
-                            </label>
-                          ))
+                          filteredStaff.map((member) => {
+                            const isLinkedElsewhere = member.linked && member.department_head_id !== selectedHeadId
+                            const isLinkedHere = member.department_head_id === selectedHeadId
+                            
+                            return (
+                              <label
+                                key={member.id}
+                                className={`flex items-center gap-3 p-2 rounded cursor-pointer transition-colors ${
+                                  isLinkedElsewhere 
+                                    ? "bg-amber-50 dark:bg-amber-950/30 hover:bg-amber-100 dark:hover:bg-amber-900/30 border border-amber-200 dark:border-amber-800"
+                                    : "hover:bg-gray-100 dark:hover:bg-gray-800"
+                                }`}
+                              >
+                                <Checkbox
+                                  checked={selectedStaff.includes(member.id)}
+                                  onCheckedChange={(checked) => {
+                                    setSelectedStaff(
+                                      checked
+                                        ? [...selectedStaff, member.id]
+                                        : selectedStaff.filter((id) => id !== member.id)
+                                    )
+                                  }}
+                                />
+                                <div className="flex-1 min-w-0">
+                                  <div className="flex items-center gap-2">
+                                    <p className="text-sm font-medium">{member.name}</p>
+                                    {isLinkedElsewhere && (
+                                      <Badge className="text-xs bg-amber-600 text-white">
+                                        Linked to Another HOD
+                                      </Badge>
+                                    )}
+                                    {isLinkedHere && (
+                                      <Badge className="text-xs bg-blue-600 text-white">
+                                        Already Linked Here
+                                      </Badge>
+                                    )}
+                                  </div>
+                                  <p className="text-xs text-muted-foreground truncate">{member.email}</p>
+                                  {member.department && (
+                                    <p className="text-xs text-muted-foreground">{member.department}</p>
+                                  )}
+                                </div>
+                              </label>
+                            )
+                          })
                         )}
                       </div>
 
@@ -398,6 +488,111 @@ export function DepartmentHeadLinking() {
           )}
         </Card>
       </div>
+        </TabsContent>
+
+        {/* Staff Directory Tab */}
+        <TabsContent value="directory" className="space-y-4">
+          <Card>
+            <CardHeader>
+              <div className="flex items-center justify-between">
+                <div>
+                  <CardTitle className="flex items-center gap-2">
+                    <Users className="h-5 w-5" />
+                    All Staff Members
+                  </CardTitle>
+                  <CardDescription>
+                    {staff.length} total staff | Click a button to link/unlink staff
+                  </CardDescription>
+                </div>
+              </div>
+              <div className="relative mt-4">
+                <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+                <Input
+                  placeholder="Search by name, email, or department..."
+                  value={staffSearchTerm}
+                  onChange={(e) => setStaffSearchTerm(e.target.value)}
+                  className="pl-10"
+                />
+              </div>
+            </CardHeader>
+            <CardContent>
+              <div className="space-y-3 max-h-[600px] overflow-y-auto">
+                {staff
+                  .filter(
+                    (s) =>
+                      s.name.toLowerCase().includes(staffSearchTerm.toLowerCase()) ||
+                      s.email.toLowerCase().includes(staffSearchTerm.toLowerCase()) ||
+                      s.department.toLowerCase().includes(staffSearchTerm.toLowerCase())
+                  )
+                  .map((member) => {
+                    const linkedHead = departmentHeads.find(
+                      (h) => h.id === member.department_head_id
+                    )
+                    return (
+                      <div
+                        key={member.id}
+                        className="p-4 rounded-lg border hover:border-gray-400 transition-colors flex items-center justify-between"
+                      >
+                        <div className="flex-1 min-w-0">
+                          <p className="font-medium">{member.name}</p>
+                          <p className="text-sm text-muted-foreground truncate">{member.email}</p>
+                          <p className="text-xs text-muted-foreground mt-1">
+                            {member.department}
+                            {member.location && ` • ${member.location}`}
+                          </p>
+                          {linkedHead && (
+                            <Badge className="mt-2 bg-blue-600 text-white">
+                              Linked to: {linkedHead.name}
+                            </Badge>
+                          )}
+                        </div>
+                        <div className="flex gap-2 ml-4 flex-shrink-0">
+                          <Select
+                            value={member.department_head_id || ""}
+                            onValueChange={(headId) => {
+                              if (headId === "__unlink__") {
+                                // Unlink staff
+                                if (member.department_head_id) {
+                                  handleUnlinkStaff(member.department_head_id, member.id)
+                                }
+                              } else {
+                                // Link to new HOD
+                                handleLinkStaff(headId, [member.id])
+                              }
+                            }}
+                          >
+                            <SelectTrigger className="w-48">
+                              <SelectValue placeholder="Assign to HOD" />
+                            </SelectTrigger>
+                            <SelectContent>
+                              <SelectItem value="__unlink__">Unlink</SelectItem>
+                              {departmentHeads.map((head) => (
+                                <SelectItem key={head.id} value={head.id}>
+                                  {head.name} ({head.department})
+                                </SelectItem>
+                              ))}
+                            </SelectContent>
+                          </Select>
+                        </div>
+                      </div>
+                    )
+                  })}
+              </div>
+              {staff.filter(
+                (s) =>
+                  s.name.toLowerCase().includes(staffSearchTerm.toLowerCase()) ||
+                  s.email.toLowerCase().includes(staffSearchTerm.toLowerCase()) ||
+                  s.department.toLowerCase().includes(staffSearchTerm.toLowerCase())
+              ).length === 0 && (
+                <div className="text-center py-8 text-muted-foreground">
+                  <Users className="h-12 w-12 mx-auto opacity-20 mb-2" />
+                  <p>No staff members found</p>
+                </div>
+              )}
+            </CardContent>
+          </Card>
+        </TabsContent>
+      </Tabs>
     </div>
   )
 }

@@ -23,6 +23,8 @@ export default function HomePage() {
           redirectUrl = "/dashboard/store-inventory"
         } else if (user.role === "it_staff") {
           redirectUrl = "/dashboard/assigned-tasks"
+        } else if (user.role === "department_head") {
+          redirectUrl = "/dashboard/department-head"
         } else if (user.role === "staff") {
           redirectUrl = "/dashboard/service-desk"
         }

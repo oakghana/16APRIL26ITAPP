@@ -527,7 +527,9 @@ export function ModernSidebar({ isOpen, setIsOpen, className, onCollapseChange }
 
     if (user?.role === "department_head") {
       return {
-        items: [],
+        items: [
+          { name: "Department Head Portal", href: "/dashboard/department-head", icon: Building2 },
+        ],
         groups: [
           {
             name: "IT Forms",

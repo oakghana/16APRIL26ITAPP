@@ -255,6 +255,21 @@ export function TicketList({ tickets: propTickets, onRefresh }: { tickets?: Tick
     }
   }
 
+  const getPriorityCardClass = (priority: string) => {
+    switch (priority?.toLowerCase()) {
+      case "urgent":
+        return "border-l-4 border-l-red-600 bg-red-50/30 dark:bg-red-950/20 hover:bg-red-50/50 dark:hover:bg-red-950/30"
+      case "high":
+        return "border-l-4 border-l-orange-600 bg-orange-50/30 dark:bg-orange-950/20 hover:bg-orange-50/50 dark:hover:bg-orange-950/30"
+      case "medium":
+        return "border-l-4 border-l-yellow-600 bg-yellow-50/30 dark:bg-yellow-950/20 hover:bg-yellow-50/50 dark:hover:bg-yellow-950/30"
+      case "low":
+        return "border-l-4 border-l-green-600 bg-green-50/30 dark:bg-green-950/20 hover:bg-green-50/50 dark:hover:bg-green-950/30"
+      default:
+        return "border-l-4 border-l-gray-600 bg-gray-50/30 dark:bg-gray-950/20 hover:bg-gray-50/50 dark:hover:bg-gray-950/30"
+    }
+  }
+
   const handleViewTicket = (ticket: Ticket) => {
     setSelectedTicket(ticket)
     setViewDetailsOpen(true)
@@ -741,7 +756,7 @@ export function TicketList({ tickets: propTickets, onRefresh }: { tickets?: Tick
         {paginatedTickets.map((ticket) => {
           const IconComponent = categoryIcons[ticket.category as keyof typeof categoryIcons] || HelpCircle
           return (
-            <Card key={ticket.id} className="hover:shadow-md transition-shadow">
+            <Card key={ticket.id} className={cn("hover:shadow-md transition-all duration-200", getPriorityCardClass(ticket.priority))}>
               <CardContent className="p-6">
                 <div className="flex items-start justify-between">
                   <div className="flex items-start space-x-4 flex-1">

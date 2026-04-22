@@ -1,6 +1,7 @@
 import { type NextRequest, NextResponse } from "next/server"
 import { createClient } from "@supabase/supabase-js"
-import { validateCsvImport } from "@/lib/device-import/csv-validator"
+import { generateCsvTemplate, validateCsvImport } from "@/lib/device-import/csv-validator"
+import { normalizeDeviceTypeCode } from "@/lib/device-types"
 import { getCanonicalLocationName, getLocationAliases } from "@/lib/location-filter"
 
 // Use service role key to bypass RLS
@@ -84,12 +85,20 @@ export async function POST(request: NextRequest) {
       existingDevices?.map((d: any) => d.serial_number?.toLowerCase()) || []
     )
 
+    const { data: lookupDeviceTypes } = await supabase
+      .from("lookup_device_types")
+      .select("code")
+      .eq("is_active", true)
+
     // Read file content as text so papaparse can parse it in Node.js
     // (File objects with FileReaderSync are not supported in Node.js)
     const fileText = await file.text()
 
     // Validate CSV
-    const validationResult = await validateCsvImport(fileText, existingSerialNumbers, { skipDuplicates })
+    const validationResult = await validateCsvImport(fileText, existingSerialNumbers, {
+      skipDuplicates,
+      allowedDeviceTypes: (lookupDeviceTypes || []).map((type: any) => normalizeDeviceTypeCode(type.code)),
+    })
 
     console.log(
       "[v0] Validation complete - Valid records:",
@@ -191,15 +200,11 @@ export async function POST(request: NextRequest) {
 
 export async function GET(request: NextRequest) {
   try {
-    const searchParams = request.nextUrl.searchParams
+    const { searchParams } = request.nextUrl
     const action = searchParams.get("action")
 
     if (action === "template") {
-      // Return CSV template
-      const template = `device_type,brand,model,serial_number,status,purchase_date,warranty_expiry,assigned_to,room_number,building,floor,toner_type
-laptop,Dell,Latitude 5520,SN12345,active,2023-01-15,2025-01-15,John Doe,204,Main Block,2nd Floor,
-desktop,HP,ProDesk 400,SN12346,active,2023-02-20,2025-02-20,Admin Dept,105,Admin Building,1st Floor,
-printer,HP,LaserJet M404,SN12347,active,2023-03-10,2025-03-10,Print Room,101,Main Block,Ground Floor,CF217A`
+      const template = generateCsvTemplate()
 
       return new NextResponse(template, {
         status: 200,

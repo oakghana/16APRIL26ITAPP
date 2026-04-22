@@ -246,19 +246,19 @@ export function DepartmentHeadDashboard() {
   }
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-slate-950 via-slate-900 to-slate-950 p-6">
+    <div className="min-h-screen bg-gradient-to-br from-slate-50 via-white to-emerald-50 p-6 dark:from-slate-950 dark:via-slate-900 dark:to-slate-950">
       <div className="max-w-7xl mx-auto space-y-6">
         {/* Header */}
         <div className="flex items-center justify-between mb-8">
           <div>
-            <h1 className="text-3xl font-bold text-white mb-2">Department Head Portal</h1>
-            <p className="text-slate-400">Welcome back, {user?.full_name}</p>
+            <h1 className="text-3xl font-bold text-foreground mb-2">Department Head Portal</h1>
+            <p className="text-muted-foreground">Welcome back, {user?.full_name}</p>
           </div>
           <Button
             variant="outline"
             size="lg"
             onClick={() => setShowPasswordDialog(true)}
-            className="gap-2 bg-slate-800/50 border-slate-700 hover:bg-slate-700/50 text-white"
+            className="gap-2"
           >
             <Lock className="h-4 w-4" />
             Change Password
@@ -267,79 +267,84 @@ export function DepartmentHeadDashboard() {
 
         {/* Stats Cards */}
         <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-          <Card className="bg-gradient-to-br from-slate-800/50 to-slate-800/30 border-slate-700/50 backdrop-blur-sm">
+          <Card className="border bg-card shadow-sm">
             <CardHeader className="pb-3">
-              <CardTitle className="text-sm font-medium text-slate-300 flex items-center gap-2">
+              <CardTitle className="text-sm font-medium text-foreground flex items-center gap-2">
                 <Users className="h-4 w-4 text-blue-400" />
                 Staff Members
               </CardTitle>
             </CardHeader>
             <CardContent>
-              <div className="text-2xl font-bold text-white">{staffMembers.length}</div>
-              <p className="text-xs text-slate-400 mt-1">In your department</p>
+              <div className="text-2xl font-bold text-foreground">{staffMembers.length}</div>
+              <p className="text-xs text-muted-foreground mt-1">In your department</p>
             </CardContent>
           </Card>
 
-          <Card className="bg-gradient-to-br from-slate-800/50 to-slate-800/30 border-slate-700/50 backdrop-blur-sm">
+          <Card className="border bg-card shadow-sm">
             <CardHeader className="pb-3">
-              <CardTitle className="text-sm font-medium text-slate-300 flex items-center gap-2">
+              <CardTitle className="text-sm font-medium text-foreground flex items-center gap-2">
                 <FileText className="h-4 w-4 text-amber-400" />
                 Pending Approvals
               </CardTitle>
             </CardHeader>
             <CardContent>
-              <div className="text-2xl font-bold text-white">
+              <div className="text-2xl font-bold text-foreground">
                 {requisitionsData?.pending_count || 0}
               </div>
-              <p className="text-xs text-slate-400 mt-1">Awaiting your decision</p>
+              <p className="text-xs text-muted-foreground mt-1">Awaiting your decision</p>
             </CardContent>
           </Card>
 
-          <Card className="bg-gradient-to-br from-slate-800/50 to-slate-800/30 border-slate-700/50 backdrop-blur-sm">
+          <Card className="border bg-card shadow-sm">
             <CardHeader className="pb-3">
-              <CardTitle className="text-sm font-medium text-slate-300 flex items-center gap-2">
+              <CardTitle className="text-sm font-medium text-foreground flex items-center gap-2">
                 <CheckCircle2 className="h-4 w-4 text-green-400" />
                 Approved This Month
               </CardTitle>
             </CardHeader>
             <CardContent>
-              <div className="text-2xl font-bold text-white">
+              <div className="text-2xl font-bold text-foreground">
                 {requisitionsData?.approved_this_month || 0}
               </div>
-              <p className="text-xs text-slate-400 mt-1">Total approved</p>
+              <p className="text-xs text-muted-foreground mt-1">Total approved</p>
             </CardContent>
           </Card>
         </div>
 
         {/* Main Content */}
         <Tabs value={activeTab} onValueChange={setActiveTab} className="space-y-4">
-          <TabsList className="bg-slate-800/50 border border-slate-700/50 p-1">
-            <TabsTrigger value="overview" className="text-slate-300 data-[state=active]:bg-slate-700 data-[state=active]:text-white">
+          <TabsList className="bg-muted border p-1">
+            <TabsTrigger value="overview" className="text-muted-foreground data-[state=active]:bg-background data-[state=active]:text-foreground">
               Overview
             </TabsTrigger>
-            <TabsTrigger value="staff" className="text-slate-300 data-[state=active]:bg-slate-700 data-[state=active]:text-white">
+            <TabsTrigger value="staff" className="text-muted-foreground data-[state=active]:bg-background data-[state=active]:text-foreground flex items-center gap-2">
               Staff Management
+              {staffMembers.length > 0 && (
+                <Badge className="bg-blue-600 text-white text-xs">
+                  {staffMembers.length}
+                </Badge>
+              )}
             </TabsTrigger>
-            <TabsTrigger value="stock" className="text-slate-300 data-[state=active]:bg-slate-700 data-[state=active]:text-white">
+            <TabsTrigger value="stock" className="text-muted-foreground data-[state=active]:bg-background data-[state=active]:text-foreground">
               IT Stock Levels
             </TabsTrigger>
-            <TabsTrigger value="devices" className="text-slate-300 data-[state=active]:bg-slate-700 data-[state=active]:text-white">
+            <TabsTrigger value="devices" className="text-muted-foreground data-[state=active]:bg-background data-[state=active]:text-foreground">
               Department Devices
             </TabsTrigger>
-            <TabsTrigger value="requests" className="text-slate-300 data-[state=active]:bg-slate-700 data-[state=active]:text-white">
+            <TabsTrigger value="requests" className="text-muted-foreground data-[state=active]:bg-background data-[state=active]:text-foreground">
               Service Desk Requests
             </TabsTrigger>
-            <TabsTrigger value="settings" className="text-slate-300 data-[state=active]:bg-slate-700 data-[state=active]:text-white">
+            <TabsTrigger value="settings" className="text-muted-foreground data-[state=active]:bg-background data-[state=active]:text-foreground">
               Account Settings
             </TabsTrigger>
           </TabsList>
 
           {/* Overview Tab */}
           <TabsContent value="overview" className="space-y-4">
-            <Card className="bg-gradient-to-br from-slate-800/50 to-slate-800/30 border-slate-700/50 backdrop-blur-sm">
+            <Card className="border bg-card shadow-sm">
               <CardHeader>
-                <CardTitle className="text-white">Recent IT Form Requests</CardTitle>
-                <CardDescription className="text-slate-400">Forms requiring your approval</CardDescription>
+                <CardTitle className="text-foreground">Recent IT Form Requests</CardTitle>
+                <CardDescription className="text-muted-foreground">Forms requiring your approval</CardDescription>
               </CardHeader>
               <CardContent>
                 {requisitionsData?.recent?.length > 0 ? (
@@ -347,15 +352,15 @@ export function DepartmentHeadDashboard() {
                     {requisitionsData.recent.map((req: any) => (
                       <div
                         key={req.id}
-                        className="p-4 rounded-lg bg-slate-700/30 border border-slate-600/50 hover:border-slate-500/50 transition-colors"
+                        className="p-4 rounded-lg bg-muted/40 border border-border hover:bg-muted/70 transition-colors"
                       >
                         <div className="flex items-start justify-between">
                           <div>
-                            <p className="font-medium text-white">{req.requisition_number}</p>
-                            <p className="text-sm text-slate-400 mt-1">
+                            <p className="font-medium text-foreground">{req.requisition_number}</p>
+                            <p className="text-sm text-muted-foreground mt-1">
                               Requested by: {req.staff_name}
                             </p>
-                            <p className="text-sm text-slate-500 mt-1 line-clamp-1">
+                            <p className="text-sm text-muted-foreground mt-1 line-clamp-1">
                               Items: {req.items_required}
                             </p>
                           </div>
@@ -373,7 +378,7 @@ export function DepartmentHeadDashboard() {
                     ))}
                   </div>
                 ) : (
-                  <p className="text-slate-400 text-center py-6">No pending requests</p>
+                  <p className="text-muted-foreground text-center py-6">No pending requests</p>
                 )}
               </CardContent>
             </Card>
@@ -381,12 +386,12 @@ export function DepartmentHeadDashboard() {
 
           {/* Staff Management Tab */}
           <TabsContent value="staff" className="space-y-4">
-            <Card className="bg-gradient-to-br from-slate-800/50 to-slate-800/30 border-slate-700/50 backdrop-blur-sm">
+            <Card className="border bg-card shadow-sm">
               <CardHeader>
                 <div className="flex items-center justify-between">
                   <div>
-                    <CardTitle className="text-white">Your Staff Members</CardTitle>
-                    <CardDescription className="text-slate-400">
+                    <CardTitle className="text-foreground">Your Staff Members</CardTitle>
+                    <CardDescription className="text-muted-foreground">
                       Manage and view all staff in your department
                     </CardDescription>
                   </div>
@@ -395,31 +400,31 @@ export function DepartmentHeadDashboard() {
               <CardContent className="space-y-4">
                 {/* Search */}
                 <div className="relative">
-                  <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-slate-500" />
+                  <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
                   <Input
                     placeholder="Search by name, email, or username..."
                     value={searchTerm}
                     onChange={(e) => setSearchTerm(e.target.value)}
-                    className="pl-10 bg-slate-700/30 border-slate-600/50 text-white placeholder:text-slate-500"
+                    className="pl-10"
                   />
                 </div>
 
                 {/* Staff List */}
                 {loading ? (
                   <div className="flex items-center justify-center py-8">
-                    <Loader2 className="h-6 w-6 animate-spin text-slate-400" />
+                    <Loader2 className="h-6 w-6 animate-spin text-muted-foreground" />
                   </div>
                 ) : filteredStaff.length > 0 ? (
                   <div className="space-y-3">
                     {filteredStaff.map((staff) => (
                       <div
                         key={staff.id}
-                        className="p-4 rounded-lg bg-slate-700/30 border border-slate-600/50 hover:border-slate-500/50 transition-all hover:bg-slate-700/40 group"
+                        className="p-4 rounded-lg bg-muted/40 border border-border hover:bg-muted/70 transition-all group"
                       >
                         <div className="flex items-start justify-between">
                           <div className="flex-1">
-                            <p className="font-medium text-white">{staff.full_name}</p>
-                            <p className="text-sm text-slate-400">{staff.email}</p>
+                            <p className="font-medium text-foreground">{staff.full_name}</p>
+                            <p className="text-sm text-muted-foreground">{staff.email}</p>
                             <div className="flex items-center gap-2 mt-2">
                               <Badge
                                 className={`${
@@ -448,7 +453,7 @@ export function DepartmentHeadDashboard() {
                               setSelectedStaff(staff)
                               setShowStaffDetailsDialog(true)
                             }}
-                            className="text-slate-400 hover:text-white hover:bg-slate-600/50 opacity-0 group-hover:opacity-100 transition-opacity"
+                            className="text-muted-foreground hover:text-foreground hover:bg-muted opacity-70 group-hover:opacity-100 transition-opacity"
                           >
                             <Eye className="h-4 w-4" />
                           </Button>
@@ -457,9 +462,12 @@ export function DepartmentHeadDashboard() {
                     ))}
                   </div>
                 ) : (
-                  <div className="text-center py-8">
-                    <Users className="h-12 w-12 text-slate-600 mx-auto mb-2 opacity-50" />
-                    <p className="text-slate-400">No staff members found</p>
+                  <div className="text-center py-12">
+                    <Users className="h-12 w-12 text-muted-foreground mx-auto mb-3 opacity-50" />
+                    <p className="text-foreground font-medium mb-1">No Staff Linked Yet</p>
+                    <p className="text-muted-foreground text-sm max-w-sm mx-auto">
+                      Staff members need to be linked to you by an administrator. Contact your IT admin to link your staff members to your department head account.
+                    </p>
                   </div>
                 )}
               </CardContent>
@@ -468,15 +476,15 @@ export function DepartmentHeadDashboard() {
 
           {/* Account Settings Tab */}
           <TabsContent value="settings" className="space-y-4">
-            <Card className="bg-gradient-to-br from-slate-800/50 to-slate-800/30 border-slate-700/50 backdrop-blur-sm">
+            <Card className="border bg-card shadow-sm">
               <CardHeader>
-                <CardTitle className="text-white">Account Information</CardTitle>
-                <CardDescription className="text-slate-400">
+                <CardTitle className="text-foreground">Account Information</CardTitle>
+                <CardDescription className="text-muted-foreground">
                   Your profile details (read-only)
                 </CardDescription>
               </CardHeader>
               <CardContent className="space-y-4">
-                <Alert className="bg-slate-700/30 border-slate-600/50 text-slate-300">
+                <Alert>
                   <AlertCircle className="h-4 w-4" />
                   <AlertDescription>
                     You cannot change your name, email, or department. Only password changes are allowed.
@@ -485,26 +493,26 @@ export function DepartmentHeadDashboard() {
 
                 <div className="grid grid-cols-2 gap-4">
                   <div>
-                    <Label className="text-slate-300 text-sm">Full Name</Label>
-                    <div className="mt-1 p-3 rounded-lg bg-slate-700/20 border border-slate-600/30 text-white">
+                    <Label className="text-sm">Full Name</Label>
+                    <div className="mt-1 p-3 rounded-lg bg-muted/40 border border-border text-foreground">
                       {user?.full_name}
                     </div>
                   </div>
                   <div>
-                    <Label className="text-slate-300 text-sm">Email</Label>
-                    <div className="mt-1 p-3 rounded-lg bg-slate-700/20 border border-slate-600/30 text-white">
+                    <Label className="text-sm">Email</Label>
+                    <div className="mt-1 p-3 rounded-lg bg-muted/40 border border-border text-foreground">
                       {user?.email}
                     </div>
                   </div>
                   <div>
-                    <Label className="text-slate-300 text-sm">Username</Label>
-                    <div className="mt-1 p-3 rounded-lg bg-slate-700/20 border border-slate-600/30 text-white">
+                    <Label className="text-sm">Username</Label>
+                    <div className="mt-1 p-3 rounded-lg bg-muted/40 border border-border text-foreground">
                       {user?.username}
                     </div>
                   </div>
                   <div>
-                    <Label className="text-slate-300 text-sm">Department</Label>
-                    <div className="mt-1 p-3 rounded-lg bg-slate-700/20 border border-slate-600/30 text-white">
+                    <Label className="text-sm">Department</Label>
+                    <div className="mt-1 p-3 rounded-lg bg-muted/40 border border-border text-foreground">
                       {user?.department}
                     </div>
                   </div>
@@ -523,34 +531,34 @@ export function DepartmentHeadDashboard() {
 
           {/* IT Stock Levels Tab */}
           <TabsContent value="stock" className="space-y-4">
-            <Card className="bg-gradient-to-br from-slate-800/50 to-slate-800/30 border-slate-700/50 backdrop-blur-sm">
+            <Card className="border bg-card shadow-sm">
               <CardHeader>
-                <CardTitle className="text-white flex items-center gap-2">
+                <CardTitle className="text-foreground flex items-center gap-2">
                   <TrendingUp className="h-5 w-5" />
                   IT Stock Levels (View Only)
                 </CardTitle>
-                <CardDescription className="text-slate-400">Current stock availability in the IT department</CardDescription>
+                <CardDescription className="text-muted-foreground">Current stock availability in the IT department</CardDescription>
               </CardHeader>
               <CardContent>
                 {stockItems.length > 0 ? (
                   <div className="overflow-x-auto">
                     <table className="w-full text-sm">
                       <thead>
-                        <tr className="border-b border-slate-600/50">
-                          <th className="text-left py-3 px-2 text-slate-300 font-medium">Item Name</th>
-                          <th className="text-left py-3 px-2 text-slate-300 font-medium">Category</th>
-                          <th className="text-left py-3 px-2 text-slate-300 font-medium">Quantity</th>
-                          <th className="text-left py-3 px-2 text-slate-300 font-medium">Unit</th>
-                          <th className="text-left py-3 px-2 text-slate-300 font-medium">Status</th>
+                        <tr className="border-b border-border">
+                          <th className="text-left py-3 px-2 text-foreground font-medium">Item Name</th>
+                          <th className="text-left py-3 px-2 text-foreground font-medium">Category</th>
+                          <th className="text-left py-3 px-2 text-foreground font-medium">Quantity</th>
+                          <th className="text-left py-3 px-2 text-foreground font-medium">Unit</th>
+                          <th className="text-left py-3 px-2 text-foreground font-medium">Status</th>
                         </tr>
                       </thead>
                       <tbody>
                         {stockItems.map((item) => (
-                          <tr key={item.id} className="border-b border-slate-700/30 hover:bg-slate-700/20 transition-colors">
-                            <td className="py-3 px-2 text-white">{item.item_name}</td>
-                            <td className="py-3 px-2 text-slate-400">{item.category}</td>
-                            <td className="py-3 px-2 text-slate-400">{item.quantity}</td>
-                            <td className="py-3 px-2 text-slate-400">{item.unit}</td>
+                          <tr key={item.id} className="border-b border-border hover:bg-muted/40 transition-colors">
+                            <td className="py-3 px-2 text-foreground">{item.item_name}</td>
+                            <td className="py-3 px-2 text-muted-foreground">{item.category}</td>
+                            <td className="py-3 px-2 text-muted-foreground">{item.quantity}</td>
+                            <td className="py-3 px-2 text-muted-foreground">{item.unit}</td>
                             <td className="py-3 px-2">
                               <Badge className={item.quantity > 10 ? "bg-green-500/20 text-green-200" : item.quantity > 0 ? "bg-amber-500/20 text-amber-200" : "bg-red-500/20 text-red-200"}>
                                 {item.quantity > 10 ? "In Stock" : item.quantity > 0 ? "Low Stock" : "Out of Stock"}
@@ -562,7 +570,7 @@ export function DepartmentHeadDashboard() {
                     </table>
                   </div>
                 ) : (
-                  <p className="text-slate-400 text-center py-6">No stock items available</p>
+                  <p className="text-muted-foreground text-center py-6">No stock items available</p>
                 )}
               </CardContent>
             </Card>
@@ -570,26 +578,26 @@ export function DepartmentHeadDashboard() {
 
           {/* Department Devices Tab */}
           <TabsContent value="devices" className="space-y-4">
-            <Card className="bg-gradient-to-br from-slate-800/50 to-slate-800/30 border-slate-700/50 backdrop-blur-sm">
+            <Card className="border bg-card shadow-sm">
               <CardHeader>
-                <CardTitle className="text-white">Department Devices (View Only)</CardTitle>
-                <CardDescription className="text-slate-400">All devices assigned to your department</CardDescription>
+                <CardTitle className="text-foreground">Department Devices (View Only)</CardTitle>
+                <CardDescription className="text-muted-foreground">All devices assigned to your department</CardDescription>
               </CardHeader>
               <CardContent>
                 {departmentDevices.length > 0 ? (
                   <div className="space-y-3">
                     {departmentDevices.map((device) => (
-                      <div key={device.id} className="p-4 rounded-lg bg-slate-700/30 border border-slate-600/50 hover:border-slate-500/50 transition-colors">
+                      <div key={device.id} className="p-4 rounded-lg bg-muted/40 border border-border hover:bg-muted/70 transition-colors">
                         <div className="flex items-start justify-between mb-2">
                           <div>
-                            <p className="font-medium text-white">{device.device_name}</p>
-                            <p className="text-sm text-slate-400">Type: {device.device_type}</p>
+                            <p className="font-medium text-foreground">{device.device_name}</p>
+                            <p className="text-sm text-muted-foreground">Type: {device.device_type}</p>
                           </div>
                           <Badge className={device.status === "active" ? "bg-green-500/20 text-green-200" : device.status === "repair" ? "bg-red-500/20 text-red-200" : "bg-amber-500/20 text-amber-200"}>
                             {device.status}
                           </Badge>
                         </div>
-                        <div className="grid grid-cols-2 gap-2 text-xs text-slate-400 mt-2">
+                        <div className="grid grid-cols-2 gap-2 text-xs text-muted-foreground mt-2">
                           <div>Serial: {device.serial_number}</div>
                           {device.asset_tag && <div>Asset Tag: {device.asset_tag}</div>}
                           {device.assigned_to && <div>Assigned to: {device.assigned_to}</div>}
@@ -599,7 +607,7 @@ export function DepartmentHeadDashboard() {
                     ))}
                   </div>
                 ) : (
-                  <p className="text-slate-400 text-center py-6">No devices found for your department</p>
+                  <p className="text-muted-foreground text-center py-6">No devices found for your department</p>
                 )}
               </CardContent>
             </Card>
@@ -607,21 +615,21 @@ export function DepartmentHeadDashboard() {
 
           {/* Service Desk Requests Tab */}
           <TabsContent value="requests" className="space-y-4">
-            <Card className="bg-gradient-to-br from-slate-800/50 to-slate-800/30 border-slate-700/50 backdrop-blur-sm">
+            <Card className="border bg-card shadow-sm">
               <CardHeader>
-                <CardTitle className="text-white">Service Desk Requests (View Only)</CardTitle>
-                <CardDescription className="text-slate-400">Repair and maintenance requests from your department</CardDescription>
+                <CardTitle className="text-foreground">Service Desk Requests (View Only)</CardTitle>
+                <CardDescription className="text-muted-foreground">Repair and maintenance requests from your department</CardDescription>
               </CardHeader>
               <CardContent>
                 {serviceDeskRequests.length > 0 ? (
                   <div className="space-y-3">
                     {serviceDeskRequests.map((request) => (
-                      <div key={request.id} className="p-4 rounded-lg bg-slate-700/30 border border-slate-600/50 hover:border-slate-500/50 transition-colors">
+                      <div key={request.id} className="p-4 rounded-lg bg-muted/40 border border-border hover:bg-muted/70 transition-colors">
                         <div className="flex items-start justify-between mb-2">
                           <div className="flex-1">
-                            <p className="font-medium text-white">{request.task_number}</p>
-                            <p className="text-sm text-slate-400 mt-1">{request.device_name}</p>
-                            <p className="text-sm text-slate-400 mt-1">{request.issue_description}</p>
+                            <p className="font-medium text-foreground">{request.task_number}</p>
+                            <p className="text-sm text-muted-foreground mt-1">{request.device_name}</p>
+                            <p className="text-sm text-muted-foreground mt-1">{request.issue_description}</p>
                           </div>
                           <div className="flex flex-col gap-2 ml-4">
                             <Badge className={
@@ -637,7 +645,7 @@ export function DepartmentHeadDashboard() {
                             </Badge>
                           </div>
                         </div>
-                        <div className="text-xs text-slate-500 mt-2 flex justify-between">
+                        <div className="text-xs text-muted-foreground mt-2 flex justify-between">
                           <span>Created: {new Date(request.created_at).toLocaleDateString()}</span>
                           {request.assigned_to && <span>Assigned to: {request.assigned_to}</span>}
                         </div>
@@ -645,7 +653,7 @@ export function DepartmentHeadDashboard() {
                     ))}
                   </div>
                 ) : (
-                  <p className="text-slate-400 text-center py-6">No service desk requests found</p>
+                  <p className="text-muted-foreground text-center py-6">No service desk requests found</p>
                 )}
               </CardContent>
             </Card>
@@ -655,16 +663,16 @@ export function DepartmentHeadDashboard() {
 
       {/* Password Change Dialog */}
       <Dialog open={showPasswordDialog} onOpenChange={setShowPasswordDialog}>
-        <DialogContent className="bg-slate-800 border-slate-700">
+        <DialogContent>
           <DialogHeader>
-            <DialogTitle className="text-white">Change Password</DialogTitle>
-            <DialogDescription className="text-slate-400">
+            <DialogTitle>Change Password</DialogTitle>
+            <DialogDescription>
               Enter your current password and your new password
             </DialogDescription>
           </DialogHeader>
           <div className="space-y-4">
             <div>
-              <Label htmlFor="current-password" className="text-slate-200">
+              <Label htmlFor="current-password">
                 Current Password
               </Label>
               <Input
@@ -674,11 +682,11 @@ export function DepartmentHeadDashboard() {
                 onChange={(e) =>
                   setPasswordData({ ...passwordData, currentPassword: e.target.value })
                 }
-                className="mt-1 bg-slate-700/50 border-slate-600 text-white"
+                className="mt-1"
               />
             </div>
             <div>
-              <Label htmlFor="new-password" className="text-slate-200">
+              <Label htmlFor="new-password">
                 New Password
               </Label>
               <Input
@@ -688,11 +696,11 @@ export function DepartmentHeadDashboard() {
                 onChange={(e) =>
                   setPasswordData({ ...passwordData, newPassword: e.target.value })
                 }
-                className="mt-1 bg-slate-700/50 border-slate-600 text-white"
+                className="mt-1"
               />
             </div>
             <div>
-              <Label htmlFor="confirm-password" className="text-slate-200">
+              <Label htmlFor="confirm-password">
                 Confirm Password
               </Label>
               <Input
@@ -702,7 +710,7 @@ export function DepartmentHeadDashboard() {
                 onChange={(e) =>
                   setPasswordData({ ...passwordData, confirmPassword: e.target.value })
                 }
-                className="mt-1 bg-slate-700/50 border-slate-600 text-white"
+                className="mt-1"
               />
             </div>
           </div>
@@ -710,7 +718,6 @@ export function DepartmentHeadDashboard() {
             <Button
               variant="outline"
               onClick={() => setShowPasswordDialog(false)}
-              className="bg-slate-700/50 border-slate-600 text-white hover:bg-slate-700"
             >
               Cancel
             </Button>
@@ -735,29 +742,29 @@ export function DepartmentHeadDashboard() {
       {/* Staff Details Dialog */}
       {selectedStaff && (
         <Dialog open={showStaffDetailsDialog} onOpenChange={setShowStaffDetailsDialog}>
-          <DialogContent className="bg-slate-800 border-slate-700">
+          <DialogContent>
             <DialogHeader>
-              <DialogTitle className="text-white">Staff Details</DialogTitle>
+              <DialogTitle>Staff Details</DialogTitle>
             </DialogHeader>
             <div className="space-y-4">
               <div>
-                <Label className="text-slate-300 text-sm">Full Name</Label>
-                <p className="text-white mt-1">{selectedStaff.full_name}</p>
+                <Label className="text-sm">Full Name</Label>
+                <p className="text-foreground mt-1">{selectedStaff.full_name}</p>
               </div>
               <div>
-                <Label className="text-slate-300 text-sm">Email</Label>
-                <p className="text-white mt-1">{selectedStaff.email}</p>
+                <Label className="text-sm">Email</Label>
+                <p className="text-foreground mt-1">{selectedStaff.email}</p>
               </div>
               <div>
-                <Label className="text-slate-300 text-sm">Username</Label>
-                <p className="text-white mt-1">{selectedStaff.username}</p>
+                <Label className="text-sm">Username</Label>
+                <p className="text-foreground mt-1">{selectedStaff.username}</p>
               </div>
               <div>
-                <Label className="text-slate-300 text-sm">Role</Label>
-                <p className="text-white mt-1 capitalize">{selectedStaff.role}</p>
+                <Label className="text-sm">Role</Label>
+                <p className="text-foreground mt-1 capitalize">{selectedStaff.role}</p>
               </div>
               <div className="pt-2">
-                <Label className="text-slate-300 text-sm mb-2 block">Status</Label>
+                <Label className="text-sm mb-2 block">Status</Label>
                 <div className="flex gap-2">
                   <Badge
                     className={`${

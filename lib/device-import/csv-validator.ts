@@ -1,4 +1,9 @@
 import Papa from "papaparse"
+import {
+  buildDeviceTypeOptions,
+  DEFAULT_DEVICE_TYPE_CODE,
+  normalizeDeviceTypeCode,
+} from "@/lib/device-types"
 
 export interface DeviceImportRecord {
   device_type: string
@@ -31,19 +36,6 @@ export interface ValidationResult {
   errors: ValidationError[]
   warnings: ValidationError[]
 }
-
-export const DEVICE_TYPES = [
-  "laptop",
-  "desktop",
-  "printer",
-  "photocopier",
-  "handset",
-  "ups",
-  "stabiliser",
-  "mobile",
-  "server",
-  "other",
-]
 
 export const DEVICE_STATUSES = ["active", "repair", "maintenance", "retired"]
 
@@ -182,12 +174,17 @@ export function parseImportFile(fileText: string): Promise<any[]> {
   })
 }
 
-function buildRecord(rawRecord: any, rowNumber: number): { record: DeviceImportRecord | null; errors: ValidationError[] } {
+function buildRecord(
+  rawRecord: any,
+  rowNumber: number,
+  allowedDeviceTypes: Set<string>
+): { record: DeviceImportRecord | null; errors: ValidationError[] } {
   const errors: ValidationError[] = []
   const record = normalizeRecord(rawRecord || {})
 
-  const rawType = String(record.device_type || "").trim().toLowerCase()
-  const deviceType = DEVICE_TYPES.includes(rawType) ? rawType : "other"
+  const rawType = String(record.device_type || "").trim()
+  const normalizedType = normalizeDeviceTypeCode(rawType)
+  const deviceType = rawType ? (allowedDeviceTypes.has(normalizedType) ? normalizedType : normalizedType) : DEFAULT_DEVICE_TYPE_CODE
 
   const rawStatus = String(record.status || "").trim().toLowerCase()
   const status = DEVICE_STATUSES.includes(rawStatus) ? rawStatus : "active"
@@ -226,9 +223,14 @@ function buildRecord(rawRecord: any, rowNumber: number): { record: DeviceImportR
 export async function validateCsvImport(
   fileOrText: File | string,
   existingSerialNumbers: Set<string>,
-  options?: { skipDuplicates?: boolean }
+  options?: { skipDuplicates?: boolean; allowedDeviceTypes?: string[] }
 ): Promise<ValidationResult> {
   try {
+    const allowedDeviceTypes = new Set(
+      (options?.allowedDeviceTypes?.length ? options.allowedDeviceTypes : buildDeviceTypeOptions([]).map((type) => type.code))
+        .map((type) => normalizeDeviceTypeCode(type))
+    )
+
     const text = typeof fileOrText === "string" ? fileOrText : await fileOrText.text()
     const rows = await parseImportFile(text)
 
@@ -248,7 +250,7 @@ export async function validateCsvImport(
 
     for (let i = 0; i < rows.length; i++) {
       const rowNumber = i + 2
-      const { record, errors: rowErrors } = buildRecord(rows[i], rowNumber)
+      const { record, errors: rowErrors } = buildRecord(rows[i], rowNumber, allowedDeviceTypes)
 
       if (!record) {
         errors.push(...rowErrors)
@@ -317,14 +319,12 @@ export function generateCsvTemplate(): string {
     "warranty_expiry",
     "assigned_to",
     "room_number",
-    "building",
-    "floor",
-    "toner_type",
   ]
 
   const examples = [
-    ["laptop", "Dell", "Latitude 5520", "SN12345", "active", "2023-01-15", "2025-01-15", "John Doe", "204", "Main Block", "2", ""],
-    ["other", "", "USB Keyboard", "", "active", "", "", "", "", "", "", ""],
+    ["laptop", "Dell", "Latitude 5520", "SN12345", "active", "2023-01-15", "2025-01-15", "John Doe", "204"],
+    ["monitor", "HP", "EliteDisplay E243", "MON-001", "active", "", "", "", ""],
+    ["network_cable", "D-Link", "Cat6 Patch Cable", "CAB-100", "active", "", "", "", ""],
   ]
 
   return [headers.join(","), ...examples.map((row) => row.map((cell) => `"${cell}"`).join(","))].join("\n")

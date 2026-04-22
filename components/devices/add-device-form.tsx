@@ -1,8 +1,9 @@
 "use client"
 
 import type React from "react"
-import { useState, useEffect } from "react"
+import { useState, useEffect, useMemo } from "react"
 import { Button } from "@/components/ui/button"
+import { Checkbox } from "@/components/ui/checkbox"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
@@ -10,13 +11,20 @@ import { FormNavigation } from "@/components/ui/form-navigation"
 import { createClient } from "@/lib/supabase/client"
 import { toast } from "@/components/ui/use-toast"
 import { useAuth } from "@/lib/auth-context"
-import { canSeeAllLocations } from "@/lib/location-filter"
+import { canSeeAllLocations, locationsMatch } from "@/lib/location-filter"
 import { deviceLocationService } from "@/lib/device-location-service"
-import { AlertCircle } from "lucide-react"
+import { AlertCircle, Search } from "lucide-react"
 import { notificationService } from "@/lib/notification-service"
+import {
+  buildDeviceTypeOptions,
+  DEFAULT_DEVICE_TYPE_CODE,
+  getDefaultDeviceTypeOptions,
+  isPrinterLikeDeviceType,
+  normalizeDeviceTypeCode,
+} from "@/lib/device-types"
 
 interface Device {
-  type: "laptop" | "desktop" | "printer" | "photocopier" | "handset" | "ups" | "stabiliser" | "mobile" | "server" | "other"
+  type: string
   serialNumber: string
   assetTag: string
   model: string
@@ -47,17 +55,21 @@ export function AddDeviceForm({ onSubmit }: AddDeviceFormProps) {
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState("")
   const [deviceTypes, setDeviceTypes] = useState<{ code: string; name: string }[]>([])
+  const [assignableUsers, setAssignableUsers] = useState<Array<{ id: string; name: string; location: string }>>([])
   const [locations, setLocations] = useState<{ code: string; name: string; region_id?: string }[]>([])
   const [regions, setRegions] = useState<{ id: string; name: string; code: string }[]>([])
   const [duplicateWarning, setDuplicateWarning] = useState<string>("")
   const [showDuplicateConfirm, setShowDuplicateConfirm] = useState(false)
+  const [assigneeSearchOpen, setAssigneeSearchOpen] = useState(false)
+  const [assigneeSearchQuery, setAssigneeSearchQuery] = useState("")
+  const [useCustomAssignee, setUseCustomAssignee] = useState(false)
   const supabase = createClient()
   
   // Check if user can select all locations or is restricted to their own
   const canSelectAllLocations = user ? canSeeAllLocations(user) : false
 
   const [formData, setFormData] = useState<Device>({
-    type: "laptop",
+    type: DEFAULT_DEVICE_TYPE_CODE,
     serialNumber: "",
     assetTag: "",
     model: "",
@@ -93,13 +105,14 @@ export function AddDeviceForm({ onSubmit }: AddDeviceFormProps) {
         if (typesRes.ok) {
           const types = await typesRes.json()
           console.log("[v0] Loaded device types:", types)
-          const activeTypes = types.filter((t: any) => t.is_active)
+          const activeTypes = buildDeviceTypeOptions(types.filter((t: any) => t.is_active))
           setDeviceTypes(activeTypes)
           if (activeTypes.length > 0) {
-            setFormData((prev) => ({ ...prev, type: activeTypes[0].code }))
+            setFormData((prev) => ({ ...prev, type: normalizeDeviceTypeCode(prev.type || activeTypes[0].code) }))
           }
         } else {
           console.error("[v0] Failed to load device types:", typesRes.status)
+          setDeviceTypes(getDefaultDeviceTypeOptions())
         }
 
         const locsRes = await fetch("/api/admin/lookup-data?type=locations")
@@ -150,8 +163,19 @@ export function AddDeviceForm({ onSubmit }: AddDeviceFormProps) {
           console.error("[v0] Failed to load regions:", regionsRes.status)
         }
 
+        const usersRes = await fetch("/api/staff/list?allUsers=true")
+        if (usersRes.ok) {
+          const userData = await usersRes.json()
+          setAssignableUsers(
+            (userData.staff || [])
+              .filter((member: any) => member.is_active !== false)
+              .map((member: any) => ({ id: member.id, name: member.name, location: member.location }))
+          )
+        }
+
       } catch (error) {
         console.error("[v0] Error fetching lookup data:", error)
+        setDeviceTypes(getDefaultDeviceTypeOptions())
         toast({
           title: "Warning",
           description: "Could not load device types and locations. Using defaults.",
@@ -161,6 +185,20 @@ export function AddDeviceForm({ onSubmit }: AddDeviceFormProps) {
     }
     fetchLookupData()
   }, [])
+
+  const locationAssignableUsers = useMemo(() => {
+    const matched = assignableUsers.filter((member) => locationsMatch(member.location, formData.location))
+    if (formData.assignedTo && !matched.some((member) => member.name === formData.assignedTo)) {
+      return [{ id: "current", name: formData.assignedTo, location: formData.location }, ...matched]
+    }
+    return matched
+  }, [assignableUsers, formData.assignedTo, formData.location])
+
+  const filteredAssignableUsers = useMemo(() => {
+    const query = assigneeSearchQuery.trim().toLowerCase()
+    if (!query) return locationAssignableUsers
+    return locationAssignableUsers.filter((member) => member.name.toLowerCase().includes(query))
+  }, [locationAssignableUsers, assigneeSearchQuery])
 
   // Auto-populate region when location changes
   const handleLocationChange = (locationCode: string) => {
@@ -195,7 +233,7 @@ export function AddDeviceForm({ onSubmit }: AddDeviceFormProps) {
     }
 
     // Validate printer/photocopier-specific fields
-    if ((formData.type === "printer" || formData.type === "photocopier") && !formData.tonerType) {
+    if (isPrinterLikeDeviceType(formData.type) && !formData.tonerType) {
       setError(`Toner type is required for ${formData.type}s.`)
       notificationService.error(`Validation Failed`, `Toner type is required for ${formData.type}s.`)
       return
@@ -322,18 +360,11 @@ export function AddDeviceForm({ onSubmit }: AddDeviceFormProps) {
                     </SelectItem>
                   ))
                 ) : (
-                  <>
-                  <SelectItem value="laptop">Laptop</SelectItem>
-                  <SelectItem value="desktop">Desktop</SelectItem>
-                  <SelectItem value="printer">Printer</SelectItem>
-                  <SelectItem value="photocopier">Photocopier</SelectItem>
-                  <SelectItem value="handset">Handset</SelectItem>
-                  <SelectItem value="ups">UPS</SelectItem>
-                  <SelectItem value="stabiliser">Stabiliser</SelectItem>
-                  <SelectItem value="mobile">Mobile Device</SelectItem>
-                  <SelectItem value="server">Server</SelectItem>
-                  <SelectItem value="other">Other</SelectItem>
-                  </>
+                  getDefaultDeviceTypeOptions().map((type) => (
+                    <SelectItem key={type.code} value={type.code}>
+                      {type.name}
+                    </SelectItem>
+                  ))
                 )}
               </SelectContent>
             </Select>
@@ -411,12 +442,57 @@ export function AddDeviceForm({ onSubmit }: AddDeviceFormProps) {
 
           <div className="space-y-2">
             <Label htmlFor="assignedTo">Assigned To</Label>
-            <Input
-              id="assignedTo"
-              value={formData.assignedTo}
-              onChange={(e) => handleInputChange("assignedTo", e.target.value)}
-              placeholder="Person or department name (optional)"
-            />
+            <div className="flex items-center gap-2">
+              <Button
+                type="button"
+                variant="outline"
+                size="sm"
+                onClick={() => setAssigneeSearchOpen((prev) => !prev)}
+              >
+                <Search className="h-4 w-4 mr-2" />Search Users
+              </Button>
+              <div className="flex items-center gap-2 text-sm">
+                <Checkbox
+                  id="assignedToCustom"
+                  checked={useCustomAssignee}
+                  onCheckedChange={(checked) => setUseCustomAssignee(Boolean(checked))}
+                />
+                <Label htmlFor="assignedToCustom" className="text-sm font-normal">Use custom assignee</Label>
+              </div>
+            </div>
+            {assigneeSearchOpen && !useCustomAssignee && (
+              <Input
+                value={assigneeSearchQuery}
+                onChange={(e) => setAssigneeSearchQuery(e.target.value)}
+                placeholder="Search users at this location"
+              />
+            )}
+            {useCustomAssignee ? (
+              <Input
+                id="assignedTo"
+                value={formData.assignedTo}
+                onChange={(e) => handleInputChange("assignedTo", e.target.value)}
+                placeholder="Enter custom user or department"
+              />
+            ) : (
+              <Select
+                value={formData.assignedTo || "__unassigned__"}
+                onValueChange={(value) => handleInputChange("assignedTo", value === "__unassigned__" ? "" : value)}
+              >
+                <SelectTrigger id="assignedTo">
+                  <SelectValue placeholder="Select user at this location" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="__unassigned__">Unassigned</SelectItem>
+                  {filteredAssignableUsers.map((member) => (
+                    <SelectItem key={`${member.id}-${member.name}`} value={member.name}>
+                      {member.name}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            )}
+            <p className="text-xs text-muted-foreground">Users are filtered to the selected device location. Switch to custom if the person is not listed.</p>
           </div>
 
           <div className="space-y-2">
@@ -471,10 +547,10 @@ export function AddDeviceForm({ onSubmit }: AddDeviceFormProps) {
         </div>
 
         {/* Printer/Photocopier-Specific Fields */}
-        {(formData.type === "printer" || formData.type === "photocopier") && (
+        {isPrinterLikeDeviceType(formData.type) && (
           <div className="border-t pt-4 mt-4">
             <h3 className="text-lg font-semibold mb-4">
-              {formData.type === "printer" ? "Printer" : "Photocopier"} Specifications
+              {normalizeDeviceTypeCode(formData.type) === "printer" ? "Printer" : "Photocopier"} Specifications
             </h3>
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
               <div className="space-y-2">
@@ -484,7 +560,7 @@ export function AddDeviceForm({ onSubmit }: AddDeviceFormProps) {
                   value={formData.tonerType}
                   onChange={(e) => handleInputChange("tonerType", e.target.value)}
                   placeholder="e.g., CF217A, 85A, TN-2420"
-                  required={formData.type === "printer" || formData.type === "photocopier"}
+                  required={isPrinterLikeDeviceType(formData.type)}
                 />
                 <p className="text-xs text-muted-foreground">Enter the toner/cartridge model/type</p>
               </div>

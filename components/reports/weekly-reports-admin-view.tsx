@@ -46,6 +46,7 @@ interface WeeklyReport {
   avg_upload_speed_mbps: number | null
   status: string
   submitted_at: string | null
+  created_at?: string | null
   acknowledged_by_name: string | null
   acknowledged_at: string | null
   acknowledgement_notes: string | null
@@ -71,6 +72,26 @@ function StatusIcon({ status }: { status: string }) {
   if (status === "degraded") return <TrendingDown className="h-4 w-4 text-yellow-600" />
   if (status === "outage") return <AlertTriangle className="h-4 w-4 text-red-600" />
   return <Clock className="h-4 w-4 text-blue-600" />
+}
+
+function formatReportTimestamp(report: WeeklyReport) {
+  const timestamp = report.submitted_at || report.created_at
+
+  if (!timestamp) {
+    return report.status === "draft" ? "Saved time unavailable" : "Submission time unavailable"
+  }
+
+  const date = new Date(timestamp)
+  const label = report.submitted_at ? "Submitted" : "Saved"
+
+  return `${label} ${date.toLocaleDateString("en-GB", {
+    day: "numeric",
+    month: "short",
+    year: "numeric",
+  })} at ${date.toLocaleTimeString("en-GB", {
+    hour: "2-digit",
+    minute: "2-digit",
+  })}`
 }
 
 export default function WeeklyReportsAdminView() {
@@ -289,15 +310,14 @@ export default function WeeklyReportsAdminView() {
                   <div className="min-w-0">
                     <div className="font-medium text-sm truncate">
                       {report.submitted_by_name}
-                      {report.location && (
-                        <span className="text-muted-foreground font-normal"> · {report.location}</span>
-                      )}
                     </div>
                     <div className="text-xs text-muted-foreground">
                       Week {report.week_number} / {report.year}
-                      {report.submitted_at && (
-                        <> · Submitted {new Date(report.submitted_at).toLocaleDateString("en-GB", { day: "numeric", month: "short" })}</>
-                      )}
+                    </div>
+                    <div className="text-xs text-muted-foreground">
+                      Entry by {report.submitted_by_name}
+                      {report.location && <> · {report.location}</>}
+                      <> · {formatReportTimestamp(report)}</>
                     </div>
                   </div>
                 </div>
