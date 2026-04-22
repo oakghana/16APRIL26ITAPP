@@ -161,16 +161,18 @@ export async function GET(request: NextRequest) {
       else if (averageCompletionDays <= 5) speedBonus = 10
       else if (averageCompletionDays <= 7) speedBonus = 5
 
-      // Volume bonus (up to 30 points) — higher task completion volume gets proportional bonus
-      const volumeBonus = Math.min(30, (completedTasks.length / 60) * 30)
+      // Volume Score (0-100) — based on absolute number of completed tasks
+      // Normalize to a 0-100 scale where 50+ completed tasks = 100
+      // This ensures staff with more work output rank higher
+      const volumeScore = Math.min(100, (completedTasks.length / 50) * 100)
 
-      // Final score calculation with new weightings:
-      // 65% - Task Completion Rate
-      // 20% - On-Time Completion Rate
-      // 5% - Speed Bonus (max 20 points, so 5% of 20 = 1 point potential)
-      // 10% - Volume Bonus (max 30 points, so 10% of 30 = 3 points potential)
+      // Final score calculation with revised weightings:
+      // 65% - Task Volume (actual number of tasks completed) — PRIMARY METRIC
+      // 20% - On-Time Completion Rate (deadline adherence)
+      // 10% - Speed Bonus (faster completions)
+      // 5% - Completion Rate percentage (secondary metric)
       const productivityScore = Math.round(
-        completionRate * 0.65 + onTimeRate * 0.20 + speedBonus * 0.05 + volumeBonus * 0.10
+        volumeScore * 0.65 + onTimeRate * 0.20 + speedBonus * 0.10 + completionRate * 0.05
       )
 
       let grading: "Excellent" | "Good" | "Average" | "Below Average" | "Poor"

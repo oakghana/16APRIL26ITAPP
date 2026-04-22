@@ -19,34 +19,42 @@ The productivity metrics system tracks and ranks IT staff performance based on t
 ## Features
 
 ### 1. Productivity Scoring Algorithm
-The system calculates a comprehensive productivity score (0-100) for each staff member using four key metrics that reward both quality and consistency:
+The system calculates a comprehensive productivity score (0-100) for each staff member, **prioritizing task volume** as the primary success metric. Staff who complete more tasks rank higher, reflecting their higher contribution to the organization.
 
 **Score Components:**
-- **65%** - Task Completion Rate: (completed tasks / total tasks assigned) × 100
-- **20%** - On-Time Completion Rate: (tasks completed within expected timeframe / completed tasks) × 100  
-- **5%** - Speed Bonus: Bonus points for faster completion times (scaled from 0-20)
-- **10%** - Volume Bonus: Up to 30 bonus points based on total tasks completed
+- **65%** - Task Volume (PRIMARY): Actual number of tasks completed (normalized 0-100 where 50+ tasks = 100)
+- **20%** - On-Time Completion Rate: Percentage of tasks completed within expected timeframe
+- **10%** - Speed Bonus: Bonus points for faster average completion times
+- **5%** - Completion Rate: Percentage of assigned tasks that were completed
 
-**Speed Bonus Tiers:**
+**Why Task Volume is Primary (65%):**
+Staff who handle and complete more tasks demonstrate higher capacity, reliability, and contribution. A staff member who completes 40 tasks (even if 2 aren't completed out of 50 assigned = 80% rate) ranks significantly higher than someone who completes 1 task (100% rate). This ensures high-volume workers are properly recognized.
+
+**Speed Bonus Tiers (10%):**
 - ≤3 days average completion: +20 points
 - 3-5 days average completion: +10 points
 - 5-7 days average completion: +5 points
 - >7 days average completion: +0 points
 
-**Volume Bonus:**
-- Staff who handle and complete more tasks receive higher bonus allocation
-- +0.5 points per completed task (up to 30 bonus points maximum)
-- This ensures high-volume workers are appropriately recognized for workload
-- Examples:
-  - 10 completed tasks = +5 points
-  - 20 completed tasks = +10 points
-  - 40 completed tasks = +20 points
-  - 60+ completed tasks = +30 points (capped)
+**On-Time Completion Rate (20%):**
+- Tasks completed on or before their expected completion date
+- Rewards staff who meet deadlines consistently
+
+**Completion Rate (5%):**
+- Secondary metric that accounts for task assignment efficiency
+- (Completed tasks / Total assigned tasks) × 100
+- Low weight ensures high-volume workers aren't penalized for receiving more challenging workloads
 
 **Final Score Formula:**
 ```
-Score = (CompletionRate × 0.65) + (OnTimeRate × 0.20) + (SpeedBonus × 0.05) + (VolumeBonus × 0.10)
+VolumeScore = (CompletedTaskCount / 50) × 100 (capped at 100)
+Score = (VolumeScore × 0.65) + (OnTimeRate × 0.20) + (SpeedBonus × 0.10) + (CompletionRate × 0.05)
 ```
+
+**Example Rankings:**
+- Theophilus: 40 tasks completed (80% volume score) + 90% on-time + 10pt speed = ~76 score ✓ Ranks higher
+- John: 8 tasks completed (16% volume score) + 100% on-time + 15pt speed = ~37 score ✓ Ranks lower
+- This ensures productivity is fairly measured by actual output and contribution.
 
 ### 2. Expected Completion Times by Priority
 Tasks have different expected completion timeframes based on priority:
