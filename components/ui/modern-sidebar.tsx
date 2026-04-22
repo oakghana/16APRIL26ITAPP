@@ -341,6 +341,12 @@ export function ModernSidebar({ isOpen, setIsOpen, className, onCollapseChange }
             badge: counts.storeRequisitions > 0 ? counts.storeRequisitions : undefined,
             items: [
               { name: "Store Overview", href: "/dashboard/store-overview", icon: Package },
+              {
+                name: "Store Requisitions",
+                href: "/dashboard/store-requisitions",
+                icon: ClipboardList,
+                badge: counts.storeRequisitions > 0 ? counts.storeRequisitions : undefined,
+              },
               { name: "Store Inventory", href: "/dashboard/store-inventory", icon: Database },
               { name: "Store Stock Levels", href: "/dashboard/store-snapshot", icon: Package },
               {
