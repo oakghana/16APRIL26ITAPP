@@ -223,12 +223,22 @@ export function PDFUploadsDashboard() {
       formData.append("userRole", user.role)
       formData.append("userLocation", user.location || "")
 
+      console.log("[v0] Uploading PDF with form data:", {
+        title: uploadForm.title,
+        documentType: uploadForm.documentType,
+        userRole: user.role,
+        userLocation: user.location,
+        fileName: uploadForm.file?.name,
+      })
+
       const response = await fetch("/api/pdf-uploads", {
         method: "POST",
         body: formData,
       })
 
       const data = await response.json()
+
+      console.log("[v0] Upload response:", { success: data.success, error: data.error, status: response.status })
 
       if (data.success) {
         toast.success("Document uploaded successfully")
@@ -242,11 +252,13 @@ export function PDFUploadsDashboard() {
         })
         fetchUploads()
       } else {
-        toast.error(data.error || "Failed to upload document")
+        const errorMsg = data.error || "Failed to upload document"
+        console.error("[v0] Upload failed:", errorMsg)
+        toast.error(errorMsg)
       }
     } catch (error) {
-      console.error("Error uploading:", error)
-      toast.error("Failed to upload document")
+      console.error("[v0] Error uploading:", error)
+      toast.error("Failed to upload document - check console for details")
     } finally {
       setUploading(false)
     }
