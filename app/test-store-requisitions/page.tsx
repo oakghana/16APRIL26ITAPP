@@ -3,7 +3,7 @@
 import { useState } from 'react'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
-import { createClient } from '@/lib/supabase'
+import { supabase } from '@/lib/supabase'
 
 interface TestResult {
   name: string
@@ -24,7 +24,6 @@ export default function StoreRequisitionsTestPage() {
     setResults([])
     setLoading(true)
 
-    const supabase = createClient()
     const testRequisitionId = `test-${Date.now()}`
 
     try {
