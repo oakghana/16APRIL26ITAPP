@@ -28,6 +28,7 @@ import {
 import { useAuth } from "@/lib/auth-context"
 import { supabase } from "@/lib/supabase"
 import { useToast } from "@/hooks/use-toast"
+import { DataPagination } from "@/components/ui/data-pagination"
 import { notificationService } from "@/lib/notification-service"
 import { CompletionAcknowledgementModal } from "@/components/notifications/completion-acknowledgement-modal"
 import { AssignedWorkMetrics } from "./assigned-work-metrics"
@@ -78,6 +79,8 @@ export function AssignedTasksDashboard() {
   const { toast } = useToast()
   const [tasks, setTasks] = useState<AssignedTask[]>([])
   const [filteredTasks, setFilteredTasks] = useState<AssignedTask[]>([])
+  const [taskPage, setTaskPage] = useState(1)
+  const TASK_PAGE_SIZE = 10
   const [selectedTask, setSelectedTask] = useState<AssignedTask | null>(null)
   const [activeTab, setActiveTab] = useState("all")
   const [statusFilter, setStatusFilter] = useState("all")
@@ -589,7 +592,7 @@ export function AssignedTasksDashboard() {
         </CardHeader>
       </Card>
 
-      <Tabs value={activeTab} onValueChange={setActiveTab}>
+        <Tabs value={activeTab} onValueChange={(v) => { setActiveTab(v); setTaskPage(1) }}>
         <TabsList className="grid w-full grid-cols-3">
           <TabsTrigger value="all" className="flex items-center gap-2">
             <Filter className="h-4 w-4" />
@@ -632,7 +635,7 @@ export function AssignedTasksDashboard() {
             </Card>
           ) : (
             <div className="grid gap-4">
-              {filteredTasks.map((task) => (
+              {filteredTasks.slice((taskPage - 1) * TASK_PAGE_SIZE, taskPage * TASK_PAGE_SIZE).map((task) => (
                 <Card key={task.id} className="hover:shadow-md transition-shadow">
                   <CardHeader>
                     <div className="flex items-start justify-between">
@@ -924,6 +927,15 @@ export function AssignedTasksDashboard() {
                   </CardContent>
                 </Card>
               ))}
+              {filteredTasks.length > TASK_PAGE_SIZE && (
+                <DataPagination
+                  currentPage={taskPage}
+                  totalItems={filteredTasks.length}
+                  pageSize={TASK_PAGE_SIZE}
+                  onPageChange={setTaskPage}
+                  itemLabel="tasks"
+                />
+              )}
             </div>
           )}
         </TabsContent>

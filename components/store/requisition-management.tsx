@@ -27,6 +27,7 @@ import { useAuth } from "@/lib/auth-context"
 import { canSeeAllLocations } from "@/lib/location-filter"
 import { getLocationOptions } from "@/lib/locations"
 import { useToast } from "@/hooks/use-toast"
+import { DataPagination } from "@/components/ui/data-pagination"
 import {
   AlertDialog,
   AlertDialogAction,
@@ -115,6 +116,9 @@ export function RequisitionManagement() {
 
   const [filteredRequisitions, setFilteredRequisitions] = useState<Requisition[]>([])
   const [approvedQuantities, setApprovedQuantities] = useState<Record<string, number>>({})
+  const [reqPage, setReqPage] = useState(1)
+  const [transPage, setTransPage] = useState(1)
+  const PAGE_SIZE = 10
 
   useEffect(() => {
     loadRequisitions()
@@ -629,6 +633,12 @@ export function RequisitionManagement() {
     return filteredRequisitions.filter((req) => req.status === status)
   }
 
+  const getPaginatedByStatus = (status: string) => {
+    const all = getFilteredByStatus(status)
+    const start = (reqPage - 1) * PAGE_SIZE
+    return { items: all.slice(start, start + PAGE_SIZE), total: all.length }
+  }
+
   if (loading) {
     return (
       <div className="flex items-center justify-center h-64">
@@ -689,7 +699,7 @@ export function RequisitionManagement() {
         </CardContent>
       </Card>
 
-      <Tabs defaultValue="all" className="space-y-4">
+      <Tabs defaultValue="all" className="space-y-4" onValueChange={() => setReqPage(1)}>
         <TabsList className="grid w-full grid-cols-6">
           <TabsTrigger value="all">All</TabsTrigger>
           <TabsTrigger value="pending">Pending</TabsTrigger>
@@ -704,7 +714,7 @@ export function RequisitionManagement() {
 
         {["all", "pending", "approved", "issued", "rejected"].map((status) => (
           <TabsContent key={status} value={status} className="space-y-4">
-            {getFilteredByStatus(status).map((req) => {
+            {getPaginatedByStatus(status).items.map((req) => {
               const StatusIcon = statusConfig[req.status].icon
               return (
                 <Card key={req.id}>
@@ -1006,6 +1016,16 @@ export function RequisitionManagement() {
               )
             })}
 
+            {getPaginatedByStatus(status).total > PAGE_SIZE && (
+              <DataPagination
+                currentPage={reqPage}
+                totalItems={getPaginatedByStatus(status).total}
+                pageSize={PAGE_SIZE}
+                onPageChange={setReqPage}
+                itemLabel="requisitions"
+              />
+            )}
+
             {getFilteredByStatus(status).length === 0 && (
               <Card>
                 <CardContent className="flex flex-col items-center justify-center py-12">
@@ -1047,7 +1067,7 @@ export function RequisitionManagement() {
                       </tr>
                     </thead>
                     <tbody>
-                      {transactions.map((transaction) => (
+                      {transactions.slice((transPage - 1) * PAGE_SIZE, transPage * PAGE_SIZE).map((transaction) => (
                         <tr key={transaction.id} className="border-b hover:bg-slate-50">
                           <td className="py-3 px-4 font-medium">{transaction.item_name}</td>
                           <td className="py-3 px-4">
@@ -1083,6 +1103,16 @@ export function RequisitionManagement() {
                     </tbody>
                   </table>
                 </div>
+              )}
+              {transactions.length > PAGE_SIZE && (
+                <DataPagination
+                  currentPage={transPage}
+                  totalItems={transactions.length}
+                  pageSize={PAGE_SIZE}
+                  onPageChange={setTransPage}
+                  itemLabel="transactions"
+                  className="mt-4"
+                />
               )}
             </CardContent>
           </Card>
