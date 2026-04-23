@@ -37,6 +37,15 @@ type StoreItemRow = {
   reorder_level?: number | null
 }
 
+type TonerCatalogItem = {
+  id: string
+  name: string
+  category: string
+  location: string
+  quantity: number
+  reorderLevel: number
+}
+
 function normalizeToken(value: string | null | undefined): string {
   return String(value || "")
     .toLowerCase()
@@ -137,8 +146,16 @@ export async function GET(request: NextRequest) {
     const allDevices = (devicesData || []) as DeviceRow[]
     const printerLikeDevices = allDevices.filter(isPrinterLikeType)
 
-    const tonerItems = ([...(storeItemsData || []), ...centralItems] as StoreItemRow[])
-      .filter(isTonerLikeItem)
+    const tonerItems = ([...(storeItemsData || []), ...centralItems] as StoreItemRow[]).filter(isTonerLikeItem)
+
+    const tonerCatalog: TonerCatalogItem[] = tonerItems.map((item) => ({
+      id: item.id,
+      name: item.name || item.item_name || "Unknown",
+      category: item.category || "Unknown",
+      location: getCanonicalLocationName(item.location || "Unspecified"),
+      quantity: getItemQty(item),
+      reorderLevel: toNumber(item.reorder_level || 0),
+    }))
 
     const locationMap = new Map<string, any>()
 
@@ -166,6 +183,8 @@ export async function GET(request: NextRequest) {
         status: device.status || "active",
         assignedTo: device.assigned_to || "Unassigned",
         tonerType: device.toner_type || device.toner_model || "Not Set",
+        tonerModel: device.toner_model || "",
+        hasAssociatedToners: matchedToners.length > 0,
         monthlyPrintVolume: toNumber(device.monthly_print_volume || 0),
         tonerYield: toNumber(device.toner_yield || 0),
         matchedToners: matchedToners.map((item) => ({
@@ -222,6 +241,7 @@ export async function GET(request: NextRequest) {
       success: true,
       summary,
       locations,
+      tonerCatalog,
     })
   } catch (error: any) {
     return NextResponse.json({ error: error.message || "Internal server error" }, { status: 500 })

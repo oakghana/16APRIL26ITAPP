@@ -317,7 +317,12 @@ export function DeviceInventory() {
       const response = await fetch(`/api/devices?${params.toString()}`)
 
       if (!response.ok) {
-        const errorData = await response.json()
+        let errorData: any = null
+        try {
+          errorData = await response.json()
+        } catch {
+          errorData = { error: `HTTP ${response.status} ${response.statusText}` }
+        }
         console.error("[v0] Error loading devices:", errorData)
         return
       }

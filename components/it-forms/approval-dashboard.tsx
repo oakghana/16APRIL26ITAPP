@@ -12,6 +12,7 @@ import { DepartmentHeadApprovalModule } from "./department-head-approval"
 import { ITServiceDeskProcessingPanel } from "./service-desk-processing"
 import { ITHeadAdminPanel } from "./it-head-admin-panel"
 import { HodApprovalTracker } from "./hod-approval-tracker"
+import { SignatureManagementPanel } from "./signature-management"
 
 function LockedSection({ title, description }: { title: string; description: string }) {
   return (
@@ -37,6 +38,7 @@ export function ITFormsApprovalDashboard() {
   const canUseServiceDeskDesk = role.startsWith("service_desk") || role === "admin"
   const canUseManagerDesk = ["it_head", "admin"].includes(role)
   const canUseHODTracker = ["it_head", "admin"].includes(role)
+  const canUseSignatureDesk = ["department_head", "admin"].includes(role)
 
   const defaultTab = useMemo(() => {
     if (canUseHODDesk) return "hod"
@@ -110,12 +112,13 @@ export function ITFormsApprovalDashboard() {
       </div>
 
       <Tabs value={activeTab} onValueChange={setActiveTab} className="space-y-4">
-        <TabsList className="grid h-auto grid-cols-2 gap-2 md:grid-cols-5">
+        <TabsList className="grid h-auto grid-cols-2 gap-2 md:grid-cols-6">
           <TabsTrigger value="request">Request Services</TabsTrigger>
           <TabsTrigger value="hod" disabled={!canUseHODDesk}>Head of Department</TabsTrigger>
           <TabsTrigger value="service-desk" disabled={!canUseServiceDeskDesk}>IT Service Desk</TabsTrigger>
           <TabsTrigger value="manager" disabled={!canUseManagerDesk}>IT Manager</TabsTrigger>
           <TabsTrigger value="hod-tracker" disabled={!canUseHODTracker}>HOD Tracker</TabsTrigger>
+          <TabsTrigger value="signature" disabled={!canUseSignatureDesk}>Signature</TabsTrigger>
         </TabsList>
 
         <TabsContent value="request" className="space-y-4">
@@ -192,6 +195,17 @@ export function ITFormsApprovalDashboard() {
             <LockedSection
               title="HOD tracker section"
               description="This section is only for IT Head and Admin users."
+            />
+          )}
+        </TabsContent>
+
+        <TabsContent value="signature" className="space-y-4">
+          {canUseSignatureDesk ? (
+            <SignatureManagementPanel />
+          ) : (
+            <LockedSection
+              title="Signature section"
+              description="This section is only for Department Heads and Admin users."
             />
           )}
         </TabsContent>
