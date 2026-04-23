@@ -1,16 +1,26 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { createClient } from '@supabase/supabase-js'
-import { cookies } from 'next/headers'
+import { getLocationAliases } from '@/lib/location-filter'
 
 const supabase = createClient(
   (process.env.NEXT_PUBLIC_SUPABASE_URL ?? "https://placeholder.supabase.co"),
   (process.env.SUPABASE_SERVICE_ROLE_KEY ?? "placeholder-build-key")
 )
 
+function buildLocationOrClause(location: string) {
+  const aliases = getLocationAliases(location)
+  return aliases
+    .map((alias) => alias.replace(/[,%()]/g, '').trim())
+    .filter(Boolean)
+    .map((alias) => `location.ilike.%${alias}%`)
+    .join(',')
+}
+
 export async function GET(req: NextRequest) {
   try {
-    const searchParams = req.nextUrl.searchParams
+    const { searchParams } = req.nextUrl
     const isDepartmentView = searchParams.get('department') === 'true'
+    const userId = searchParams.get('userId')
 
     if (!isDepartmentView) {
       return NextResponse.json(
@@ -19,48 +29,40 @@ export async function GET(req: NextRequest) {
       )
     }
 
-    const cookieStore = await cookies()
-    const token = cookieStore.get('sb-auth-token')?.value
-
-    if (!token) {
+    if (!userId) {
       return NextResponse.json(
-        { success: false, error: 'User not authenticated' },
-        { status: 401 }
+        { success: false, error: 'userId is required' },
+        { status: 400 }
       )
     }
 
-    // Verify and get user from token
-    const { data: { user }, error: userError } = await supabase.auth.getUser(token)
-
-    if (userError || !user) {
-      return NextResponse.json(
-        { success: false, error: 'Authentication failed' },
-        { status: 401 }
-      )
-    }
-
-    // Fetch department head's department
     const { data: headData, error: headError } = await supabase
       .from('profiles')
-      .select('department')
-      .eq('id', user.id)
+      .select('id, location')
+      .eq('id', userId)
       .single()
 
-    if (headError || !headData?.department) {
-      // Return empty array if no department found
-      return NextResponse.json({
-        success: true,
-        requests: [],
-      })
+    if (headError || !headData) {
+      return NextResponse.json(
+        { success: false, error: 'Profile not found' },
+        { status: 404 }
+      )
     }
 
-    // Fetch service desk requests for the department
-    const { data, error } = await supabase
-      .from('service_desk_tickets')
+    let query = supabase
+      .from('service_tickets')
       .select('*')
-      .eq('department', headData.department)
       .order('created_at', { ascending: false })
-      .limit(50)
+      .limit(100)
+
+    if ((headData.location || '').trim()) {
+      const clause = buildLocationOrClause(headData.location)
+      if (clause) {
+        query = query.or(clause)
+      }
+    }
+
+    const { data, error } = await query
 
     if (error) {
       return NextResponse.json(
@@ -69,9 +71,20 @@ export async function GET(req: NextRequest) {
       )
     }
 
+    const requests = (data || []).map((ticket: any) => ({
+      id: ticket.id,
+      task_number: ticket.ticket_number || ticket.id,
+      device_name: ticket.title || 'Service Request',
+      issue_description: ticket.description || '',
+      priority: ticket.priority || 'medium',
+      status: ticket.status || 'open',
+      assigned_to: ticket.assigned_to || null,
+      created_at: ticket.created_at,
+    }))
+
     return NextResponse.json({
       success: true,
-      requests: data || [],
+      requests,
     })
   } catch (err) {
     console.error('[v0] Service desk requests API error:', err)

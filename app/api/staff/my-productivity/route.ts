@@ -1,21 +1,21 @@
 import { type NextRequest, NextResponse } from "next/server"
-import { createClient } from "@/lib/supabase/server"
+import { createAdminClient } from "@/lib/supabase/admin"
 
 export async function GET(request: NextRequest) {
   try {
-    const searchParams = request.nextUrl.searchParams
+    const { searchParams } = request.nextUrl
     const staffId = searchParams.get("staffId")
 
     if (!staffId) {
       return NextResponse.json({ error: "Staff ID is required" }, { status: 400 })
     }
 
-    const supabase = await createClient()
+    const supabase = createAdminClient()
 
     // Get staff details
     const { data: staff, error: staffError } = await supabase
       .from("profiles")
-      .select("id, full_name, email, location, role")
+      .select("id, full_name, name, email, location, role")
       .eq("id", staffId)
       .single()
 
@@ -23,22 +23,31 @@ export async function GET(request: NextRequest) {
       return NextResponse.json({ error: "Staff not found" }, { status: 404 })
     }
 
-    // Get all tasks assigned to this staff member
-    const { data: allTasks, error: tasksError } = await supabase
+    // Get all repair tasks assigned to this staff member
+    const { data: repairTasks, error: tasksError } = await supabase
       .from("repair_requests")
-      .select("*")
+      .select("id, status, priority, created_at, updated_at")
       .eq("assigned_to", staffId)
 
     if (tasksError) {
-      console.error("[v0] Error fetching tasks:", tasksError)
+      console.error("[v0] Error fetching repair tasks:", tasksError)
       return NextResponse.json({ error: "Failed to fetch tasks" }, { status: 500 })
     }
 
-    const tasks = allTasks || []
+    // Get service tickets assigned to this staff (by id or name)
+    const staffName = (staff.name || staff.full_name || staff.email || "").toLowerCase().trim()
+
+    const { data: ticketTasks } = await supabase
+      .from("service_tickets")
+      .select("id, status, priority, created_at, updated_at, completed_at, resolved_at")
+      .or(`assigned_to.eq.${staffId},assigned_to_name.ilike.%${staffName}%`)
+
+    const tasks = [...(repairTasks || []), ...(ticketTasks || [])]
     const totalTasksAssigned = tasks.length
 
-    // Filter completed tasks
-    const completedTasks = tasks.filter((task) => task.status === "completed")
+    // Filter completed tasks (cover all completion statuses)
+    const completedStatuses = ["completed", "closed", "resolved", "repaired", "awaiting_confirmation"]
+    const completedTasks = tasks.filter((task) => completedStatuses.includes((task.status || "").toLowerCase()))
     const completedCount = completedTasks.length
 
     // Calculate completion rate
@@ -48,11 +57,11 @@ export async function GET(request: NextRequest) {
     let onTimeCompletions = 0
     let totalCompletionDays = 0
 
-    completedTasks.forEach((task) => {
-      if (!task.created_at || !task.updated_at) return
+    completedTasks.forEach((task: any) => {
+      if (!task.created_at) return
 
       const createdDate = new Date(task.created_at)
-      const completedDate = new Date(task.updated_at)
+      const completedDate = new Date(task.completed_at || task.resolved_at || task.updated_at)
       const daysToComplete = Math.floor((completedDate.getTime() - createdDate.getTime()) / (1000 * 60 * 60 * 24))
       
       totalCompletionDays += daysToComplete
@@ -97,28 +106,20 @@ export async function GET(request: NextRequest) {
     else if (productivityScore >= 35) grading = "Below Average"
     else grading = "Poor"
 
-    // Get total IT staff count and rank
+    // Get total IT staff count
     const { data: allStaff } = await supabase
       .from("profiles")
       .select("id")
       .in("role", ["it_staff", "it_head", "regional_it_head"])
-      .eq("is_active", true)
 
     const totalStaff = allStaff?.length || 0
 
-    // Get all productivity scores to determine rank (simplified - in production, use the full metrics endpoint)
-    const { data: staffMetrics } = await supabase
-      .from("profiles")
-      .select("id")
-      .in("role", ["it_staff", "it_head", "regional_it_head"])
-      .eq("is_active", true)
-
-    // For now, return null for rank (would need to calculate all scores to rank properly)
+    // Remove duplicate profile fetch — use already-fetched staff data
     const rank = null
 
     const metrics = {
       staffId: staff.id,
-      staffName: staff.full_name,
+      staffName: staff.full_name || staff.name,
       email: staff.email,
       location: staff.location,
       role: staff.role,

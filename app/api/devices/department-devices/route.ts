@@ -1,55 +1,61 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { createClient } from '@supabase/supabase-js'
-import { cookies } from 'next/headers'
+import { getLocationAliases } from '@/lib/location-filter'
 
 const supabase = createClient(
   (process.env.NEXT_PUBLIC_SUPABASE_URL ?? "https://placeholder.supabase.co"),
   (process.env.SUPABASE_SERVICE_ROLE_KEY ?? "placeholder-build-key")
 )
 
+function buildLocationOrClause(location: string) {
+  const aliases = getLocationAliases(location)
+  return aliases
+    .map((alias) => alias.replace(/[,%()]/g, '').trim())
+    .filter(Boolean)
+    .map((alias) => `location.ilike.%${alias}%`)
+    .join(',')
+}
+
 export async function GET(req: NextRequest) {
   try {
-    const cookieStore = await cookies()
-    const token = cookieStore.get('sb-auth-token')?.value
+    const userId = req.nextUrl.searchParams.get('userId')
 
-    if (!token) {
+    if (!userId) {
       return NextResponse.json(
-        { success: false, error: 'User not authenticated' },
-        { status: 401 }
+        { success: false, error: 'userId is required' },
+        { status: 400 }
       )
     }
 
-    // Verify and get user from token
-    const { data: { user }, error: userError } = await supabase.auth.getUser(token)
-
-    if (userError || !user) {
-      return NextResponse.json(
-        { success: false, error: 'Authentication failed' },
-        { status: 401 }
-      )
-    }
-
-    // Fetch department head's department
+    // Resolve department head profile from custom-auth user id.
     const { data: headData, error: headError } = await supabase
       .from('profiles')
-      .select('department')
-      .eq('id', user.id)
+      .select('id, location, department')
+      .eq('id', userId)
       .single()
 
-    if (headError || !headData?.department) {
-      // Return empty array if no department found
-      return NextResponse.json({
-        success: true,
-        devices: [],
-      })
+    if (headError || !headData) {
+      return NextResponse.json(
+        { success: false, error: 'Profile not found' },
+        { status: 404 }
+      )
     }
 
-    // Fetch all devices in the department
-    const { data, error } = await supabase
+    const location = headData.location || ''
+
+    let query = supabase
       .from('devices')
       .select('*')
-      .eq('department', headData.department)
-      .order('device_name', { ascending: true })
+      .order('created_at', { ascending: false })
+
+    if (location.trim()) {
+      const clause = buildLocationOrClause(location)
+      if (clause) {
+        query = query.or(clause)
+      }
+    }
+
+    const { data, error } = await query
 
     if (error) {
       return NextResponse.json(
@@ -58,9 +64,14 @@ export async function GET(req: NextRequest) {
       )
     }
 
+    const devices = (data || []).map((device: any) => ({
+      ...device,
+      device_name: device.device_name || `${device.brand || ''} ${device.model || ''}`.trim() || 'Unnamed Device',
+    }))
+
     return NextResponse.json({
       success: true,
-      devices: data || [],
+      devices,
     })
   } catch (err) {
     console.error('[v0] Department devices API error:', err)

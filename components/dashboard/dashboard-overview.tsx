@@ -259,6 +259,11 @@ export function DashboardOverview() {
         )}
       </div>
 
+      {/* Performance Banner - shown prominently at top for IT staff */}
+      {(user?.role === "it_staff" || user?.role === "it_head" || user?.role === "regional_it_head") && (
+        <StaffProductivityWidget />
+      )}
+
       {/* Stats Grid - More compact */}
       <div className="grid gap-3 grid-cols-2 lg:grid-cols-4">
         {displayStats.map((stat) => (
@@ -279,12 +284,9 @@ export function DashboardOverview() {
         ))}
       </div>
 
-      {/* IT Staff Productivity and Tasks Notifications */}
+      {/* IT Staff Incomplete Tasks Notifications */}
       {(user?.role === "it_staff" || user?.role === "it_head" || user?.role === "regional_it_head") && (
-        <div className="grid gap-4 md:grid-cols-2">
-          <StaffProductivityWidget />
-          <IncompleteTasksWidget />
-        </div>
+        <IncompleteTasksWidget />
       )}
 
       {/* Admin-only: Weekly Internet Reports Summary */}

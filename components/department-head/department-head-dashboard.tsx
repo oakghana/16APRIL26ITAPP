@@ -101,20 +101,24 @@ export function DepartmentHeadDashboard() {
   )
 
   useEffect(() => {
+    if (!user?.id) return
+
     fetchStaffMembers()
     fetchStockItems()
     fetchDepartmentDevices()
     fetchServiceDeskRequests()
-  }, [])
+  }, [user?.id])
 
   useEffect(() => {
     filterStaff()
   }, [searchTerm, staffMembers])
 
   const fetchStaffMembers = async () => {
+    if (!user?.id) return
+
     try {
       setLoading(true)
-      const response = await fetch("/api/staff/department-members")
+      const response = await fetch(`/api/staff/department-members?userId=${encodeURIComponent(user.id)}`)
       const data = await response.json()
       if (data.success) {
         setStaffMembers(data.staff || [])
@@ -147,8 +151,10 @@ export function DepartmentHeadDashboard() {
   }
 
   const fetchStockItems = async () => {
+    if (!user?.id) return
+
     try {
-      const response = await fetch("/api/store/stock-items?viewOnly=true")
+      const response = await fetch(`/api/store/stock-items?viewOnly=true&userId=${encodeURIComponent(user.id)}`)
       const data = await response.json()
       if (data.success) {
         setStockItems(data.items || [])
@@ -159,8 +165,10 @@ export function DepartmentHeadDashboard() {
   }
 
   const fetchDepartmentDevices = async () => {
+    if (!user?.id) return
+
     try {
-      const response = await fetch("/api/devices/department-devices")
+      const response = await fetch(`/api/devices/department-devices?userId=${encodeURIComponent(user.id)}`)
       const data = await response.json()
       if (data.success) {
         setDepartmentDevices(data.devices || [])
@@ -171,8 +179,10 @@ export function DepartmentHeadDashboard() {
   }
 
   const fetchServiceDeskRequests = async () => {
+    if (!user?.id) return
+
     try {
-      const response = await fetch("/api/repairs/service-desk-requests?department=true")
+      const response = await fetch(`/api/repairs/service-desk-requests?department=true&userId=${encodeURIComponent(user.id)}`)
       const data = await response.json()
       if (data.success) {
         setServiceDeskRequests(data.requests || [])
