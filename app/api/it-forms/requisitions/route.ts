@@ -106,6 +106,7 @@ export async function GET(request: NextRequest) {
     const status = searchParams.get("status")
     const department = searchParams.get("department")
     const requestedBy = searchParams.get("requestedBy")
+    const officeUseLocation = searchParams.get("officeUseLocation")
 
     console.log("[it-requisitions] Loading IT equipment requisitions:", { status, department })
 
@@ -133,9 +134,28 @@ export async function GET(request: NextRequest) {
       return NextResponse.json({ error: error.message }, { status: 500 })
     }
 
+    let requisitions = data || []
+
+    if (officeUseLocation && requisitions.length > 0) {
+      const requesterIds = [...new Set(requisitions.map((r: any) => r.requested_by_id).filter(Boolean))]
+
+      if (requesterIds.length > 0) {
+        const { data: requesterProfiles } = await supabaseAdmin
+          .from("profiles")
+          .select("id, location")
+          .in("id", requesterIds)
+
+        const locationMap = new Map((requesterProfiles || []).map((p: any) => [p.id, String(p.location || "").toLowerCase()]))
+        requisitions = requisitions.filter((r: any) => {
+          const requesterLocation = locationMap.get(r.requested_by_id) || ""
+          return requesterLocation === officeUseLocation.toLowerCase()
+        })
+      }
+    }
+
     return NextResponse.json({
       success: true,
-      requisitions: data || []
+      requisitions
     })
 
   } catch (error: any) {

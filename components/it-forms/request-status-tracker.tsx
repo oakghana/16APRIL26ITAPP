@@ -229,7 +229,7 @@ export function RequestStatusTracker({
       const hodApprover = req.departmental_head_name || req.sectional_head_name
       const hodTimestamp = req.departmental_head_date || req.sectional_head_date
       const isRejected = req.status.includes("rejected")
-      const hodCompleted = Boolean(hodApprover) || ["hod_approved", "pending_manager", "recommended", "not_recommended", "gadget_issued", "sent_for_repair", "repaired", "confirmed_working", "pending_service_desk", "pending_it_head", "pending_admin", "pending_store", "approved", "issued", "completed"].includes(req.status)
+      const hodCompleted = Boolean(hodApprover) || ["hod_approved", "pending_manager", "recommended", "not_recommended", "gadget_issued", "sent_for_repair", "repaired", "confirmed_working", "pending_it_office_use", "pending_service_desk", "pending_it_head", "pending_admin", "pending_store", "approved", "issued", "completed"].includes(req.status)
       const serviceDeskCompleted = ["hod_approved", "pending_manager", "recommended", "not_recommended", "gadget_issued", "sent_for_repair", "repaired", "confirmed_working", "pending_it_head", "pending_admin", "pending_store", "approved", "issued", "completed"].includes(req.status)
       const adminCompleted = ["pending_manager", "recommended", "not_recommended", "gadget_issued", "sent_for_repair", "repaired", "confirmed_working", "pending_store", "approved", "issued", "completed"].includes(req.status)
 
@@ -248,8 +248,8 @@ export function RequestStatusTracker({
           timestamp: hodTimestamp,
         },
         {
-          stage: "IT Service Desk Review",
-          role: "IT Service Desk",
+          stage: "IT Office Use",
+          role: "IT Staff",
           status: isRejected ? "rejected" : serviceDeskCompleted ? "completed" : "pending",
         },
         {
@@ -274,8 +274,8 @@ export function RequestStatusTracker({
         signatureDataUrl: req.department_head_signature,
       },
       {
-        stage: "IT Service Desk Processing",
-        role: "IT Service Desk",
+        stage: "IT Office Use",
+        role: "IT Staff",
         status: req.service_desk_approved ? "completed" : "pending",
       },
       {
@@ -309,7 +309,8 @@ export function RequestStatusTracker({
       pending_hod: { variant: "default", label: "Awaiting HOD" },
       pending_department_head: { variant: "default", label: "Awaiting HOD" },
       hod_approved: { variant: "secondary", label: "HOD Approved" },
-      pending_service_desk: { variant: "default", label: "Processing" },
+      pending_service_desk: { variant: "default", label: "IT Office Use" },
+      pending_it_office_use: { variant: "default", label: "IT Office Use" },
       pending_it_head: { variant: "default", label: "Awaiting IT Head" },
       pending_admin: { variant: "default", label: "Awaiting Admin" },
       pending_store: { variant: "default", label: "Ready for Issue" },
@@ -326,6 +327,7 @@ export function RequestStatusTracker({
     if (formType !== "requisition") {
       if (["draft", "pending_department_head", "pending", "pending_hod"].includes(req.status)) return "Waiting for Department Head approval"
       if (req.status === "hod_approved") return "Approved by Department Head and awaiting IT processing"
+      if (req.status === "pending_it_office_use") return "Awaiting IT office-use completion by IT staff"
       if (req.status === "pending_service_desk") return "Being reviewed by IT Service Desk"
       if (req.status === "pending_it_head") return "Awaiting IT Head review"
       if (req.status === "pending_admin") return "Awaiting Admin review"
@@ -336,7 +338,7 @@ export function RequestStatusTracker({
 
     if (!req.department_head_approved_by) return "Waiting for Department Head approval"
     if (req.department_head_approved === false) return "Your request was rejected"
-    if (!req.service_desk_approved) return "Being processed by IT Service Desk"
+    if (!req.service_desk_approved) return "Awaiting IT office-use completion by IT staff"
     if (!req.it_head_approved) return "Awaiting IT Head review"
     if (!req.admin_approved) return "Awaiting Admin approval"
     if (!req.store_head_approved) return "Ready for store issuance"

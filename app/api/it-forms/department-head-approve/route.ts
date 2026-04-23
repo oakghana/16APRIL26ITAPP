@@ -67,7 +67,7 @@ export async function POST(request: NextRequest) {
       status:
         formType === "requisition"
           ? action === "approve"
-            ? "pending_service_desk"
+            ? "pending_it_office_use"
             : "rejected_department_head"
           : action === "approve"
             ? "hod_approved"
@@ -156,20 +156,44 @@ export async function POST(request: NextRequest) {
         .catch((err) => console.error("[v0] Error creating notification for requester:", err))
     }
 
-    // Create notification for service desk if approved (create multiple for each service desk member)
+    // Create notification for IT office-use staff in request location if approved
     if (action === "approve") {
-      // Get all service desk staff
-      const { data: serviceStaff } = await supabaseAdmin
+      let targetLocation = ""
+      if (requisition.requested_by_id) {
+        const { data: requesterProfile } = await supabaseAdmin
+          .from("profiles")
+          .select("location")
+          .eq("id", requisition.requested_by_id)
+          .single()
+        targetLocation = String(requesterProfile?.location || "")
+      }
+
+      let officeUseQuery = supabaseAdmin
         .from("profiles")
         .select("id")
-        .eq("role", "service_desk_staff")
+        .in("role", [
+          "it_staff",
+          "service_desk_staff",
+          "service_desk_accra",
+          "service_desk_kumasi",
+          "service_desk_takoradi",
+          "service_desk_tema",
+          "service_desk_sunyani",
+          "service_desk_cape_coast",
+        ])
         .eq("is_active", true)
 
-      if (serviceStaff && serviceStaff.length > 0) {
-        const notifications = serviceStaff.map((staff) => ({
+      if (targetLocation) {
+        officeUseQuery = officeUseQuery.eq("location", targetLocation)
+      }
+
+      const { data: officeUseStaff } = await officeUseQuery
+
+      if (officeUseStaff && officeUseStaff.length > 0) {
+        const notifications = officeUseStaff.map((staff) => ({
           user_id: staff.id,
-          title: "New Staff Request Ready for Processing",
-          message: `Request ${requestNumber} from ${requesterName} has been HOD approved and is ready for service desk processing.`,
+          title: "New Request Awaiting IT Office Use",
+          message: `Request ${requestNumber} from ${requesterName} has been HOD approved and needs IT office-use processing${targetLocation ? ` (${targetLocation})` : ""}.`,
           type: "info" as const,
           category: "approval" as const,
           reference_type: config.relatedType,
@@ -180,7 +204,7 @@ export async function POST(request: NextRequest) {
         await supabaseAdmin
           .from("notifications")
           .insert(notifications)
-          .catch((err) => console.error("[v0] Error creating service desk notifications:", err))
+          .catch((err) => console.error("[v0] Error creating IT office-use notifications:", err))
       }
     }
 

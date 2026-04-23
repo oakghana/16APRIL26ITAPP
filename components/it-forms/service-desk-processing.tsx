@@ -56,7 +56,7 @@ export function ITServiceDeskProcessingPanel() {
   const [isDetailDialogOpen, setIsDetailDialogOpen] = useState(false)
   const [isProcessDialogOpen, setIsProcessDialogOpen] = useState(false)
   const [processingNotes, setProcessingNotes] = useState("")
-  const [processingAction, setProcessingAction] = useState<"process" | "forward">("process")
+  const [processingAction, setProcessingAction] = useState<"process" | "hold">("process")
   const [isSubmitting, setIsSubmitting] = useState(false)
   const [searchQuery, setSearchQuery] = useState("")
   const [filterTab, setFilterTab] = useState<"pending" | "processed" | "all">("pending")
@@ -65,7 +65,7 @@ export function ITServiceDeskProcessingPanel() {
 
   useEffect(() => {
     fetchRequisitions()
-  }, [])
+  }, [user?.location])
 
   useEffect(() => {
     filterRequisitions()
@@ -74,7 +74,11 @@ export function ITServiceDeskProcessingPanel() {
   const fetchRequisitions = async () => {
     try {
       setLoading(true)
-      const response = await fetch("/api/it-forms/requisitions?status=pending_service_desk")
+      const params = new URLSearchParams({ status: "pending_it_office_use" })
+      if (user?.location) {
+        params.set("officeUseLocation", user.location)
+      }
+      const response = await fetch(`/api/it-forms/requisitions?${params.toString()}`)
       const data = await response.json()
 
       if (data.success) {
@@ -122,8 +126,8 @@ export function ITServiceDeskProcessingPanel() {
         notes: req.department_head_notes,
       },
       {
-        stage: "IT Service Desk Processing",
-        role: "IT Service Desk",
+        stage: "IT Office Use",
+        role: "IT Staff",
         status: req.service_desk_approved ? "completed" : "pending",
         approver: req.service_desk_processed_by,
         timestamp: req.service_desk_processed_at,
@@ -173,6 +177,8 @@ export function ITServiceDeskProcessingPanel() {
           requisitionId: selectedRequisition.id,
           action: processingAction,
           processedBy: user?.full_name || user?.email || "Unknown",
+          processedById: user?.id,
+          processedByLocation: user?.location,
           notes: processingNotes,
         }),
       })
@@ -210,9 +216,9 @@ export function ITServiceDeskProcessingPanel() {
   return (
     <div className="space-y-6">
       <div>
-        <h1 className="text-3xl font-bold tracking-tight">IT Service Desk - Request Processing</h1>
+        <h1 className="text-3xl font-bold tracking-tight">IT Office Use - Request Processing</h1>
         <p className="text-muted-foreground mt-2">
-          Process approved requisitions and prepare them for IT Head review
+          IT staff complete office-use details before IT Head/Admin review
         </p>
       </div>
 
@@ -252,7 +258,7 @@ export function ITServiceDeskProcessingPanel() {
           <div className="flex items-center justify-between">
             <div>
               <CardTitle>Requisition Processing Queue</CardTitle>
-              <CardDescription>Review and process departmentally approved requisitions</CardDescription>
+              <CardDescription>Review and complete office-use processing for HOD-approved requisitions</CardDescription>
             </div>
             <ClipboardList className="h-5 w-5 text-muted-foreground" />
           </div>
@@ -281,7 +287,7 @@ export function ITServiceDeskProcessingPanel() {
                 ) : filteredRequisitions.length === 0 ? (
                   <div className="text-center py-12">
                     <AlertCircle className="h-12 w-12 text-muted-foreground/30 mx-auto mb-3" />
-                    <p className="text-muted-foreground">No requisitions to process</p>
+                    <p className="text-muted-foreground">No requisitions for office-use processing</p>
                   </div>
                 ) : (
                   <div className="space-y-3">
@@ -295,7 +301,7 @@ export function ITServiceDeskProcessingPanel() {
                             <div className="flex items-center gap-2">
                               <span className="font-semibold">{req.requisition_number}</span>
                               <Badge variant={req.service_desk_approved ? "secondary" : "default"} className="text-xs">
-                                {req.service_desk_approved ? "Processed" : "Pending"}
+                                {req.service_desk_approved ? "Office Use Completed" : "Pending Office Use"}
                               </Badge>
                             </div>
                             <p className="text-sm text-muted-foreground">
@@ -415,7 +421,7 @@ export function ITServiceDeskProcessingPanel() {
                   <SelectValue />
                 </SelectTrigger>
                 <SelectContent>
-                  <SelectItem value="process">Process & Forward to IT Head</SelectItem>
+                  <SelectItem value="process">Complete Office Use & Forward to IT Head</SelectItem>
                   <SelectItem value="hold">Hold for More Info</SelectItem>
                 </SelectContent>
               </Select>

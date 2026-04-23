@@ -7,7 +7,7 @@ import { Button } from "@/components/ui/button"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import { Badge } from "@/components/ui/badge"
 import { useAuth } from "@/lib/auth-context"
-import { Laptop, Wrench, ClipboardList, ShieldCheck, Lock, ArrowRight, Users, Headphones } from "lucide-react"
+import { Laptop, Wrench, ClipboardList, ShieldCheck, Lock, ArrowRight, Users } from "lucide-react"
 import { DepartmentHeadApprovalModule } from "./department-head-approval"
 import { ITServiceDeskProcessingPanel } from "./service-desk-processing"
 import { ITHeadAdminPanel } from "./it-head-admin-panel"
@@ -39,17 +39,21 @@ export function ITFormsApprovalDashboard() {
   const isITDepartmentHead = role === "department_head" && department?.toLowerCase().includes("it")
 
   const canUseHODDesk = ["department_head", "admin"].includes(role)
-  const canUseServiceDeskDesk = role.startsWith("service_desk") || role === "admin"
+  const canUseOfficeUseDesk =
+    role === "admin" ||
+    role === "it_staff" ||
+    role === "it_store_head" ||
+    role.startsWith("service_desk")
   const canUseManagerDesk = ["it_head", "admin"].includes(role) || isITDepartmentHead
   const canUseHODTracker = ["it_head", "admin"].includes(role) || isITDepartmentHead
   const canUseSignatureDesk = ["department_head", "admin", "it_head", "regional_it_head"].includes(role)
 
   const defaultTab = useMemo(() => {
     if (canUseHODDesk) return "hod"
-    if (canUseServiceDeskDesk) return "service-desk"
+    if (canUseOfficeUseDesk) return "service-desk"
     if (canUseManagerDesk) return "manager"
     return "request"
-  }, [canUseHODDesk, canUseServiceDeskDesk, canUseManagerDesk])
+  }, [canUseHODDesk, canUseOfficeUseDesk, canUseManagerDesk])
 
   const [activeTab, setActiveTab] = useState(defaultTab)
 
@@ -79,7 +83,7 @@ export function ITFormsApprovalDashboard() {
       <div className="space-y-2">
         <h1 className="text-3xl font-bold tracking-tight">IT Forms and Approvals</h1>
         <p className="text-muted-foreground">
-          All staff can request IT services here. Staff requests move through the Department Head first, then the IT Service Desk, and finally to IT Head or Admin review.
+          All staff can request IT services here. Staff requests move through the Department Head first, then IT Office Use by IT staff in location, and finally to IT Head or Admin review.
         </p>
       </div>
 
@@ -101,10 +105,10 @@ export function ITFormsApprovalDashboard() {
             <p className="mt-2 text-lg font-semibold">{canUseHODDesk ? "Enabled" : "Locked"}</p>
           </CardContent>
         </Card>
-        <Card className={canUseServiceDeskDesk ? "shadow-sm border-emerald-200" : "shadow-sm opacity-60 bg-slate-50 dark:bg-slate-900"}>
+        <Card className={canUseOfficeUseDesk ? "shadow-sm border-emerald-200" : "shadow-sm opacity-60 bg-slate-50 dark:bg-slate-900"}>
           <CardContent className="p-5">
-            <p className="text-sm text-muted-foreground">IT Service Desk</p>
-            <p className="mt-2 text-lg font-semibold">{canUseServiceDeskDesk ? "Enabled" : "Locked"}</p>
+            <p className="text-sm text-muted-foreground">IT Office Use</p>
+            <p className="mt-2 text-lg font-semibold">{canUseOfficeUseDesk ? "Enabled" : "Locked"}</p>
           </CardContent>
         </Card>
         <Card className={canUseManagerDesk ? "shadow-sm border-emerald-200" : "shadow-sm opacity-60 bg-slate-50 dark:bg-slate-900"}>
@@ -119,7 +123,7 @@ export function ITFormsApprovalDashboard() {
         <TabsList className="grid h-auto grid-cols-2 gap-2 md:grid-cols-6">
           <TabsTrigger value="request">Request Services</TabsTrigger>
           <TabsTrigger value="hod" disabled={!canUseHODDesk}>Head of Department</TabsTrigger>
-          <TabsTrigger value="service-desk" disabled={!canUseServiceDeskDesk}>IT Service Desk</TabsTrigger>
+          <TabsTrigger value="service-desk" disabled={!canUseOfficeUseDesk}>IT Office Use</TabsTrigger>
           <TabsTrigger value="manager" disabled={!canUseManagerDesk}>IT Manager</TabsTrigger>
           <TabsTrigger value="hod-tracker" disabled={!canUseHODTracker}>HOD Tracker</TabsTrigger>
           <TabsTrigger value="signature" disabled={!canUseSignatureDesk}>Signature</TabsTrigger>
@@ -171,12 +175,12 @@ export function ITFormsApprovalDashboard() {
         </TabsContent>
 
         <TabsContent value="service-desk" className="space-y-4">
-          {canUseServiceDeskDesk ? (
+          {canUseOfficeUseDesk ? (
             <ITServiceDeskProcessingPanel />
           ) : (
             <LockedSection
-              title="IT Service Desk section"
-              description="This section is only for the IT Service Desk team and Admin users."
+              title="IT Office Use section"
+              description="This section is only for IT staff teams and Admin users."
             />
           )}
         </TabsContent>

@@ -8,7 +8,7 @@ const supabaseAdmin = createClient(
 
 export async function POST(request: NextRequest) {
   try {
-    const { requisitionId, action, processedBy, notes } = await request.json()
+    const { requisitionId, action, processedBy, processedById, processedByLocation, notes } = await request.json()
 
     if (!requisitionId || !action || !processedBy || !notes) {
       return NextResponse.json(
@@ -44,14 +44,16 @@ export async function POST(request: NextRequest) {
       updateData.service_desk_approved = true
       updateData.status = "pending_it_head"
     } else if (action === "hold") {
-      updateData.status = "hold_service_desk"
+      updateData.status = "hold_it_office_use"
     }
 
     // Update the approval chain
     const approvalChain = requisition.approval_timeline || requisition.approval_chain || []
     approvalChain.push({
       approver: processedBy,
-      role: "service_desk",
+      approverId: processedById || null,
+      location: processedByLocation || null,
+      role: "it_office_use",
       action: action,
       notes: notes,
       timestamp: new Date().toISOString(),
@@ -75,24 +77,36 @@ export async function POST(request: NextRequest) {
 
     // Create notifications
     if (action === "process") {
-      // Notify IT Head
-      await supabaseAdmin.from("notifications").insert({
-        recipient_id: "it_head",
-        recipient_type: "it_head",
-        title: "New Requisition Ready for Review",
-        message: `Requisition ${requisition.requisition_number} from ${requisition.requested_by} is ready for IT Head review.`,
-        type: "it_form_update",
-        related_id: requisitionId,
-        related_type: "it_equipment_requisition",
-        read: false,
-      }).catch(err => console.error("[v0] Error creating notification:", err))
+      const { data: managerUsers } = await supabaseAdmin
+        .from("profiles")
+        .select("id")
+        .or("role.eq.admin,role.eq.it_head,and(role.eq.department_head,department.ilike.%it%)")
+        .eq("is_active", true)
+
+      if (managerUsers && managerUsers.length > 0) {
+        const managerNotifications = managerUsers.map((manager) => ({
+          user_id: manager.id,
+          title: "Request Ready for IT Head/Admin Review",
+          message: `Requisition ${requisition.requisition_number} has completed IT office-use processing and is ready for final review.`,
+          type: "info" as const,
+          category: "approval" as const,
+          reference_type: "it_equipment_requisition",
+          reference_id: requisitionId,
+          is_read: false,
+        }))
+
+        await supabaseAdmin
+          .from("notifications")
+          .insert(managerNotifications)
+          .catch((err) => console.error("[v0] Error creating manager notifications:", err))
+      }
 
       // Notify requester
       await supabaseAdmin.from("notifications").insert({
         recipient_id: requisition.requested_by,
         recipient_type: "staff",
-        title: "Your Request is Being Processed",
-        message: `Your IT equipment requisition ${requisition.requisition_number} is now being processed by the IT Service Desk.`,
+        title: "Your Request Completed IT Office Use",
+        message: `Your IT equipment requisition ${requisition.requisition_number} has completed IT office-use checks and is now awaiting IT Head/Admin review.`,
         type: "it_form_update",
         related_id: requisitionId,
         related_type: "it_equipment_requisition",

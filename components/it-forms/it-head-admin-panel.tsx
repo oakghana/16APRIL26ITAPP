@@ -148,8 +148,8 @@ export function ITHeadAdminPanel() {
         status: "completed",
       },
       {
-        stage: "IT Service Desk Processing",
-        role: "IT Service Desk",
+        stage: "IT Office Use",
+        role: "IT Staff",
         status: "completed",
         approver: req.service_desk_processed_by,
         timestamp: req.service_desk_processed_at,

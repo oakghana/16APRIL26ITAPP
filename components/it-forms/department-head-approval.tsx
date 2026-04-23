@@ -114,7 +114,7 @@ export function DepartmentHeadApprovalModule() {
   const isRejected = (req: ITFormRequest) => req.status.includes("rejected") || req.department_head_approved === false
   const isApproved = (req: ITFormRequest) =>
     req.department_head_approved === true ||
-    ["hod_approved", "pending_manager", "recommended", "not_recommended", "gadget_issued", "sent_for_repair", "repaired", "confirmed_working", "pending_service_desk", "pending_it_head", "pending_admin", "pending_store", "approved", "issued", "completed"].includes(req.status)
+    ["hod_approved", "pending_manager", "recommended", "not_recommended", "gadget_issued", "sent_for_repair", "repaired", "confirmed_working", "pending_it_office_use", "pending_service_desk", "pending_it_head", "pending_admin", "pending_store", "approved", "issued", "completed"].includes(req.status)
 
   const fetchRequisitions = async () => {
     try {
@@ -191,9 +191,13 @@ export function DepartmentHeadApprovalModule() {
         signatureDataUrl: req.department_head_signature,
       },
       {
-        stage: "IT Service Desk Processing",
-        role: "IT Service Desk",
-        status: ["pending_it_head", "pending_admin", "pending_store", "approved", "issued", "completed"].includes(req.status) ? "completed" : isRejected(req) ? "rejected" : "pending",
+        stage: "IT Office Use",
+        role: "IT Staff",
+        status: ["pending_it_head", "pending_admin", "pending_store", "approved", "issued", "completed"].includes(req.status)
+          ? "completed"
+          : isRejected(req)
+            ? "rejected"
+            : "pending",
       },
       {
         stage: "IT Head / Admin Review",
