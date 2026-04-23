@@ -19,7 +19,8 @@ export async function PATCH(request: NextRequest) {
     const statusMap: Record<string, string> = {
       assigned: "open",
       in_progress: "in_progress",
-      completed: "resolved",
+      // Completion submission goes to awaiting_confirmation first.
+      completed: "awaiting_confirmation",
       // DB enum may not include 'on_hold' in some deployments; map to 'open' to avoid invalid enum errors.
       // Proper hold flow should use the /hold endpoint which sets hold metadata.
       on_hold: "open",
@@ -42,7 +43,12 @@ export async function PATCH(request: NextRequest) {
     }
 
     if (completed_at || status === "completed") {
-      updateData.resolved_at = completed_at || new Date().toISOString()
+      updateData.completed_at = completed_at || new Date().toISOString()
+      updateData.completion_confirmed = false
+      updateData.completion_confirmed_at = null
+      updateData.completion_confirmed_by = null
+      updateData.completion_confirmed_by_name = null
+      updateData.completion_work_notes = work_notes || null
     }
 
     const { data, error } = await supabaseAdmin
@@ -59,14 +65,14 @@ export async function PATCH(request: NextRequest) {
 
     console.log("[v0] Updated service ticket:", data)
 
-    // Create notification for requester when ticket is completed
+    // Create notification for requester when ticket awaits confirmation
     if (status === "completed" && data.requester_id) {
       try {
         const notificationData = {
           user_id: data.requester_id,
           type: "task_completed",
-          title: "Service Ticket Resolved",
-          message: `Your service ticket "${data.title || data.subject || 'Service Request'}" has been resolved`,
+          title: "Service Ticket Needs Confirmation",
+          message: `IT staff marked "${data.title || data.subject || 'Service Request'}" as done. Please confirm before final completion.`,
           related_id: data.id,
           related_type: "service_ticket",
           priority: "high",

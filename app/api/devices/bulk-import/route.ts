@@ -18,8 +18,9 @@ export async function POST(request: NextRequest) {
     const userLocation = formData.get("userLocation") as string
     const userRole = formData.get("userRole") as string
     const skipDuplicates = formData.get("skipDuplicates") === "true"
+    const validateOnly = formData.get("validateOnly") === "true"
 
-    console.log("[v0] Bulk import started - userLocation:", userLocation, "userRole:", userRole, "skipDuplicates:", skipDuplicates, "Time:", new Date().toISOString())
+    console.log("[v0] Bulk import started - userLocation:", userLocation, "userRole:", userRole, "skipDuplicates:", skipDuplicates, "validateOnly:", validateOnly, "Time:", new Date().toISOString())
 
     // Permission check - only IT staff and admins can import
     if (!["admin", "it_staff", "regional_it_head"].includes(userRole)) {
@@ -106,6 +107,21 @@ export async function POST(request: NextRequest) {
       "Errors:",
       validationResult.errors.length
     )
+
+    // If validate-only mode, return validation results without importing
+    if (validateOnly) {
+      console.log("[v0] Validate-only mode - returning results without import")
+      return NextResponse.json({
+        success: !validationResult.errors.length,
+        validationErrors: validationResult.errors,
+        validatedCount: validationResult.records.length,
+        skippedCount: validationResult.warnings?.length || 0,
+        totalRows: validationResult.records.length + validationResult.errors.length,
+        message: validationResult.errors.length > 0 
+          ? `Validation found ${validationResult.errors.length} error(s) to fix`
+          : `All ${validationResult.records.length} rows are valid and ready to import!`,
+      })
+    }
 
     // If there are errors, return them without importing
     if (!validationResult.isValid) {

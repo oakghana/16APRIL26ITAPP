@@ -26,6 +26,37 @@ interface ImportError {
   value?: string
 }
 
+function isDuplicateError(error: ImportError) {
+  const field = (error.field || "").toLowerCase()
+  const message = (error.message || "").toLowerCase()
+  return field === "serial_number" && (message.includes("duplicate") || message.includes("already exists"))
+}
+
+function getFixSteps(errors: ImportError[], skipDuplicates: boolean) {
+  const duplicateCount = errors.filter(isDuplicateError).length
+  const hasRowErrors = errors.length > duplicateCount
+
+  const steps: string[] = [
+    "Download the Template and keep the same header names.",
+    "Check row numbers from the error list and correct only those rows.",
+  ]
+
+  if (duplicateCount > 0) {
+    steps.push(
+      skipDuplicates
+        ? "Duplicate serials were skipped. If those devices are genuinely new, change serial_number values and re-upload."
+        : "Duplicate serials blocked import. Either change serial_number values or enable Skip Duplicates."
+    )
+  }
+
+  if (hasRowErrors) {
+    steps.push("Fix invalid values in the listed field (for example date format, required column, or malformed value).")
+  }
+
+  steps.push("Re-upload the corrected file and confirm Imported/Skipped counts in the summary.")
+  return steps
+}
+
 const ACCEPTED_FILE_EXTENSIONS = [".csv", ".txt", ".json", ".tsv"]
 
 function hasAcceptedExtension(fileName: string) {
@@ -162,6 +193,72 @@ export function BulkDeviceImportDialog({ open, onOpenChange, onImportSuccess }: 
     window.URL.revokeObjectURL(url)
   }, [validationErrors])
 
+  const handleValidateOnly = async () => {
+    if (!selectedFile || !user?.location) {
+      toast({ title: "Error", description: "File and location are required", variant: "destructive" })
+      return
+    }
+
+    setLoading(true)
+    setStep("uploading")
+    setProgress(20)
+
+    try {
+      const formData = new FormData()
+      formData.append("file", selectedFile)
+      formData.append("userLocation", user.location)
+      formData.append("userRole", user.role || "")
+      formData.append("validateOnly", "true")
+
+      setProgress(45)
+      const response = await fetch("/api/devices/bulk-import", {
+        method: "POST",
+        body: formData,
+      })
+
+      setProgress(90)
+      const result = await response.json()
+      setProgress(100)
+
+      if (!response.ok) {
+        setValidationErrors(result.validationErrors || [])
+        setImportResult({
+          success: false,
+          importedCount: 0,
+          skippedCount: 0,
+          totalRows: result.totalRows || 0,
+          message: result.error || "Validation failed",
+        })
+        setStep("results")
+        toast({ title: "Validation complete", description: result.error || "Please review the errors", variant: "default" })
+        return
+      }
+
+      setValidationErrors(result.warnings || [])
+      setImportResult({
+        success: true,
+        importedCount: result.validatedCount || 0,
+        skippedCount: 0,
+        totalRows: result.totalRows || 0,
+        message: `Validation complete: ${result.validatedCount || 0} rows validated successfully`,
+      })
+      setStep("results")
+      toast({ title: "Validation complete", description: result.message || "All rows validated successfully. Ready to import!", variant: "default" })
+    } catch (error: any) {
+      setStep("results")
+      setImportResult({
+        success: false,
+        importedCount: 0,
+        skippedCount: 0,
+        totalRows: 0,
+        message: error?.message || "Unexpected validation error",
+      })
+      toast({ title: "Validation error", description: error?.message || "Unexpected error", variant: "destructive" })
+    } finally {
+      setLoading(false)
+    }
+  }
+
   const handleImport = async () => {
     if (!selectedFile || !user?.location) {
       toast({ title: "Error", description: "File and location are required", variant: "destructive" })
@@ -295,6 +392,11 @@ export function BulkDeviceImportDialog({ open, onOpenChange, onImportSuccess }: 
                   <p>All fields are optional. Missing values are auto-filled safely during import.</p>
                   <p>Supported file layouts: CSV, TXT delimited, JSON array/object, TSV.</p>
                   <p>Duplicate serial numbers are skipped when Skip Duplicates is enabled.</p>
+                  <p className="pt-1 font-medium text-foreground">Before clicking Upload &amp; Import:</p>
+                  <p>1. Download Template and paste your rows under the headers.</p>
+                  <p>2. Ensure each serial_number is unique for new devices.</p>
+                  <p>3. Keep date fields as YYYY-MM-DD.</p>
+                  <p>4. Start with Skip Duplicates ON for first pass, then review skipped rows.</p>
                 </div>
               )}
 
@@ -322,6 +424,29 @@ export function BulkDeviceImportDialog({ open, onOpenChange, onImportSuccess }: 
                     Imported: {importResult.importedCount} · Skipped: {importResult.skippedCount || 0} · Rows: {importResult.totalRows}
                   </p>
                   {validationErrors.length > 0 && (
+                    <div className="mt-3 rounded border border-border bg-background p-2">
+                      <p className="text-xs font-semibold text-foreground mb-1">How to correct and re-upload</p>
+                      {getFixSteps(validationErrors, skipDuplicates).map((step, idx) => (
+                        <p key={`${idx}-${step}`} className="text-xs text-muted-foreground">
+                          {idx + 1}. {step}
+                        </p>
+                      ))}
+                    </div>
+                  )}
+                  {validationErrors.length > 0 && (
+                    <div className="mt-3 rounded border border-border bg-background p-2 max-h-40 overflow-y-auto">
+                      <p className="text-xs font-semibold text-foreground mb-1">Detected issues</p>
+                      {validationErrors.slice(0, 12).map((issue, idx) => (
+                        <p key={`${issue.row}-${issue.field}-${idx}`} className="text-xs text-muted-foreground">
+                          Row {issue.row} · {issue.field}: {issue.message}{issue.value ? ` (${issue.value})` : ""}
+                        </p>
+                      ))}
+                      {validationErrors.length > 12 && (
+                        <p className="text-xs text-muted-foreground mt-1">+ {validationErrors.length - 12} more issues in the downloadable report.</p>
+                      )}
+                    </div>
+                  )}
+                  {validationErrors.length > 0 && (
                     <div className="mt-2">
                       <Button variant="ghost" size="sm" className="h-6 px-2 text-xs" onClick={handleDownloadErrors}>
                         <Download className="h-3 w-3 mr-1" />Download Details
@@ -331,8 +456,11 @@ export function BulkDeviceImportDialog({ open, onOpenChange, onImportSuccess }: 
                 </div>
               )}
 
-              <div className="flex gap-2">
+              <div className="flex gap-2 flex-col sm:flex-row">
                 <Button variant="outline" className="flex-1" onClick={handleClose}>Close</Button>
+                <Button variant="outline" className="flex-1" disabled={!selectedFile || loading} onClick={handleValidateOnly}>
+                  {loading ? "Validating..." : "Validate Only"}
+                </Button>
                 <Button className="flex-1 bg-orange-600 hover:bg-orange-700 text-white" disabled={!selectedFile || loading} onClick={handleImport}>
                   {loading ? "Importing..." : "Upload & Import"}
                 </Button>

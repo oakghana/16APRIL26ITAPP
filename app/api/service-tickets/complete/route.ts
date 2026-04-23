@@ -35,7 +35,8 @@ export async function POST(request: Request) {
       return NextResponse.json({ error: "Ticket not found" }, { status: 404 })
     }
 
-    // Mark ticket as waiting for user confirmation
+    // Mark ticket as waiting for requester confirmation.
+    // Do NOT mark as resolved here; requester must confirm first.
     const { data, error } = await supabase
       .from("service_tickets")
       .update({
@@ -45,9 +46,13 @@ export async function POST(request: Request) {
         completed_by_name: completedByName,
         completed_by_role: completedByRole,
         completion_work_notes: workNotes,
+        completion_confirmed: false,
+        completion_confirmed_at: null,
+        completion_confirmed_by: null,
+        completion_confirmed_by_name: null,
         updated_at: new Date().toISOString(),
       })
-      .eq("id", ticketId)
+      .eq("id", ticket.id)
       .select()
       .single()
 
@@ -70,7 +75,50 @@ export async function POST(request: Request) {
       created_at: new Date().toISOString(),
     })
 
-    return NextResponse.json({ success: true, ticket: data })
+    // Notify the requester (or service desk head if they raised it) to confirm completion.
+    try {
+      let requesterProfile: any = null
+
+      if (ticket.requester_email) {
+        const { data: byEmail } = await supabase
+          .from("profiles")
+          .select("id, full_name, role")
+          .eq("email", ticket.requester_email)
+          .maybeSingle()
+        requesterProfile = byEmail
+      }
+
+      if (!requesterProfile && ticket.requested_by) {
+        const { data: byName } = await supabase
+          .from("profiles")
+          .select("id, full_name, role")
+          .ilike("full_name", ticket.requested_by)
+          .maybeSingle()
+        requesterProfile = byName
+      }
+
+      if (requesterProfile?.id) {
+        await supabase.from("notifications").insert({
+          user_id: requesterProfile.id,
+          type: "task_completed",
+          title: "Ticket Needs Your Confirmation",
+          message: `IT staff marked ticket \"${ticket.title || ticket.ticket_number || "Service Request"}\" as done. Please confirm before it is counted as completed.`,
+          related_id: ticket.id,
+          related_type: "service_ticket",
+          priority: "high",
+          is_read: false,
+          created_at: new Date().toISOString(),
+        })
+      }
+    } catch (notifyError) {
+      console.error("[v0] Failed to create requester confirmation notification:", notifyError)
+    }
+
+    return NextResponse.json({
+      success: true,
+      ticket: data,
+      message: "Submitted for requester confirmation. Final completion and performance credit happen after requester/service desk head confirmation.",
+    })
   } catch (error) {
     console.error("Error in complete endpoint:", error)
     return NextResponse.json({ error: "Failed to mark ticket as completed" }, { status: 500 })
@@ -80,12 +128,45 @@ export async function POST(request: Request) {
 export async function PUT(request: Request) {
   try {
     const body = await request.json()
-    const { ticketId, confirmedBy, confirmedByName, confirmation, confirmationNotes } = body
+    const { ticketId, confirmedBy, confirmedByName, confirmedByRole, confirmation, confirmationNotes } = body
 
     if (!ticketId) {
       return NextResponse.json(
         { error: "Missing ticket ID" },
         { status: 400 }
+      )
+    }
+
+    // Load ticket to enforce who can confirm.
+    const { data: ticket, error: ticketError } = await supabase
+      .from("service_tickets")
+      .select("id, status, requested_by, requester_email, completed_by, assigned_to, title, ticket_number")
+      .eq("id", ticketId)
+      .single()
+
+    if (ticketError || !ticket) {
+      return NextResponse.json({ error: "Ticket not found" }, { status: 404 })
+    }
+
+    if (ticket.status !== "awaiting_confirmation") {
+      return NextResponse.json({ error: "Ticket is not awaiting confirmation" }, { status: 400 })
+    }
+
+    const normalize = (v: string | null | undefined) => (v || "").toLowerCase().trim()
+    const requesterName = normalize(ticket.requested_by)
+    const confirmerName = normalize(confirmedByName)
+
+    // Confirmation must come from the requester.
+    // If ticket was raised by service desk head, the same service desk head confirms.
+    const isRequesterConfirming = requesterName && requesterName === confirmerName
+
+    if (!isRequesterConfirming) {
+      return NextResponse.json(
+        {
+          error: "Only the original requester can confirm completion for this ticket.",
+          expectedConfirmer: ticket.requested_by || null,
+        },
+        { status: 403 }
       )
     }
 
@@ -99,9 +180,14 @@ export async function PUT(request: Request) {
         user_confirmed: true,
         user_confirmed_at: new Date().toISOString(),
         user_confirmed_by: confirmedBy,
+        completion_confirmed: confirmation === "approved",
+        completion_confirmed_at: confirmation === "approved" ? new Date().toISOString() : null,
+        completion_confirmed_by: confirmation === "approved" ? confirmedBy : null,
+        completion_confirmed_by_name: confirmation === "approved" ? confirmedByName : null,
         confirmation_status: confirmation,
         confirmation_notes: confirmationNotes,
         completion_confirmation_notes: confirmationNotes,
+        resolved_at: confirmation === "approved" ? new Date().toISOString() : null,
         updated_at: new Date().toISOString(),
       })
       .eq("id", ticketId)
@@ -127,6 +213,29 @@ export async function PUT(request: Request) {
       },
       created_at: new Date().toISOString(),
     })
+
+    // Notify IT staff who submitted/completed the work so they get a toast immediately.
+    try {
+      const targetStaffId = ticket.completed_by || ticket.assigned_to || null
+      if (targetStaffId) {
+        await supabase.from("notifications").insert({
+          user_id: targetStaffId,
+          type: confirmation === "approved" ? "task_confirmed" : "task_rejected",
+          title: confirmation === "approved" ? "Work Confirmed" : "Work Needs Rework",
+          message:
+            confirmation === "approved"
+              ? `Your work on \"${ticket.title || ticket.ticket_number || "Service Request"}\" was confirmed by requester.`
+              : `Requester rejected completion for \"${ticket.title || ticket.ticket_number || "Service Request"}\". Please review notes and rework.`,
+          related_id: ticket.id,
+          related_type: "service_ticket",
+          priority: confirmation === "approved" ? "normal" : "high",
+          is_read: false,
+          created_at: new Date().toISOString(),
+        })
+      }
+    } catch (notifyError) {
+      console.error("[v0] Failed to notify IT staff after requester confirmation:", notifyError)
+    }
 
     return NextResponse.json({ success: true, ticket: data })
   } catch (error) {

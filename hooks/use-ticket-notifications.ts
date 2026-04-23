@@ -149,15 +149,15 @@ export function useCompletionAcknowledgements() {
           const ticket = payload.new as any
           const oldTicket = payload.old as any
 
-          if (oldTicket?.status !== ticket.status && ticket.status === "completed") {
+          if (oldTicket?.status !== ticket.status && ticket.status === "awaiting_confirmation") {
             console.log("[v0] Ticket completed, sending notification to requester")
             addNotification({
-              title: "✅ Your Request is Complete",
-              message: `${ticket.subject || "Service Request"} has been completed by the IT team`,
+              title: "✅ Work Submitted - Confirmation Needed",
+              message: `${ticket.subject || "Service Request"} was marked done by IT. Please confirm if resolved.`,
               type: "success",
               priority: "high",
               actionUrl: `/dashboard/my-tickets?id=${ticket.id}`,
-              actionLabel: "Acknowledge & Review",
+              actionLabel: "Review & Confirm",
             })
           }
         },

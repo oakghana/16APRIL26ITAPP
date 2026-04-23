@@ -66,8 +66,8 @@ export function CompletionConfirmationModal({
         return
       }
 
-      toast.success("Work marked as complete! User notification sent for confirmation.", {
-        description: "The requester will receive a notification to confirm the work is done.",
+      toast.success("Work submitted for confirmation.", {
+        description: "Requester (or Service Desk Head if they raised it) must confirm before status and performance are finalized.",
         style: { background: "#22c55e", color: "#ffffff", opacity: 1 },
       })
       setWorkNotes("")
@@ -91,6 +91,7 @@ export function CompletionConfirmationModal({
           ticketId: ticket.uuid || ticket.id,
           confirmedBy: currentUser?.id,
           confirmedByName: currentUser?.full_name || currentUser?.name,
+          confirmedByRole: currentUser?.role,
           confirmation: confirmation,
           confirmationNotes: confirmationNotes,
         }),
@@ -141,7 +142,7 @@ export function CompletionConfirmationModal({
           <div className="space-y-4 py-4">
             <div className="bg-blue-50 dark:bg-blue-950/20 border border-blue-200 dark:border-blue-800 rounded-lg p-3">
               <p className="text-sm text-blue-900 dark:text-blue-100">
-                📋 Please provide details about the work completed. The requester will be notified to confirm.
+                📋 Please provide details of work done. Final completion is only after requester confirmation (or Service Desk Head confirmation if they raised the ticket).
               </p>
             </div>
 

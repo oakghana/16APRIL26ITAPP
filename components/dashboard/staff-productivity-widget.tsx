@@ -7,6 +7,7 @@ import { TrendingUp, TrendingDown, Award, ExternalLink, Clock, CheckCircle, Targ
 import { useAuth } from "@/lib/auth-context"
 import { useState, useEffect } from "react"
 import { useRouter } from "next/navigation"
+import { cn } from "@/lib/utils"
 
 interface ProductivityData {
   totalTasksAssigned: number
@@ -71,40 +72,40 @@ export function StaffProductivityWidget() {
   }
 
   return (
-    <Card className="border-l-4 border-l-blue-500">
+    <Card className="border-l-4 border-l-blue-500 bg-gradient-to-br from-blue-50/50 to-indigo-50/50 dark:from-blue-950/20 dark:to-indigo-950/20">
       <CardHeader>
         <div className="flex items-center justify-between">
           <div>
-            <CardTitle className="flex items-center gap-2">
-              <Target className="h-5 w-5 text-blue-600" />
+            <CardTitle className="flex items-center gap-2 text-lg">
+              <Target className="h-6 w-6 text-blue-600" />
               Your Productivity Metrics
             </CardTitle>
             <CardDescription>Current performance and ranking</CardDescription>
           </div>
-          <Badge className={getGradingColor(productivity.grading)}>
+          <Badge className={cn(getGradingColor(productivity.grading), "text-base px-4 py-2 font-bold")}>
             {productivity.grading}
           </Badge>
         </div>
       </CardHeader>
       <CardContent className="space-y-4">
-        {/* Productivity Score */}
-        <div className="flex items-center justify-between">
-          <span className="text-sm text-muted-foreground">Productivity Score</span>
+        {/* Productivity Score - Highlighted */}
+        <div className="flex items-center justify-between p-3 bg-blue-100/50 dark:bg-blue-900/30 rounded-lg border border-blue-200 dark:border-blue-800">
+          <span className="text-sm font-semibold text-foreground">Productivity Score</span>
           <div className="flex items-center gap-2">
-            <span className="text-2xl font-bold text-blue-600">{productivity.productivityScore}</span>
-            <span className="text-sm text-muted-foreground">/100+</span>
+            <span className="text-3xl font-extrabold text-blue-700 dark:text-blue-300">{productivity.productivityScore}</span>
+            <span className="text-xs text-muted-foreground">/100+</span>
           </div>
         </div>
 
-        {/* Rank */}
+        {/* Rank - Highlighted */}
         {productivity.rank && (
-          <div className="flex items-center justify-between">
-            <span className="text-sm text-muted-foreground">Your Rank</span>
+          <div className="flex items-center justify-between p-3 bg-amber-100/50 dark:bg-amber-900/30 rounded-lg border border-amber-200 dark:border-amber-800">
+            <span className="text-sm font-semibold text-foreground">Your Rank</span>
             <div className="flex items-center gap-2">
               {productivity.rank <= 3 ? (
-                <Award className="h-4 w-4 text-yellow-500" />
+                <Award className="h-5 w-5 text-yellow-500" />
               ) : null}
-              <span className="text-xl font-semibold">
+              <span className="text-2xl font-extrabold text-amber-700 dark:text-amber-300">
                 #{productivity.rank}
               </span>
               <span className="text-sm text-muted-foreground">

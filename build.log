@@ -8,253 +8,254 @@
 
    Creating an optimized production build ...
 [baseline-browser-mapping] The data in this module is over two months old.  To ensure accurate Baseline data, please update: `npm i baseline-browser-mapping@latest -D`
- Γ£ô Compiled successfully in 27.9s
-   Skipping validation of types
-   Collecting page data using 11 workers ...
-[baseline-browser-mapping] The data in this module is over two months old.  To ensure accurate Baseline data, please update: `npm i baseline-browser-mapping@latest -D`
-[baseline-browser-mapping] The data in this module is over two months old.  To ensure accurate Baseline data, please update: `npm i baseline-browser-mapping@latest -D`
-[baseline-browser-mapping] The data in this module is over two months old.  To ensure accurate Baseline data, please update: `npm i baseline-browser-mapping@latest -D`
-[baseline-browser-mapping] The data in this module is over two months old.  To ensure accurate Baseline data, please update: `npm i baseline-browser-mapping@latest -D`
-[baseline-browser-mapping] The data in this module is over two months old.  To ensure accurate Baseline data, please update: `npm i baseline-browser-mapping@latest -D`
-[baseline-browser-mapping] The data in this module is over two months old.  To ensure accurate Baseline data, please update: `npm i baseline-browser-mapping@latest -D`
-[baseline-browser-mapping] The data in this module is over two months old.  To ensure accurate Baseline data, please update: `npm i baseline-browser-mapping@latest -D`
-[baseline-browser-mapping] The data in this module is over two months old.  To ensure accurate Baseline data, please update: `npm i baseline-browser-mapping@latest -D`
-[baseline-browser-mapping] The data in this module is over two months old.  To ensure accurate Baseline data, please update: `npm i baseline-browser-mapping@latest -D`
-[baseline-browser-mapping] The data in this module is over two months old.  To ensure accurate Baseline data, please update: `npm i baseline-browser-mapping@latest -D`
-[baseline-browser-mapping] The data in this module is over two months old.  To ensure accurate Baseline data, please update: `npm i baseline-browser-mapping@latest -D`
-   Generating static pages using 11 workers (0/213) ...
-[baseline-browser-mapping] The data in this module is over two months old.  To ensure accurate Baseline data, please update: `npm i baseline-browser-mapping@latest -D`
-[baseline-browser-mapping] The data in this module is over two months old.  To ensure accurate Baseline data, please update: `npm i baseline-browser-mapping@latest -D`
-[baseline-browser-mapping] The data in this module is over two months old.  To ensure accurate Baseline data, please update: `npm i baseline-browser-mapping@latest -D`
-[baseline-browser-mapping] The data in this module is over two months old.  To ensure accurate Baseline data, please update: `npm i baseline-browser-mapping@latest -D`
-[baseline-browser-mapping] The data in this module is over two months old.  To ensure accurate Baseline data, please update: `npm i baseline-browser-mapping@latest -D`
-[baseline-browser-mapping] The data in this module is over two months old.  To ensure accurate Baseline data, please update: `npm i baseline-browser-mapping@latest -D`
-[baseline-browser-mapping] The data in this module is over two months old.  To ensure accurate Baseline data, please update: `npm i baseline-browser-mapping@latest -D`
-[baseline-browser-mapping] The data in this module is over two months old.  To ensure accurate Baseline data, please update: `npm i baseline-browser-mapping@latest -D`
-[baseline-browser-mapping] The data in this module is over two months old.  To ensure accurate Baseline data, please update: `npm i baseline-browser-mapping@latest -D`
-   Generating static pages using 11 workers (53/213) 
-   Generating static pages using 11 workers (106/213) 
-   Generating static pages using 11 workers (159/213) 
- Γ£ô Generating static pages using 11 workers (213/213) in 5.7s
-   Finalizing page optimization ...
 
-Route (app)
-Γöî Γùï /
-Γö£ Γùï /_not-found
-Γö£ Γùï /admin/reset-password-debug
-Γö£ ╞Æ /api/admin/approve-user
-Γö£ ╞Æ /api/admin/auto-link-department-staff
-Γö£ ╞Æ /api/admin/backup-database
-Γö£ ╞Æ /api/admin/create-user
-Γö£ ╞Æ /api/admin/delete-data
-Γö£ ╞Æ /api/admin/delete-user
-Γö£ ╞Æ /api/admin/department-heads
-Γö£ ╞Æ /api/admin/force-reset-password
-Γö£ ╞Æ /api/admin/link-department-staff
-Γö£ ╞Æ /api/admin/lookup-data
-Γö£ ╞Æ /api/admin/pending-users
-Γö£ ╞Æ /api/admin/reject-user
-Γö£ ╞Æ /api/admin/reset-all-approved-passwords
-Γö£ ╞Æ /api/admin/reset-all-passwords
-Γö£ ╞Æ /api/admin/reset-all-passwords-ghana
-Γö£ ╞Æ /api/admin/reset-password
-Γö£ ╞Æ /api/admin/reset-passwords-now
-Γö£ ╞Æ /api/admin/reset-recent-passwords
-Γö£ ╞Æ /api/admin/reset-today-passwords
-Γö£ ╞Æ /api/admin/restore-database
-Γö£ ╞Æ /api/admin/service-providers
-Γö£ ╞Æ /api/admin/set-password-for-user
-Γö£ ╞Æ /api/admin/set-user-password
-Γö£ ╞Æ /api/admin/setup-admin
-Γö£ ╞Æ /api/admin/simulate-login
-Γö£ ╞Æ /api/admin/staff-list
-Γö£ ╞Æ /api/admin/system-settings
-Γö£ ╞Æ /api/admin/test-password
-Γö£ ╞Æ /api/admin/unlink-department-staff
-Γö£ ╞Æ /api/admin/update-user
-Γö£ ╞Æ /api/auth/change-password
-Γö£ ╞Æ /api/auth/login
-Γö£ ╞Æ /api/auth/logout
-Γö£ ╞Æ /api/auth/register
-Γö£ ╞Æ /api/auth/test-login
-Γö£ ╞Æ /api/auth/update-profile
-Γö£ ╞Æ /api/dashboard/badge-counts
-Γö£ ╞Æ /api/dashboard/stats
-Γö£ ╞Æ /api/debug/generate-hash
-Γö£ ╞Æ /api/debug/simulate-login-test
-Γö£ ╞Æ /api/debug/test-hash
-Γö£ ╞Æ /api/debug/test-login
-Γö£ ╞Æ /api/debug/verify-joseph-hash
-Γö£ ╞Æ /api/devices
-Γö£ ╞Æ /api/devices/assign-to-staff
-Γö£ ╞Æ /api/devices/bulk-import
-Γö£ ╞Æ /api/devices/by-location
-Γö£ ╞Æ /api/devices/delete
-Γö£ ╞Æ /api/devices/department-devices
-Γö£ ╞Æ /api/devices/duplicates
-Γö£ ╞Æ /api/devices/location-summary
-Γö£ ╞Æ /api/devices/reallocate-locations
-Γö£ ╞Æ /api/devices/summary-report
-Γö£ ╞Æ /api/devices/under-repair
-Γö£ ╞Æ /api/devices/update-device
-Γö£ ╞Æ /api/devices/user-allocation-summary
-Γö£ ╞Æ /api/devices/validate-location
-Γö£ ╞Æ /api/investigate-vr
-Γö£ ╞Æ /api/it-forms/approve
-Γö£ ╞Æ /api/it-forms/department-head-approve
-Γö£ ╞Æ /api/it-forms/department-head-requisitions
-Γö£ ╞Æ /api/it-forms/hod-approval-tracker
-Γö£ ╞Æ /api/it-forms/issue
-Γö£ ╞Æ /api/it-forms/it-head-approve
-Γö£ ╞Æ /api/it-forms/maintenance-repairs
-Γö£ ╞Æ /api/it-forms/my-requisitions
-Γö£ ╞Æ /api/it-forms/new-gadget
-Γö£ ╞Æ /api/it-forms/requisitions
-Γö£ ╞Æ /api/it-forms/service-desk-process
-Γö£ ╞Æ /api/it-forms/store-issue
-Γö£ ╞Æ /api/knowledge-base
-Γö£ ╞Æ /api/locations
-Γö£ ╞Æ /api/notifications
-Γö£ ╞Æ /api/pdf-uploads
-Γö£ ╞Æ /api/pdf-uploads/admin-confirm
-Γö£ ╞Æ /api/pdf-uploads/audit-trail
-Γö£ ╞Æ /api/pdf-uploads/confirm
-Γö£ ╞Æ /api/pdf-uploads/history
-Γö£ ╞Æ /api/pdf-uploads/restore
-Γö£ ╞Æ /api/profile/update
-Γö£ ╞Æ /api/regional-needs-analysis
-Γö£ ╞Æ /api/repairs
-Γö£ ╞Æ /api/repairs/all-repairs
-Γö£ ╞Æ /api/repairs/confirm-status
-Γö£ ╞Æ /api/repairs/create
-Γö£ ╞Æ /api/repairs/delete
-Γö£ ╞Æ /api/repairs/invoice
-Γö£ ╞Æ /api/repairs/invoice/approve
-Γö£ ╞Æ /api/repairs/invoices
-Γö£ ╞Æ /api/repairs/regional-repairs
-Γö£ ╞Æ /api/repairs/service-desk-requests
-Γö£ ╞Æ /api/repairs/service-provider/all-available
-Γö£ ╞Æ /api/repairs/service-provider/my-devices
-Γö£ ╞Æ /api/repairs/service-provider/self-assign
-Γö£ ╞Æ /api/repairs/tasks
-Γö£ ╞Æ /api/repairs/update
-Γö£ ╞Æ /api/send-email
-Γö£ ╞Æ /api/service-providers
-Γö£ ╞Æ /api/service-tickets
-Γö£ ╞Æ /api/service-tickets/assign
-Γö£ ╞Æ /api/service-tickets/complete
-Γö£ ╞Æ /api/service-tickets/confirm-all
-Γö£ ╞Æ /api/service-tickets/delayed-alerts
-Γö£ ╞Æ /api/service-tickets/delete
-Γö£ ╞Æ /api/service-tickets/escalate
-Γö£ ╞Æ /api/service-tickets/hold
-Γö£ ╞Æ /api/service-tickets/message
-Γö£ ╞Æ /api/service-tickets/notify
-Γö£ ╞Æ /api/service-tickets/reassign
-Γö£ ╞Æ /api/service-tickets/update
-Γö£ ╞Æ /api/staff-members
-Γö£ ╞Æ /api/staff/department-members
-Γö£ ╞Æ /api/staff/list
-Γö£ ╞Æ /api/staff/my-productivity
-Γö£ ╞Æ /api/staff/productivity-metrics
-Γö£ ╞Æ /api/store/add-stock
-Γö£ ╞Æ /api/store/all-transactions
-Γö£ ╞Æ /api/store/allocate-requisition
-Γö£ ╞Æ /api/store/analytics
-Γö£ ╞Æ /api/store/approve-requisition
-Γö£ ╞Æ /api/store/assign-item
-Γö£ ╞Æ /api/store/assign-stock
-Γö£ ╞Æ /api/store/assignments
-Γö£ ╞Æ /api/store/auto-approve-requisition
-Γö£ ╞Æ /api/store/categories
-Γö£ ╞Æ /api/store/delete-item
-Γö£ ╞Æ /api/store/delete-requisition
-Γö£ ╞Æ /api/store/delete-transaction
-Γö£ ╞Æ /api/store/edit-requisition
-Γö£ ╞Æ /api/store/force-delete-item
-Γö£ ╞Æ /api/store/inventory-analytics
-Γö£ ╞Æ /api/store/issue-requisition
-Γö£ ╞Æ /api/store/item-history
-Γö£ ╞Æ /api/store/items
-Γö£ ╞Æ /api/store/merge-items
-Γö£ ╞Æ /api/store/regional-requisitions
-Γö£ ╞Æ /api/store/requisitions
-Γö£ ╞Æ /api/store/stock-additions
-Γö£ ╞Æ /api/store/stock-balance-report
-Γö£ ╞Æ /api/store/stock-items
-Γö£ ╞Æ /api/store/stock-transfer-requests
-Γö£ ╞Æ /api/store/summary-report
-Γö£ ╞Æ /api/store/transactions
-Γö£ ╞Æ /api/store/transfer-central-stores
-Γö£ ╞Æ /api/store/transfer-item
-Γö£ ╞Æ /api/store/update-assignment
-Γö£ ╞Æ /api/store/update-item
-Γö£ ╞Æ /api/store/update-requisition
-Γö£ ╞Æ /api/users
-Γö£ ╞Æ /api/users/create
-Γö£ ╞Æ /api/users/list
-Γö£ Γùï /create-account
-Γö£ Γùï /dashboard
-Γö£ Γùï /dashboard/admin
-Γö£ Γùï /dashboard/admin/department-heads
-Γö£ Γùï /dashboard/admin/invoices
-Γö£ Γùï /dashboard/admin/password-reset
-Γö£ Γùï /dashboard/analytics
-Γö£ Γùï /dashboard/assign-it-devices
-Γö£ Γùï /dashboard/assign-stock
-Γö£ Γùï /dashboard/assigned-repairs
-Γö£ Γùï /dashboard/assigned-tasks
-Γö£ Γùï /dashboard/broadcast-notifications
-Γö£ Γùï /dashboard/complaints
-Γö£ Γùï /dashboard/department-head
-Γö£ Γùï /dashboard/device-summary-report
-Γö£ Γùï /dashboard/devices
-Γö£ Γùï /dashboard/help-guide
-Γö£ Γùï /dashboard/it-documents
-Γö£ Γùï /dashboard/it-forms/approvals
-Γö£ Γùï /dashboard/it-forms/department-head-approvals
-Γö£ Γùï /dashboard/it-forms/equipment-requisition
-Γö£ Γùï /dashboard/it-forms/it-head-admin
-Γö£ Γùï /dashboard/it-forms/maintenance-repairs
-Γö£ Γùï /dashboard/it-forms/my-requisitions
-Γö£ Γùï /dashboard/it-forms/new-gadget
-Γö£ Γùï /dashboard/it-forms/service-desk
-Γö£ Γùï /dashboard/it-forms/store-issuance
-Γö£ Γùï /dashboard/it-reports
-Γö£ Γùï /dashboard/it-staff-status
-Γö£ Γùï /dashboard/lookup-data
-Γö£ Γùï /dashboard/notifications
-Γö£ Γùï /dashboard/regional-needs-analysis
-Γö£ Γùï /dashboard/regional-store-requisitions
-Γö£ Γùï /dashboard/repairs
-Γö£ Γùï /dashboard/repairs/global-tracker
-Γö£ Γùï /dashboard/repairs/regional
-Γö£ Γùï /dashboard/service-desk
-Γö£ Γùï /dashboard/service-provider
-Γö£ Γùï /dashboard/service-provider/my-repairs
-Γö£ Γùï /dashboard/settings
-Γö£ Γùï /dashboard/staff-performance-report
-Γö£ Γùï /dashboard/stock-transfer-requests
-Γö£ Γùï /dashboard/store-analytics
-Γö£ Γùï /dashboard/store-inventory
-Γö£ Γùï /dashboard/store-overview
-Γö£ Γùï /dashboard/store-requisitions
-Γö£ Γùï /dashboard/store-snapshot
-Γö£ Γùï /dashboard/store-summary-report
-Γö£ Γùï /dashboard/system-settings
-Γö£ Γùï /dashboard/updates
-Γö£ Γùï /dashboard/user-accounts
-Γö£ Γùï /dashboard/user-approvals
-Γö£ Γùï /dashboard/user-device-allocation
-Γö£ Γùï /dashboard/users
-Γö£ Γùï /offline
-Γö£ Γùï /register
-Γö£ Γùï /setup-admin
-Γöö Γùï /test-password-setup
+> Build error occurred
+Error: Turbopack build failed with 1 errors:
+./app/api/service-tickets/complete/route.ts:105:105
+Parsing ecmascript source code failed
+  103 |           type: "task_completed",
+  104 |           title: "Ticket Needs Your Confirmation",
+> 105 |           message: `IT staff marked ticket \"${ticket.title || ticket.ticket_number || "Service Request"}\" as done. Please confirm before it is counted as completed.",
+      |                                                                                                         ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+> 106 |           related_id: ticket.id,
+      | ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+> 107 |           related_type: "service_ticket",
+      | ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+> 108 |           priority: "high",
+      | ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+> 109 |           read: false,
+      | ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+> 110 |           created_at: new Date().toISOString(),
+      | ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+> 111 |         })
+      | ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+> 112 |       }
+      | ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+> 113 |     } catch (notifyError) {
+      | ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+> 114 |       console.error("[v0] Failed to create requester confirmation notification:", notifyError)
+      | ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+> 115 |     }
+      | ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+> 116 | 
+      | ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+> 117 |     return NextResponse.json({
+      | ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+> 118 |       success: true,
+      | ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+> 119 |       ticket: data,
+      | ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+> 120 |       message: "Submitted for requester confirmation. Final completion and performance credit happen after requester/service desk head confirmation.",
+      | ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+> 121 |     })
+      | ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+> 122 |   } catch (error) {
+      | ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+> 123 |     console.error("Error in complete endpoint:", error)
+      | ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+> 124 |     return NextResponse.json({ error: "Failed to mark ticket as completed" }, { status: 500 })
+      | ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+> 125 |   }
+      | ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+> 126 | }
+      | ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+> 127 | 
+      | ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+> 128 | export async function PUT(request: Request) {
+      | ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+> 129 |   try {
+      | ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+> 130 |     const body = await request.json()
+      | ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+> 131 |     const { ticketId, confirmedBy, confirmedByName, confirmedByRole, confirmation, confirmationNotes } = body
+      | ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+> 132 | 
+      | ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+> 133 |     if (!ticketId) {
+      | ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+> 134 |       return NextResponse.json(
+      | ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+> 135 |         { error: "Missing ticket ID" },
+      | ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+> 136 |         { status: 400 }
+      | ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+> 137 |       )
+      | ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+> 138 |     }
+      | ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+> 139 | 
+      | ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+> 140 |     // Load ticket to enforce who can confirm.
+      | ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+> 141 |     const { data: ticket, error: ticketError } = await supabase
+      | ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+> 142 |       .from("service_tickets")
+      | ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+> 143 |       .select("id, status, requested_by, requester_email")
+      | ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+> 144 |       .eq("id", ticketId)
+      | ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+> 145 |       .single()
+      | ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+> 146 | 
+      | ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+> 147 |     if (ticketError || !ticket) {
+      | ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+> 148 |       return NextResponse.json({ error: "Ticket not found" }, { status: 404 })
+      | ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+> 149 |     }
+      | ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+> 150 | 
+      | ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+> 151 |     if (ticket.status !== "awaiting_confirmation") {
+      | ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+> 152 |       return NextResponse.json({ error: "Ticket is not awaiting confirmation" }, { status: 400 })
+      | ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+> 153 |     }
+      | ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+> 154 | 
+      | ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+> 155 |     const normalize = (v: string | null | undefined) => (v || "").toLowerCase().trim()
+      | ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+> 156 |     const requesterName = normalize(ticket.requested_by)
+      | ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+> 157 |     const confirmerName = normalize(confirmedByName)
+      | ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+> 158 | 
+      | ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+> 159 |     // Confirmation must come from the requester.
+      | ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+> 160 |     // If ticket was raised by service desk head, the same service desk head confirms.
+      | ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+> 161 |     const isRequesterConfirming = requesterName && requesterName === confirmerName
+      | ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+> 162 | 
+      | ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+> 163 |     if (!isRequesterConfirming) {
+      | ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+> 164 |       return NextResponse.json(
+      | ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+> 165 |         {
+      | ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+> 166 |           error: "Only the original requester can confirm completion for this ticket.",
+      | ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+> 167 |           expectedConfirmer: ticket.requested_by || null,
+      | ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+> 168 |         },
+      | ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+> 169 |         { status: 403 }
+      | ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+> 170 |       )
+      | ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+> 171 |     }
+      | ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+> 172 | 
+      | ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+> 173 |     const finalStatus = confirmation === "approved" ? "resolved" : "reopen"
+      | ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+> 174 | 
+      | ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+> 175 |     // Update ticket with user confirmation
+      | ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+> 176 |     const { data, error } = await supabase
+      | ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+> 177 |       .from("service_tickets")
+      | ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+> 178 |       .update({
+      | ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+> 179 |         status: finalStatus,
+      | ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+> 180 |         user_confirmed: true,
+      | ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+> 181 |         user_confirmed_at: new Date().toISOString(),
+      | ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+> 182 |         user_confirmed_by: confirmedBy,
+      | ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+> 183 |         completion_confirmed: confirmation === "approved",
+      | ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+> 184 |         completion_confirmed_at: confirmation === "approved" ? new Date().toISOString() : null,
+      | ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+> 185 |         completion_confirmed_by: confirmation === "approved" ? confirmedBy : null,
+      | ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+> 186 |         completion_confirmed_by_name: confirmation === "approved" ? confirmedByName : null,
+      | ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+> 187 |         confirmation_status: confirmation,
+      | ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+> 188 |         confirmation_notes: confirmationNotes,
+      | ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+> 189 |         completion_confirmation_notes: confirmationNotes,
+      | ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+> 190 |         resolved_at: confirmation === "approved" ? new Date().toISOString() : null,
+      | ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+> 191 |         updated_at: new Date().toISOString(),
+      | ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+> 192 |       })
+      | ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+> 193 |       .eq("id", ticketId)
+      | ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+> 194 |       .select()
+      | ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+> 195 |       .single()
+      | ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+> 196 | 
+      | ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+> 197 |     if (error) {
+      | ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+> 198 |       console.error("Error confirming ticket completion:", error)
+      | ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+> 199 |       return NextResponse.json({ error: error.message }, { status: 500 })
+      | ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+> 200 |     }
+      | ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+> 201 | 
+      | ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+> 202 |     // Log the confirmation action
+      | ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+> 203 |     await supabase.from("audit_logs").insert({
+      | ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+> 204 |       action: "ticket_user_confirmed",
+      | ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+> 205 |       table_name: "service_tickets",
+      | ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+> 206 |       record_id: ticketId,
+      | ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+> 207 |       user_id: confirmedBy,
+      | ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+> 208 |       user_name: confirmedByName,
+      | ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+> 209 |       details: {
+      | ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+> 210 |         confirmation: confirmation,
+      | ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+> 211 |         notes: confirmationNotes,
+      | ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+> 212 |         final_status: finalStatus,
+      | ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+> 213 |       },
+      | ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+> 214 |       created_at: new Date().toISOString(),
+      | ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+> 215 |     })
+      | ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+> 216 | 
+      | ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+> 217 |     return NextResponse.json({ success: true, ticket: data })
+      | ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+> 218 |   } catch (error) {
+      | ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+> 219 |     console.error("Error in confirmation endpoint:", error)
+      | ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+> 220 |     return NextResponse.json({ error: "Failed to confirm ticket" }, { status: 500 })
+      | ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+> 221 |   }
+      | ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+> 222 | }
+      | ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+> 223 | 
+      | ^
+
+Unterminated template
 
 
-╞Æ Proxy (Middleware)
-
-Γùï  (Static)   prerendered as static content
-╞Æ  (Dynamic)  server-rendered on demand
-
+    at <unknown> (./app/api/service-tickets/complete/route.ts:105:105)
+ΓÇëELIFECYCLEΓÇë Command failed with exit code 1.

@@ -318,7 +318,13 @@ export function ServiceDeskDashboard() {
   }
   const isResolvedStatus = (s: string | undefined) => {
     const ls = (s || "").toLowerCase()
-    return ls === "resolved" || ls === "closed" || ls === "completed" || ls === "awaiting_confirmation" || ls === "awaiting confirmation"
+    return ls === "resolved" || ls === "closed" || ls === "completed"
+  }
+
+  const canCurrentUserConfirmTicket = (ticket: any) => {
+    const requesterName = (ticket.requester || "").toLowerCase().trim()
+    const currentName = (user?.full_name || user?.name || "").toLowerCase().trim()
+    return Boolean(requesterName && currentName && requesterName === currentName)
   }
 
   const filteredTickets = useMemo(() => {
@@ -395,6 +401,16 @@ export function ServiceDeskDashboard() {
           </p>
         </div>
         <div className="flex items-center space-x-2">
+          {(user?.role === "admin" || user?.role === "it_head") && (
+            <Button
+              onClick={handleConfirmAll}
+              variant="outline"
+              className="border-amber-300 text-amber-700 hover:bg-amber-50 dark:border-amber-600 dark:text-amber-300 dark:hover:bg-amber-950/30"
+            >
+              <CheckCircle className="mr-2 h-4 w-4" />
+              Confirm All Pending
+            </Button>
+          )}
           <Button
             onClick={() => setShowNewTicketForm(true)}
             className="bg-green-600 hover:bg-green-700 text-white dark:bg-green-700 dark:hover:bg-green-600"
@@ -402,15 +418,6 @@ export function ServiceDeskDashboard() {
             <Plus className="mr-2 h-4 w-4" />
             New Ticket
           </Button>
-          {(user?.role === "admin" || user?.role === "it_head") && (
-            <Button
-              onClick={handleConfirmAll}
-              variant="outline"
-              size="sm"
-            >
-              Confirm All
-            </Button>
-          )}
         </div>
       </div>
 
@@ -729,7 +736,7 @@ export function ServiceDeskDashboard() {
                           </Button>
                         )}
                         {/* Confirmation button for Requesters */}
-                        {ticket.status === "Awaiting Confirmation" || ticket.status === "awaiting_confirmation" ? (
+                        {(ticket.status === "Awaiting Confirmation" || ticket.status === "awaiting_confirmation") && canCurrentUserConfirmTicket(ticket) ? (
                           <Button
                             size="sm"
                             variant="outline"

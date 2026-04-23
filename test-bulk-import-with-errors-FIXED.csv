@@ -1,0 +1,7 @@
+device_type,brand,model,serial_number,status,purchase_date,warranty_expiry,assigned_to,room_number
+Laptop,Dell,Latitude 5430,DL-LAP-002,active,2023-01-15,2025-01-15,user1@qcc.com,A201
+Desktop,HP,EliteDesk 800,HP-DES-002,active,2023-02-20,2025-02-20,user2@qcc.com,A202
+Monitor,Dell,U2720Q,DL-MON-002,active,2023-04-05,2026-04-05,user1@qcc.com,A201
+Printer,Brother,HL-L8360CDW,BR-PRT-002,active,2023-03-10,2024-03-10,printer-room,Shared
+Laptop,Lenovo,ThinkPad X1,LN-LAP-002,active,2023-05-12,2025-05-12,user3@qcc.com,A203
+Multimedia Projector,Epson,EB-2250U,EP-PROJ-001,active,2023-06-01,2025-06-01,conference-room,A301

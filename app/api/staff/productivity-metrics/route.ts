@@ -26,7 +26,7 @@ interface ProductivityMetrics {
 
 export async function GET(request: NextRequest) {
   try {
-    const searchParams = request.nextUrl.searchParams
+    const { searchParams } = request.nextUrl
     const startDate = searchParams.get("startDate")
     const endDate = searchParams.get("endDate")
     const location = searchParams.get("location")
@@ -95,13 +95,9 @@ export async function GET(request: NextRequest) {
 
       // Calculate completed tasks
       const completedStatuses = ["completed", "closed", "resolved", "repaired"]
-      const cutoff = new Date(Date.now() - 30 * 60 * 1000)
       const isCompleted = (t: any) => {
         const status = (t.status || "").toLowerCase()
         if (completedStatuses.includes(status)) return true
-        if (status === "awaiting_confirmation" && t.completed_at) {
-          return new Date(t.completed_at) <= cutoff
-        }
         return false
       }
 

@@ -41,6 +41,20 @@ export function RealtimeNotificationListener() {
                 notification.message
               )
               break
+
+            case "task_confirmed":
+              notificationService.success(
+                notification.title || "Work Confirmed",
+                notification.message
+              )
+              break
+
+            case "task_rejected":
+              notificationService.warning(
+                notification.title || "Work Needs Rework",
+                notification.message
+              )
+              break
             
             case "task_assigned":
               notificationService.taskAssigned(
@@ -52,6 +66,20 @@ export function RealtimeNotificationListener() {
             case "urgent":
               notificationService.warning(
                 notification.title || "Urgent Update",
+                notification.message
+              )
+              break
+
+            case "warning":
+              notificationService.warning(
+                notification.title || "Warning",
+                notification.message
+              )
+              break
+
+            case "success":
+              notificationService.success(
+                notification.title || "Success",
                 notification.message
               )
               break

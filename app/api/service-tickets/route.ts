@@ -18,21 +18,6 @@ export async function GET(request: NextRequest) {
 
     console.log("[v0] API Service Tickets - location:", location, "canSeeAll:", canSeeAll, "role:", userRole)
 
-    // auto-confirm any ticket that has been waiting for >30 minutes
-    const thirtyMinsAgo = new Date(Date.now() - 30 * 60 * 1000).toISOString()
-    await supabaseAdmin
-      .from("service_tickets")
-      .update({
-        status: "resolved",
-        resolved_at: new Date().toISOString(),
-        completion_confirmed: true,
-        completion_confirmed_at: thirtyMinsAgo,
-        completion_confirmed_by: null,
-        completion_confirmed_by_name: "System (auto)"
-      })
-      .eq("status", "awaiting_confirmation")
-      .lt("completed_at", thirtyMinsAgo)
-
     // Fetch all tickets first, then filter in memory for reliability
     const { data, error } = await supabaseAdmin
       .from("service_tickets")
