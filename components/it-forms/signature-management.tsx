@@ -27,7 +27,15 @@ export function SignatureManagementPanel() {
   const [storedProfile, setStoredProfile] = useState<SignatureProfile | null>(null)
   const [draftSignature, setDraftSignature] = useState<string | null>(null)
 
-  const canManage = user?.role === "admin" || user?.role === "department_head"
+  const canManage = ["admin", "department_head", "it_head", "regional_it_head"].includes(user?.role || "")
+  const roleLabel =
+    user?.role === "department_head"
+      ? "Department Head"
+      : user?.role === "regional_it_head"
+        ? "Regional IT Head"
+        : user?.role === "it_head"
+          ? "IT Head"
+          : "Admin"
 
   const loadSignature = async () => {
     if (!user?.id || !user?.role || !canManage) {
@@ -99,7 +107,7 @@ export function SignatureManagementPanel() {
       <Card>
         <CardHeader>
           <CardTitle>Signature Management</CardTitle>
-          <CardDescription>This section is available to Department Heads and Admin only.</CardDescription>
+          <CardDescription>This section is available to Department Heads, IT Heads, and Admin only.</CardDescription>
         </CardHeader>
       </Card>
     )
@@ -127,7 +135,7 @@ export function SignatureManagementPanel() {
         </CardHeader>
         <CardContent className="space-y-4">
           <div className="flex flex-wrap items-center gap-2">
-            <Badge variant="outline">Role: {user?.role === "department_head" ? "Department Head" : "Admin"}</Badge>
+            <Badge variant="outline">Role: {roleLabel}</Badge>
             {storedProfile ? <Badge className="bg-emerald-600">Stored</Badge> : <Badge variant="secondary">Not yet stored</Badge>}
           </div>
 
@@ -141,7 +149,7 @@ export function SignatureManagementPanel() {
             <Label>Capture Signature</Label>
             <SignaturePad
               signerLabel={user?.full_name || user?.email || user?.name || "Unknown"}
-              roleLabel={user?.role === "department_head" ? "Department Head" : "Admin"}
+              roleLabel={roleLabel}
               initialValue={draftSignature || undefined}
               onSave={setDraftSignature}
               onClear={() => setDraftSignature(null)}

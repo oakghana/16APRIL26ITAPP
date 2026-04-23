@@ -74,6 +74,23 @@ export function DepartmentHeadApprovalModule() {
   const { user } = useAuth()
   const { toast } = useToast()
 
+  const loadStoredSignature = async () => {
+    if (!user?.id || !user?.role) return
+
+    try {
+      const params = new URLSearchParams({ userId: user.id, role: user.role })
+      const response = await fetch(`/api/it-forms/signature-profile?${params.toString()}`)
+      const data = await response.json()
+      if (!response.ok) return
+
+      if (data?.profile?.signature_data_url) {
+        setHodSignature(data.profile.signature_data_url)
+      }
+    } catch {
+      // Silent fallback; user can still sign manually
+    }
+  }
+
   useEffect(() => {
     fetchRequisitions()
   }, [])
@@ -197,6 +214,7 @@ export function DepartmentHeadApprovalModule() {
     setApprovalNotes("")
     setHodSignature(null)
     setIsApprovalDialogOpen(true)
+    loadStoredSignature()
   }
 
   const handleReject = (req: ITFormRequest) => {
@@ -498,11 +516,12 @@ export function DepartmentHeadApprovalModule() {
               <div>
                 <Label className="flex items-center gap-1.5 mb-1.5">
                   <PenLine className="h-4 w-4 text-orange-500" />
-                  HOD Signature {hodSignature ? <span className="text-green-600 text-xs">(captured)</span> : <span className="text-muted-foreground text-xs">(required)</span>}
+                  HOD Signature {hodSignature ? <span className="text-green-600 text-xs">(saved signature loaded)</span> : <span className="text-muted-foreground text-xs">(required)</span>}
                 </Label>
                 <SignaturePad
                   signerLabel={user?.full_name || user?.email || "Unknown"}
                   roleLabel="Department Head"
+                  initialValue={hodSignature || undefined}
                   onSave={(dataUrl) => setHodSignature(dataUrl)}
                   onClear={() => setHodSignature(null)}
                   height={130}

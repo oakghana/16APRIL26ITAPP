@@ -7,7 +7,7 @@ const supabaseAdmin = createClient(
 )
 
 function isAllowedRole(role: string | null) {
-  return role === "admin" || role === "department_head"
+  return role === "admin" || role === "department_head" || role === "it_head" || role === "regional_it_head"
 }
 
 export async function GET(request: NextRequest) {

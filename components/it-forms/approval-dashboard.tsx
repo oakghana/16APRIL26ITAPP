@@ -42,7 +42,7 @@ export function ITFormsApprovalDashboard() {
   const canUseServiceDeskDesk = role.startsWith("service_desk") || role === "admin"
   const canUseManagerDesk = ["it_head", "admin"].includes(role) || isITDepartmentHead
   const canUseHODTracker = ["it_head", "admin"].includes(role) || isITDepartmentHead
-  const canUseSignatureDesk = ["department_head", "admin"].includes(role)
+  const canUseSignatureDesk = ["department_head", "admin", "it_head", "regional_it_head"].includes(role)
 
   const defaultTab = useMemo(() => {
     if (canUseHODDesk) return "hod"

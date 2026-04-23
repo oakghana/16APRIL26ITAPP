@@ -64,6 +64,23 @@ export function ITHeadAdminPanel() {
   const { user } = useAuth()
   const { toast } = useToast()
 
+  const loadStoredSignature = async () => {
+    if (!user?.id || !user?.role) return
+
+    try {
+      const params = new URLSearchParams({ userId: user.id, role: user.role })
+      const response = await fetch(`/api/it-forms/signature-profile?${params.toString()}`)
+      const data = await response.json()
+      if (!response.ok) return
+
+      if (data?.profile?.signature_data_url) {
+        setApproverSignature(data.profile.signature_data_url)
+      }
+    } catch {
+      // Silent fallback; user can still sign manually
+    }
+  }
+
   useEffect(() => {
     fetchRequisitions()
   }, [])
@@ -169,6 +186,7 @@ export function ITHeadAdminPanel() {
     setApprovalNotes("")
     setApproverSignature(null)
     setIsApprovalDialogOpen(true)
+    loadStoredSignature()
   }
 
   const handleReject = (req: ITRequisition) => {
@@ -458,11 +476,12 @@ export function ITHeadAdminPanel() {
                 <Label className="flex items-center gap-1.5 mb-1.5">
                   <PenLine className="h-4 w-4 text-orange-500" />
                   {user?.role === "admin" ? "Admin Signature" : "IT Head Signature"}
-                  {approverSignature ? <span className="text-green-600 text-xs">(captured)</span> : <span className="text-muted-foreground text-xs">(required)</span>}
+                  {approverSignature ? <span className="text-green-600 text-xs">(saved signature loaded)</span> : <span className="text-muted-foreground text-xs">(required)</span>}
                 </Label>
                 <SignaturePad
                   signerLabel={user?.full_name || user?.email || "Unknown"}
                   roleLabel={user?.role === "admin" ? "Admin" : "IT Head"}
+                  initialValue={approverSignature || undefined}
                   onSave={(dataUrl) => setApproverSignature(dataUrl)}
                   onClear={() => setApproverSignature(null)}
                   height={130}
