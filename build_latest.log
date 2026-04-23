@@ -8,7 +8,7 @@
 
    Creating an optimized production build ...
 [baseline-browser-mapping] The data in this module is over two months old.  To ensure accurate Baseline data, please update: `npm i baseline-browser-mapping@latest -D`
- Γ£ô Compiled successfully in 34.5s
+ Γ£ô Compiled successfully in 54s
    Skipping validation of types
    Collecting page data using 11 workers ...
 [baseline-browser-mapping] The data in this module is over two months old.  To ensure accurate Baseline data, please update: `npm i baseline-browser-mapping@latest -D`
@@ -35,7 +35,7 @@
    Generating static pages using 11 workers (55/220) 
    Generating static pages using 11 workers (110/220) 
    Generating static pages using 11 workers (165/220) 
- Γ£ô Generating static pages using 11 workers (220/220) in 6.4s
+ Γ£ô Generating static pages using 11 workers (220/220) in 7.3s
    Finalizing page optimization ...
 
 Route (app)

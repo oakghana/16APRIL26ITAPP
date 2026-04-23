@@ -44,6 +44,7 @@ interface ITFormRequest {
   department_head_approved?: boolean
   department_head_approved_by?: string
   department_head_approved_at?: string
+  department_head_signature?: string
   department_head_notes?: string
   departmental_head_name?: string
   departmental_head_date?: string
@@ -170,6 +171,7 @@ export function DepartmentHeadApprovalModule() {
         approver: hodApprover,
         timestamp: hodTimestamp,
         notes: req.department_head_notes,
+        signatureDataUrl: req.department_head_signature,
       },
       {
         stage: "IT Service Desk Processing",
@@ -210,6 +212,15 @@ export function DepartmentHeadApprovalModule() {
       toast({
         title: "Required",
         description: "Please add notes for your approval or rejection",
+        variant: "destructive",
+      })
+      return
+    }
+
+    if (approvalAction === "approve" && !hodSignature) {
+      toast({
+        title: "Signature required",
+        description: "Please capture your digital signature before approving this request.",
         variant: "destructive",
       })
       return
@@ -487,9 +498,11 @@ export function DepartmentHeadApprovalModule() {
               <div>
                 <Label className="flex items-center gap-1.5 mb-1.5">
                   <PenLine className="h-4 w-4 text-orange-500" />
-                  HOD Signature {hodSignature ? <span className="text-green-600 text-xs">(captured)</span> : <span className="text-muted-foreground text-xs">(optional but recommended)</span>}
+                  HOD Signature {hodSignature ? <span className="text-green-600 text-xs">(captured)</span> : <span className="text-muted-foreground text-xs">(required)</span>}
                 </Label>
                 <SignaturePad
+                  signerLabel={user?.full_name || user?.email || "Unknown"}
+                  roleLabel="Department Head"
                   onSave={(dataUrl) => setHodSignature(dataUrl)}
                   onClear={() => setHodSignature(null)}
                   height={130}

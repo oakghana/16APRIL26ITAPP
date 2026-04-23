@@ -41,6 +41,10 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: "Invalid action. Must be 'approve' or 'reject'" }, { status: 400 })
     }
 
+    if (action === "approve" && !hodSignature) {
+      return NextResponse.json({ error: "Digital signature is required for approval" }, { status: 400 })
+    }
+
     const config = FORM_CONFIG[formType as FormType]
     if (!config) {
       return NextResponse.json({ error: "Unsupported form type" }, { status: 400 })
@@ -87,6 +91,7 @@ export async function POST(request: NextRequest) {
         notes,
         timestamp: now,
         signature: action === "approve" ? !!hodSignature : undefined,
+        signatureDataUrl: action === "approve" ? hodSignature : undefined,
       })
       updateData.approval_timeline = approvalChain
     }

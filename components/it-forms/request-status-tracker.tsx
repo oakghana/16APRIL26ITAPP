@@ -55,9 +55,16 @@ interface ITRequisition {
   department_head_approved?: boolean
   department_head_approved_by?: string
   department_head_approved_at?: string
+  department_head_signature?: string
   department_head_notes?: string
   service_desk_approved?: boolean
+  it_head_approved_by?: string
+  it_head_approved_at?: string
+  it_head_signature?: string
   it_head_approved?: boolean
+  admin_approved_by?: string
+  admin_approved_at?: string
+  admin_signature?: string
   admin_approved?: boolean
   store_head_approved?: boolean
   approval_timeline?: Array<{
@@ -171,12 +178,14 @@ export function RequestStatusTracker({
       timesRepaired: req.times_repaired,
       hodName: req.department_head_approved_by || req.departmental_head_name || req.sectional_head_name,
       hodDate: req.department_head_approved_at || req.departmental_head_date || req.sectional_head_date,
+      hodSignature: req.department_head_signature,
       extraNotes: req.other_comments,
       diagnosisItems: req.diagnosis_items,
       supervisorName: req.hardware_supervisor_name,
       supervisorDate: req.hardware_supervisor_date,
-      managerName: req.confirmed_by,
-      managerDate: req.confirmed_date,
+      managerName: req.admin_approved_by || req.it_head_approved_by || req.confirmed_by,
+      managerDate: req.admin_approved_at || req.it_head_approved_at || req.confirmed_date,
+      managerSignature: req.admin_signature || req.it_head_signature,
       recommendation: req.recommended,
       repairStatus: req.gadget_working_status,
     })
@@ -262,6 +271,7 @@ export function RequestStatusTracker({
         approver: req.department_head_approved_by,
         timestamp: req.department_head_approved_at,
         notes: req.department_head_notes,
+        signatureDataUrl: req.department_head_signature,
       },
       {
         stage: "IT Service Desk Processing",
@@ -272,11 +282,17 @@ export function RequestStatusTracker({
         stage: "IT Head Review",
         role: "IT Head",
         status: req.it_head_approved ? "completed" : "pending",
+        approver: req.it_head_approved_by,
+        timestamp: req.it_head_approved_at,
+        signatureDataUrl: req.it_head_signature,
       },
       {
         stage: "Admin Approval",
         role: "Admin",
         status: req.admin_approved ? "completed" : "pending",
+        approver: req.admin_approved_by,
+        timestamp: req.admin_approved_at,
+        signatureDataUrl: req.admin_signature,
       },
       {
         stage: "Store Head Issuance",

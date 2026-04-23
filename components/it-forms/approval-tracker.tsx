@@ -12,6 +12,7 @@ interface ApprovalStage {
   approver?: string
   timestamp?: string
   notes?: string
+  signatureDataUrl?: string
 }
 
 interface ApprovalTrackerProps {
@@ -79,6 +80,19 @@ export function ApprovalTracker({ stages, currentStatus }: ApprovalTrackerProps)
                     <p className="text-xs text-muted-foreground mt-1 italic">
                       "{stage.notes}"
                     </p>
+                  )}
+                  {stage.signatureDataUrl && (
+                    <div className="mt-2">
+                      <p className="text-[11px] font-medium text-muted-foreground mb-1">Digital Signature</p>
+                      <div className="inline-block overflow-hidden rounded-md border bg-white p-1">
+                        {/* eslint-disable-next-line @next/next/no-img-element */}
+                        <img
+                          src={stage.signatureDataUrl}
+                          alt={`${stage.role} signature`}
+                          className="max-h-20 object-contain"
+                        />
+                      </div>
+                    </div>
                   )}
                 </div>
               </div>

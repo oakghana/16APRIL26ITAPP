@@ -8,7 +8,19 @@ const supabaseAdmin = createClient(
 
 export async function POST(request: NextRequest) {
   try {
-    const { requisitionId, action, approvedBy, notes } = await request.json()
+    const { requisitionId, action, approvedBy, approverRole, notes, approverSignature } = await request.json()
+
+    if (!requisitionId || !action || !approvedBy) {
+      return NextResponse.json({ error: "Missing required fields" }, { status: 400 })
+    }
+
+    if (!["approve", "reject"].includes(action)) {
+      return NextResponse.json({ error: "Invalid action" }, { status: 400 })
+    }
+
+    if (action === "approve" && !approverSignature) {
+      return NextResponse.json({ error: "Digital signature is required for approval" }, { status: 400 })
+    }
 
     const { data: requisition } = await supabaseAdmin
       .from("it_equipment_requisitions")
@@ -20,26 +32,41 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: "Not found" }, { status: 404 })
     }
 
+    const actingAsAdmin = approverRole === "admin"
+    const now = new Date().toISOString()
+
     const updateData: any = {
-      it_head_notes: notes,
-      updated_at: new Date().toISOString(),
+      updated_at: now,
     }
 
-    if (action === "approve") {
-      updateData.it_head_approved = true
-      updateData.status = "pending_admin"
+    if (actingAsAdmin) {
+      updateData.admin_approved = action === "approve"
+      updateData.admin_approved_by = approvedBy
+      updateData.admin_approved_at = now
+      if (action === "approve" && approverSignature) {
+        updateData.admin_signature = approverSignature
+      }
+      updateData.status = action === "approve" ? "pending_store" : "rejected_admin"
     } else {
-      updateData.it_head_approved = false
-      updateData.status = "rejected_it_head"
+      updateData.it_head_notes = notes
+      updateData.it_head_approved = action === "approve"
+      updateData.it_head_approved_by = approvedBy
+      updateData.it_head_approved_at = now
+      if (action === "approve" && approverSignature) {
+        updateData.it_head_signature = approverSignature
+      }
+      updateData.status = action === "approve" ? "pending_admin" : "rejected_it_head"
     }
 
     const approvalChain = requisition.approval_timeline || requisition.approval_chain || []
     approvalChain.push({
       approver: approvedBy,
-      role: "it_head",
+      role: actingAsAdmin ? "admin" : "it_head",
       action,
       notes,
-      timestamp: new Date().toISOString(),
+      timestamp: now,
+      signature: action === "approve" ? !!approverSignature : undefined,
+      signatureDataUrl: action === "approve" ? approverSignature : undefined,
     })
     updateData.approval_timeline = approvalChain
 

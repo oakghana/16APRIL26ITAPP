@@ -38,12 +38,14 @@ CREATE TABLE IF NOT EXISTS it_equipment_requisitions (
   it_head_approved_by uuid REFERENCES profiles(id),
   it_head_approved_by_name text,
   it_head_approval_comments text,
+  it_head_signature text,
   
   -- Admin Approval
   admin_approved_at timestamp with time zone,
   admin_approved_by uuid REFERENCES profiles(id),
   admin_approved_by_name text,
   admin_approval_comments text,
+  admin_signature text,
   
   -- Rejection
   rejected_at timestamp with time zone,

@@ -33,6 +33,7 @@ export interface ITFormPDFData {
   timesRepaired?: string | number
   hodName?: string
   hodDate?: string
+  hodSignature?: string
   extraNotes?: string
   diagnosisItems?: Array<{
     partItem?: string
@@ -43,6 +44,7 @@ export interface ITFormPDFData {
   supervisorDate?: string
   managerName?: string
   managerDate?: string
+  managerSignature?: string
   recommendation?: string | boolean | null
   repairStatus?: string
 }
@@ -104,7 +106,7 @@ function addWrappedField(doc: jsPDF, label: string, value: string, x: number, y:
 function blankLineValue(value?: string | number | boolean | null, fallback = "................................") {
   if (value === undefined || value === null) return fallback
   const text = String(value).trim()
-  return text ? text : fallback
+  return text || fallback
 }
 
 function formatRecommendation(value?: string | boolean | null) {
@@ -131,6 +133,41 @@ function addCheckboxRow(doc: jsPDF, label: string, selectedValue: string, option
   })
 
   return y + 7
+}
+
+function addSignatureField(
+  doc: jsPDF,
+  label: string,
+  signatureDataUrl: string | undefined,
+  x: number,
+  y: number,
+) {
+  doc.setFont("helvetica", "normal")
+  doc.setFontSize(9)
+  doc.text(`${label}:`, x, y)
+
+  const boxX = x + 34
+  const boxY = y - 5.5
+  const boxW = 78
+  const boxH = 12
+  doc.setDrawColor(130, 130, 130)
+  doc.rect(boxX, boxY, boxW, boxH)
+
+  if (signatureDataUrl) {
+    try {
+      doc.addImage(signatureDataUrl, "PNG", boxX + 1, boxY + 1, boxW - 2, boxH - 2)
+    } catch {
+      doc.setFontSize(8)
+      doc.text("[signature image unavailable]", boxX + 2, boxY + 7)
+    }
+  } else {
+    doc.setFontSize(8)
+    doc.setTextColor(120, 120, 120)
+    doc.text("not signed", boxX + 2, boxY + 7)
+    doc.setTextColor(20, 20, 20)
+  }
+
+  return y + 8
 }
 
 export function downloadCSV(data: ExportData) {
@@ -340,7 +377,7 @@ export async function exportITFormPDF(data: ITFormPDFData) {
   y = addSectionHeader(doc, "AUTHORIZATION FROM THE HEAD OF DEPARTMENT", "SECTION C", y + 3)
   y = addFieldLine(doc, "Name of sectional / departmental head", blankLineValue(data.hodName), 16, y)
   y = addFieldLine(doc, "Date", blankLineValue(data.hodDate), 126, y - 6)
-  y = addFieldLine(doc, "Stamp / Signature", "____________________________", 16, y)
+  y = addSignatureField(doc, "Stamp / Signature", data.hodSignature, 16, y)
 
   y = addSectionHeader(doc, "IS MANAGER / OFFICE USE ONLY", "SECTION D", y + 3)
 
@@ -353,6 +390,7 @@ export async function exportITFormPDF(data: ITFormPDFData) {
 
   y = addFieldLine(doc, data.formType === "requisition" ? "Approved / issued by" : "Confirmed by", blankLineValue(data.managerName), 16, y)
   y = addFieldLine(doc, "Date", blankLineValue(data.managerDate), 126, y - 6)
+  y = addSignatureField(doc, "IT Head / Admin Signature", data.managerSignature, 16, y)
 
   if (data.formType === "maintenance") {
     y = addCheckboxRow(doc, "Was your repaired gadget working properly?", data.repairStatus || "", [

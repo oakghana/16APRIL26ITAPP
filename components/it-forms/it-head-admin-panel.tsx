@@ -15,10 +15,12 @@ import {
   DialogTitle,
 } from "@/components/ui/dialog"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
-import { CheckCircle2, XCircle, Eye, AlertCircle, Loader2, BarChart3 } from "lucide-react"
+import { CheckCircle2, XCircle, Eye, AlertCircle, Loader2, BarChart3, PenLine } from "lucide-react"
 import { useAuth } from "@/lib/auth-context"
 import { useToast } from "@/hooks/use-toast"
 import { ApprovalTracker } from "./approval-tracker"
+import { SignaturePad } from "@/components/ui/signature-pad"
+import { formatDisplayDate } from "@/lib/utils"
 
 interface ITRequisition {
   id: string
@@ -31,8 +33,15 @@ interface ITRequisition {
   status: string
   service_desk_notes?: string
   service_desk_processed_by?: string
+  service_desk_processed_at?: string
   it_head_notes?: string
+  it_head_approved_by?: string
+  it_head_approved_at?: string
+  it_head_signature?: string
   it_head_approved?: boolean
+  admin_approved_by?: string
+  admin_approved_at?: string
+  admin_signature?: string
   admin_approved?: boolean
   store_head_approved?: boolean
   approval_timeline?: Array<any>
@@ -48,6 +57,7 @@ export function ITHeadAdminPanel() {
   const [isApprovalDialogOpen, setIsApprovalDialogOpen] = useState(false)
   const [approvalNotes, setApprovalNotes] = useState("")
   const [approvalAction, setApprovalAction] = useState<"approve" | "reject">("approve")
+  const [approverSignature, setApproverSignature] = useState<string | null>(null)
   const [isSubmitting, setIsSubmitting] = useState(false)
   const [searchQuery, setSearchQuery] = useState("")
   const [filterTab, setFilterTab] = useState<"pending" | "approved" | "rejected" | "all">("pending")
@@ -65,7 +75,8 @@ export function ITHeadAdminPanel() {
   const fetchRequisitions = async () => {
     try {
       setLoading(true)
-      const response = await fetch("/api/it-forms/requisitions?status=pending_it_head")
+      const statusFilter = user?.role === "admin" ? "all" : "pending_it_head"
+      const response = await fetch(`/api/it-forms/requisitions?status=${statusFilter}`)
       const data = await response.json()
       setRequisitions(data.requisitions || [])
     } catch (error) {
@@ -84,11 +95,16 @@ export function ITHeadAdminPanel() {
     let filtered = requisitions
 
     if (filterTab === "pending") {
-      filtered = filtered.filter((req) => !req.it_head_approved && !req.it_head_notes)
+      filtered = filtered.filter((req) => {
+        if (user?.role === "admin") {
+          return req.status === "pending_admin" || (req.status === "pending_it_head" && !req.it_head_approved)
+        }
+        return req.status === "pending_it_head" && !req.it_head_approved
+      })
     } else if (filterTab === "approved") {
-      filtered = filtered.filter((req) => req.it_head_approved)
+      filtered = filtered.filter((req) => req.it_head_approved || req.admin_approved)
     } else if (filterTab === "rejected") {
-      filtered = filtered.filter((req) => req.it_head_approved === false)
+      filtered = filtered.filter((req) => req.status === "rejected_it_head" || req.status === "rejected_admin")
     }
 
     filtered = filtered.filter(
@@ -112,16 +128,26 @@ export function ITHeadAdminPanel() {
         stage: "IT Service Desk Processing",
         role: "IT Service Desk",
         status: "completed",
+        approver: req.service_desk_processed_by,
+        timestamp: req.service_desk_processed_at,
+        notes: req.service_desk_notes,
       },
       {
         stage: "IT Head Review",
         role: "IT Head",
         status: req.it_head_approved ? "completed" : req.it_head_notes ? "rejected" : "pending",
+        approver: req.it_head_approved_by,
+        timestamp: req.it_head_approved_at,
+        notes: req.it_head_notes,
+        signatureDataUrl: req.it_head_signature,
       },
       {
         stage: "Admin Approval",
         role: "Admin",
-        status: req.admin_approved ? "completed" : "pending",
+        status: req.admin_approved ? "completed" : req.status === "rejected_admin" ? "rejected" : "pending",
+        approver: req.admin_approved_by,
+        timestamp: req.admin_approved_at,
+        signatureDataUrl: req.admin_signature,
       },
       {
         stage: "Store Head Issuance",
@@ -135,6 +161,7 @@ export function ITHeadAdminPanel() {
     setSelectedRequisition(req)
     setApprovalAction("approve")
     setApprovalNotes("")
+    setApproverSignature(null)
     setIsApprovalDialogOpen(true)
   }
 
@@ -142,6 +169,7 @@ export function ITHeadAdminPanel() {
     setSelectedRequisition(req)
     setApprovalAction("reject")
     setApprovalNotes("")
+    setApproverSignature(null)
     setIsApprovalDialogOpen(true)
   }
 
@@ -150,6 +178,15 @@ export function ITHeadAdminPanel() {
       toast({
         title: "Required",
         description: "Please add notes",
+        variant: "destructive",
+      })
+      return
+    }
+
+    if (approvalAction === "approve" && !approverSignature) {
+      toast({
+        title: "Signature required",
+        description: "Please capture your digital signature before approving this request.",
         variant: "destructive",
       })
       return
@@ -164,7 +201,9 @@ export function ITHeadAdminPanel() {
           requisitionId: selectedRequisition.id,
           action: approvalAction,
           approvedBy: user?.full_name || "Unknown",
+          approverRole: user?.role || "it_head",
           notes: approvalNotes,
+          approverSignature: approvalAction === "approve" ? approverSignature : undefined,
         }),
       })
 
@@ -179,6 +218,7 @@ export function ITHeadAdminPanel() {
       fetchRequisitions()
       setIsApprovalDialogOpen(false)
       setSelectedRequisition(null)
+      setApproverSignature(null)
     } catch (error: any) {
       toast({
         title: "Error",
@@ -190,9 +230,12 @@ export function ITHeadAdminPanel() {
     }
   }
 
-  const pendingCount = requisitions.filter((r) => !r.it_head_approved && !r.it_head_notes).length
-  const approvedCount = requisitions.filter((r) => r.it_head_approved).length
-  const rejectedCount = requisitions.filter((r) => r.it_head_approved === false).length
+  const pendingCount = requisitions.filter((r) => {
+    if (user?.role === "admin") return r.status === "pending_admin"
+    return r.status === "pending_it_head" && !r.it_head_approved
+  }).length
+  const approvedCount = requisitions.filter((r) => r.it_head_approved || r.admin_approved).length
+  const rejectedCount = requisitions.filter((r) => ["rejected_it_head", "rejected_admin"].includes(r.status)).length
 
   return (
     <div className="space-y-6">
@@ -308,7 +351,9 @@ export function ITHeadAdminPanel() {
                           <Eye className="h-4 w-4 mr-1" />
                           View
                         </Button>
-                        {!req.it_head_approved && !req.it_head_notes && (
+                        {(user?.role === "admin"
+                          ? req.status === "pending_admin"
+                          : req.status === "pending_it_head") && (
                           <>
                             <Button size="sm" className="bg-green-600 hover:bg-green-700" onClick={() => handleApprove(req)}>
                               <CheckCircle2 className="h-4 w-4 mr-1" />
@@ -355,6 +400,32 @@ export function ITHeadAdminPanel() {
                 <h3 className="font-semibold mb-3">Approval Status</h3>
                 <ApprovalTracker stages={buildApprovalStages(selectedRequisition)} currentStatus={selectedRequisition.status} />
               </div>
+              <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
+                {selectedRequisition.it_head_signature && (
+                  <div>
+                    <Label className="text-muted-foreground">IT Head Signature</Label>
+                    <div className="mt-2 border rounded-md overflow-hidden bg-white p-2 inline-block">
+                      {/* eslint-disable-next-line @next/next/no-img-element */}
+                      <img src={selectedRequisition.it_head_signature} alt="IT Head Signature" className="max-h-24 object-contain" />
+                    </div>
+                    {selectedRequisition.it_head_approved_at && (
+                      <p className="text-xs text-muted-foreground mt-1">Signed on {formatDisplayDate(selectedRequisition.it_head_approved_at)}</p>
+                    )}
+                  </div>
+                )}
+                {selectedRequisition.admin_signature && (
+                  <div>
+                    <Label className="text-muted-foreground">Admin Signature</Label>
+                    <div className="mt-2 border rounded-md overflow-hidden bg-white p-2 inline-block">
+                      {/* eslint-disable-next-line @next/next/no-img-element */}
+                      <img src={selectedRequisition.admin_signature} alt="Admin Signature" className="max-h-24 object-contain" />
+                    </div>
+                    {selectedRequisition.admin_approved_at && (
+                      <p className="text-xs text-muted-foreground mt-1">Signed on {formatDisplayDate(selectedRequisition.admin_approved_at)}</p>
+                    )}
+                  </div>
+                )}
+              </div>
             </div>
           )}
         </DialogContent>
@@ -374,6 +445,22 @@ export function ITHeadAdminPanel() {
               onChange={(e) => setApprovalNotes(e.target.value)}
               className="min-h-24"
             />
+            {approvalAction === "approve" && (
+              <div>
+                <Label className="flex items-center gap-1.5 mb-1.5">
+                  <PenLine className="h-4 w-4 text-orange-500" />
+                  {user?.role === "admin" ? "Admin Signature" : "IT Head Signature"}
+                  {approverSignature ? <span className="text-green-600 text-xs">(captured)</span> : <span className="text-muted-foreground text-xs">(required)</span>}
+                </Label>
+                <SignaturePad
+                  signerLabel={user?.full_name || user?.email || "Unknown"}
+                  roleLabel={user?.role === "admin" ? "Admin" : "IT Head"}
+                  onSave={(dataUrl) => setApproverSignature(dataUrl)}
+                  onClear={() => setApproverSignature(null)}
+                  height={130}
+                />
+              </div>
+            )}
           </div>
           <DialogFooter>
             <Button variant="outline" onClick={() => setIsApprovalDialogOpen(false)}>

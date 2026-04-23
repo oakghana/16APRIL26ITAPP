@@ -2,9 +2,10 @@
 
 import { DeviceInventory } from "@/components/devices/device-inventory"
 import { DuplicateDeviceChecker } from "@/components/devices/duplicate-device-checker"
+import { DeviceTonerIntelligence } from "@/components/devices/device-toner-intelligence"
 import { useAuth } from "@/lib/auth-context"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
-import { Monitor, Copy } from "lucide-react"
+import { Monitor, Copy, Droplets } from "lucide-react"
 
 export default function DevicesPage() {
   const { user } = useAuth()
@@ -13,6 +14,7 @@ export default function DevicesPage() {
     user?.role === "regional_it_head" ||
     user?.role === "it_head" ||
     user?.role === "it_staff"
+  const isAdmin = user?.role === "admin"
 
   if (!canSeeDuplicates) {
     return (
@@ -39,6 +41,15 @@ export default function DevicesPage() {
           <Copy className="h-4 w-4" />
           Duplicate Checker
         </TabsTrigger>
+        {isAdmin && (
+          <TabsTrigger
+            value="toner-intelligence"
+            className="flex items-center gap-2 data-[state=active]:bg-green-500 data-[state=active]:text-white"
+          >
+            <Droplets className="h-4 w-4" />
+            Toner Intelligence
+          </TabsTrigger>
+        )}
       </TabsList>
 
       <TabsContent value="inventory" className="mt-0">
@@ -48,6 +59,12 @@ export default function DevicesPage() {
       <TabsContent value="duplicates" className="mt-0">
         <DuplicateDeviceChecker />
       </TabsContent>
+
+      {isAdmin && (
+        <TabsContent value="toner-intelligence" className="mt-0">
+          <DeviceTonerIntelligence />
+        </TabsContent>
+      )}
     </Tabs>
   )
 }

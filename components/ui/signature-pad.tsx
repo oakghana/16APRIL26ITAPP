@@ -12,6 +12,8 @@ interface SignaturePadProps {
   className?: string
   height?: number
   disabled?: boolean
+  signerLabel?: string
+  roleLabel?: string
 }
 
 export function SignaturePad({
@@ -21,11 +23,61 @@ export function SignaturePad({
   className,
   height = 160,
   disabled = false,
+  signerLabel,
+  roleLabel,
 }: SignaturePadProps) {
   const canvasRef = useRef<HTMLCanvasElement>(null)
   const [isDrawing, setIsDrawing] = useState(false)
   const [isEmpty, setIsEmpty] = useState(!initialValue)
   const [lastPos, setLastPos] = useState<{ x: number; y: number } | null>(null)
+
+  const exportWithHologram = useCallback(() => {
+    const canvas = canvasRef.current
+    if (!canvas) return null
+
+    const exportCanvas = document.createElement("canvas")
+    exportCanvas.width = canvas.width
+    exportCanvas.height = canvas.height
+    const exportCtx = exportCanvas.getContext("2d")
+    if (!exportCtx) return null
+
+    exportCtx.clearRect(0, 0, exportCanvas.width, exportCanvas.height)
+    exportCtx.drawImage(canvas, 0, 0)
+
+    // Lightweight hologram-like overlay pattern to secure exported signature image.
+    exportCtx.save()
+    exportCtx.translate(exportCanvas.width / 2, exportCanvas.height / 2)
+    exportCtx.rotate((-25 * Math.PI) / 180)
+    exportCtx.textAlign = "center"
+    exportCtx.textBaseline = "middle"
+    exportCtx.font = "bold 28px sans-serif"
+    exportCtx.fillStyle = "rgba(16, 185, 129, 0.11)"
+    for (let y = -exportCanvas.height; y <= exportCanvas.height; y += 100) {
+      for (let x = -exportCanvas.width; x <= exportCanvas.width; x += 280) {
+        exportCtx.fillText("QCC IT APP HOLOGRAM", x, y)
+      }
+    }
+    exportCtx.restore()
+
+    const timestamp = new Date().toISOString().replace("T", " ").slice(0, 19)
+    const signerText = signerLabel?.trim() ? signerLabel.trim() : "Authorized User"
+    const roleText = roleLabel?.trim() ? roleLabel.trim() : "Digital Signature"
+
+    exportCtx.fillStyle = "rgba(4, 120, 87, 0.9)"
+    exportCtx.fillRect(exportCanvas.width - 274, exportCanvas.height - 58, 264, 48)
+    exportCtx.strokeStyle = "rgba(16, 185, 129, 0.95)"
+    exportCtx.lineWidth = 1
+    exportCtx.strokeRect(exportCanvas.width - 274, exportCanvas.height - 58, 264, 48)
+
+    exportCtx.fillStyle = "#e8fff8"
+    exportCtx.font = "bold 11px sans-serif"
+    exportCtx.fillText("QCC IT APP VERIFIED", exportCanvas.width - 142, exportCanvas.height - 40)
+    exportCtx.font = "9px sans-serif"
+    exportCtx.fillText(`${roleText} • ${signerText}`, exportCanvas.width - 142, exportCanvas.height - 27)
+    exportCtx.fillText(timestamp, exportCanvas.width - 142, exportCanvas.height - 15)
+
+    return exportCanvas.toDataURL("image/png")
+  }, [roleLabel, signerLabel])
 
   // Load initial value
   useEffect(() => {
@@ -103,9 +155,12 @@ export function SignaturePad({
     // Auto-save after drawing
     const canvas = canvasRef.current
     if (canvas && !isEmpty) {
-      onSave(canvas.toDataURL("image/png"))
+      const securedDataUrl = exportWithHologram()
+      if (securedDataUrl) {
+        onSave(securedDataUrl)
+      }
     }
-  }, [isDrawing, isEmpty, onSave])
+  }, [isDrawing, isEmpty, onSave, exportWithHologram])
 
   const clearCanvas = () => {
     const canvas = canvasRef.current
@@ -119,18 +174,22 @@ export function SignaturePad({
   const saveSignature = () => {
     const canvas = canvasRef.current
     if (!canvas || isEmpty) return
-    onSave(canvas.toDataURL("image/png"))
+    const securedDataUrl = exportWithHologram()
+    if (securedDataUrl) {
+      onSave(securedDataUrl)
+    }
   }
 
   return (
     <div className={cn("flex flex-col gap-2", className)}>
       <div className="relative rounded-md border-2 border-dashed border-orange-300 dark:border-orange-700 bg-white dark:bg-slate-950 overflow-hidden">
+        <div className="pointer-events-none absolute inset-0 z-[1] bg-[repeating-linear-gradient(-25deg,rgba(16,185,129,0.06)_0px,rgba(16,185,129,0.06)_2px,transparent_2px,transparent_34px)]" />
         <canvas
           ref={canvasRef}
           width={600}
           height={height}
           className={cn(
-            "w-full cursor-crosshair block touch-none",
+            "w-full cursor-crosshair block touch-none relative z-[2]",
             disabled && "cursor-not-allowed opacity-60"
           )}
           style={{ height }}
@@ -143,14 +202,17 @@ export function SignaturePad({
           onTouchEnd={endDraw}
         />
         {isEmpty && !disabled && (
-          <div className="absolute inset-0 flex flex-col items-center justify-center pointer-events-none text-muted-foreground gap-1">
+          <div className="absolute inset-0 z-[3] flex flex-col items-center justify-center pointer-events-none text-muted-foreground gap-1">
             <PenLine className="h-6 w-6 opacity-40" />
             <span className="text-xs opacity-60">Sign here</span>
           </div>
         )}
+        <div className="absolute right-2 top-2 z-[3] rounded-md border border-emerald-300/80 bg-emerald-50/85 px-2 py-1 text-[10px] font-semibold uppercase tracking-wide text-emerald-800 dark:border-emerald-700 dark:bg-emerald-950/70 dark:text-emerald-200">
+          IT APP Hologram
+        </div>
         {/* Baseline */}
         <div
-          className="absolute bottom-8 left-8 right-8 border-b border-orange-200 dark:border-orange-800 pointer-events-none"
+          className="absolute bottom-8 left-8 right-8 z-[3] border-b border-orange-200 dark:border-orange-800 pointer-events-none"
         />
       </div>
       {!disabled && (
