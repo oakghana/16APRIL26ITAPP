@@ -22,15 +22,24 @@ import { useAuth } from "@/lib/auth-context"
 import { useToast } from "@/hooks/use-toast"
 import { ApprovalTracker } from "./approval-tracker"
 
+type FormType = "requisition" | "new-gadget" | "maintenance"
+
 interface ITRequisition {
   id: string
-  requisition_number: string
-  items_required: string
-  purpose: string
-  requested_by: string
-  requested_by_email: string
-  department: string
-  department_head: string
+  formType: FormType
+  requisition_number?: string
+  request_number?: string
+  items_required?: string
+  complaints_from_users?: string
+  purpose?: string
+  other_comments?: string
+  requested_by?: string
+  staff_name?: string
+  requester_location?: string | null
+  requested_by_email?: string
+  department?: string
+  department_name?: string
+  department_head?: string
   request_date: string
   status: string
   department_head_approved_by?: string
@@ -78,12 +87,28 @@ export function ITServiceDeskProcessingPanel() {
       if (user?.location) {
         params.set("officeUseLocation", user.location)
       }
-      const response = await fetch(`/api/it-forms/requisitions?${params.toString()}`)
-      const data = await response.json()
-
-      if (data.success) {
-        setRequisitions(data.requisitions || [])
+      if (user?.role) {
+        params.set("officeUseRole", user.role)
       }
+      const scopeQuery = params.toString()
+
+      const [reqRes, gadgetRes, maintenanceRes] = await Promise.all([
+        fetch(`/api/it-forms/requisitions?${scopeQuery}`),
+        fetch(`/api/it-forms/new-gadget?${scopeQuery}`),
+        fetch(`/api/it-forms/maintenance-repairs?${scopeQuery}`),
+      ])
+
+      const reqData = reqRes.ok ? await reqRes.json() : { requisitions: [] }
+      const gadgetData = gadgetRes.ok ? await gadgetRes.json() : { requests: [] }
+      const maintenanceData = maintenanceRes.ok ? await maintenanceRes.json() : { requests: [] }
+
+      const combined: ITRequisition[] = [
+        ...((reqData.requisitions || []).map((r: any) => ({ ...r, formType: "requisition" as const }))),
+        ...((gadgetData.requests || []).map((r: any) => ({ ...r, formType: "new-gadget" as const }))),
+        ...((maintenanceData.requests || []).map((r: any) => ({ ...r, formType: "maintenance" as const }))),
+      ]
+
+      setRequisitions(combined)
     } catch (error) {
       console.error("[v0] Error fetching requisitions:", error)
       toast({
@@ -99,21 +124,28 @@ export function ITServiceDeskProcessingPanel() {
   const filterRequisitions = () => {
     let filtered = requisitions
 
+    const isProcessed = (req: ITRequisition) => {
+      if (req.formType === "requisition") return !!req.service_desk_approved
+      return req.status !== "pending_it_office_use"
+    }
+
     if (filterTab === "pending") {
-      filtered = filtered.filter((req) => !req.service_desk_approved)
+      filtered = filtered.filter((req) => !isProcessed(req))
     } else if (filterTab === "processed") {
-      filtered = filtered.filter((req) => req.service_desk_approved)
+      filtered = filtered.filter((req) => isProcessed(req))
     }
 
     filtered = filtered.filter(
       (req) =>
-        req.requisition_number.toLowerCase().includes(searchQuery.toLowerCase()) ||
-        req.requested_by.toLowerCase().includes(searchQuery.toLowerCase()) ||
-        req.items_required.toLowerCase().includes(searchQuery.toLowerCase())
+        (req.requisition_number || req.request_number || "").toLowerCase().includes(searchQuery.toLowerCase()) ||
+        (req.requested_by || req.staff_name || "").toLowerCase().includes(searchQuery.toLowerCase()) ||
+        (req.items_required || req.complaints_from_users || "").toLowerCase().includes(searchQuery.toLowerCase())
     )
 
     setFilteredRequisitions(filtered)
   }
+
+  const getRequesterLocation = (req: ITRequisition) => req.requester_location || "Unknown Location"
 
   const buildApprovalStages = (req: ITRequisition): any[] => {
     return [
@@ -128,7 +160,11 @@ export function ITServiceDeskProcessingPanel() {
       {
         stage: "IT Office Use",
         role: "IT Staff",
-        status: req.service_desk_approved ? "completed" : "pending",
+        status: req.formType === "requisition"
+          ? (req.service_desk_approved ? "completed" : "pending")
+          : req.status === "pending_it_office_use"
+            ? "pending"
+            : "completed",
         approver: req.service_desk_processed_by,
         timestamp: req.service_desk_processed_at,
         notes: req.service_desk_notes,
@@ -175,6 +211,7 @@ export function ITServiceDeskProcessingPanel() {
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           requisitionId: selectedRequisition.id,
+          formType: selectedRequisition.formType,
           action: processingAction,
           processedBy: user?.full_name || user?.email || "Unknown",
           processedById: user?.id,
@@ -210,15 +247,15 @@ export function ITServiceDeskProcessingPanel() {
     }
   }
 
-  const getPendingCount = () => requisitions.filter((r) => !r.service_desk_approved).length
-  const getProcessedCount = () => requisitions.filter((r) => r.service_desk_approved).length
+  const getPendingCount = () => requisitions.filter((r) => (r.formType === "requisition" ? !r.service_desk_approved : r.status === "pending_it_office_use")).length
+  const getProcessedCount = () => requisitions.filter((r) => (r.formType === "requisition" ? !!r.service_desk_approved : r.status !== "pending_it_office_use")).length
 
   return (
     <div className="space-y-6">
       <div>
         <h1 className="text-3xl font-bold tracking-tight">IT Office Use - Request Processing</h1>
         <p className="text-muted-foreground mt-2">
-          IT staff complete office-use details before IT Head/Admin review
+          IT staff and regional IT heads complete office-use details for all HOD-approved IT forms before manager review
         </p>
       </div>
 
@@ -298,16 +335,22 @@ export function ITServiceDeskProcessingPanel() {
                       >
                         <div className="flex items-start justify-between">
                           <div className="flex-1 space-y-2">
-                            <div className="flex items-center gap-2">
-                              <span className="font-semibold">{req.requisition_number}</span>
-                              <Badge variant={req.service_desk_approved ? "secondary" : "default"} className="text-xs">
-                                {req.service_desk_approved ? "Office Use Completed" : "Pending Office Use"}
+                            <div className="flex items-center gap-2 flex-wrap">
+                              <span className="font-semibold">{req.requisition_number || req.request_number || req.id}</span>
+                              <Badge variant="outline" className="text-xs">
+                                {req.formType === "maintenance" ? "Maintenance" : req.formType === "new-gadget" ? "New Gadget" : "Requisition"}
+                              </Badge>
+                              <Badge variant={(req.formType === "requisition" ? req.service_desk_approved : req.status !== "pending_it_office_use") ? "secondary" : "default"} className="text-xs">
+                                {(req.formType === "requisition" ? req.service_desk_approved : req.status !== "pending_it_office_use") ? "Office Use Completed" : "Pending Office Use"}
+                              </Badge>
+                              <Badge variant="secondary" className="text-xs">
+                                {getRequesterLocation(req)}
                               </Badge>
                             </div>
                             <p className="text-sm text-muted-foreground">
-                              From: <span className="font-medium">{req.requested_by}</span> ({req.department})
+                              From: <span className="font-medium">{req.requested_by || req.staff_name || "Unknown"}</span> ({req.department || req.department_name || "Unknown"})
                             </p>
-                            <p className="text-sm">Items: {req.items_required.substring(0, 80)}...</p>
+                            <p className="text-sm">Items: {(req.items_required || req.complaints_from_users || "N/A").substring(0, 80)}...</p>
                             {req.department_head_notes && (
                               <p className="text-xs text-muted-foreground italic">
                                 HOD Notes: {req.department_head_notes.substring(0, 60)}...
@@ -326,7 +369,7 @@ export function ITServiceDeskProcessingPanel() {
                               <Eye className="h-4 w-4 mr-1" />
                               View
                             </Button>
-                            {!req.service_desk_approved && (
+                            {!((req.formType === "requisition" ? req.service_desk_approved : req.status !== "pending_it_office_use")) && (
                               <Button
                                 variant="default"
                                 size="sm"
@@ -353,7 +396,7 @@ export function ITServiceDeskProcessingPanel() {
       <Dialog open={isDetailDialogOpen} onOpenChange={setIsDetailDialogOpen}>
         <DialogContent className="max-w-3xl max-h-[90vh] overflow-y-auto">
           <DialogHeader>
-            <DialogTitle>{selectedRequisition?.requisition_number}</DialogTitle>
+            <DialogTitle>{selectedRequisition?.requisition_number || selectedRequisition?.request_number}</DialogTitle>
             <DialogDescription>
               Submitted on {selectedRequisition ? new Date(selectedRequisition.created_at).toLocaleDateString() : ""}
             </DialogDescription>
@@ -365,7 +408,7 @@ export function ITServiceDeskProcessingPanel() {
                 <div className="grid grid-cols-2 gap-4 text-sm">
                   <div>
                     <Label className="text-muted-foreground">Requested By</Label>
-                    <p className="font-medium">{selectedRequisition.requested_by}</p>
+                    <p className="font-medium">{selectedRequisition.requested_by || selectedRequisition.staff_name || "Unknown"}</p>
                   </div>
                   <div>
                     <Label className="text-muted-foreground">Email</Label>
@@ -373,7 +416,11 @@ export function ITServiceDeskProcessingPanel() {
                   </div>
                   <div>
                     <Label className="text-muted-foreground">Department</Label>
-                    <p className="font-medium">{selectedRequisition.department}</p>
+                    <p className="font-medium">{selectedRequisition.department || selectedRequisition.department_name || "Unknown"}</p>
+                  </div>
+                  <div>
+                    <Label className="text-muted-foreground">Location</Label>
+                    <p className="font-medium">{getRequesterLocation(selectedRequisition)}</p>
                   </div>
                   <div>
                     <Label className="text-muted-foreground">Request Date</Label>
@@ -385,12 +432,12 @@ export function ITServiceDeskProcessingPanel() {
 
                 <div>
                   <Label className="text-muted-foreground">Items Required</Label>
-                  <p className="font-medium text-sm whitespace-pre-wrap">{selectedRequisition.items_required}</p>
+                  <p className="font-medium text-sm whitespace-pre-wrap">{selectedRequisition.items_required || selectedRequisition.complaints_from_users || "N/A"}</p>
                 </div>
 
                 <div>
                   <Label className="text-muted-foreground">Purpose</Label>
-                  <p className="font-medium text-sm">{selectedRequisition.purpose}</p>
+                  <p className="font-medium text-sm">{selectedRequisition.purpose || selectedRequisition.other_comments || "N/A"}</p>
                 </div>
               </div>
 
@@ -409,7 +456,7 @@ export function ITServiceDeskProcessingPanel() {
           <DialogHeader>
             <DialogTitle>Process Requisition</DialogTitle>
             <DialogDescription>
-              {selectedRequisition?.requisition_number}
+              {selectedRequisition?.requisition_number || selectedRequisition?.request_number}
             </DialogDescription>
           </DialogHeader>
 

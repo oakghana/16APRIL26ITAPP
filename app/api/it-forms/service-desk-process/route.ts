@@ -1,6 +1,29 @@
 import { NextRequest, NextResponse } from "next/server"
 import { createClient } from "@supabase/supabase-js"
 
+type FormType = "requisition" | "new-gadget" | "maintenance"
+
+const FORM_CONFIG: Record<FormType, { table: string; numberField: string; requesterField: string; relatedType: string }> = {
+  requisition: {
+    table: "it_equipment_requisitions",
+    numberField: "requisition_number",
+    requesterField: "requested_by",
+    relatedType: "it_equipment_requisition",
+  },
+  "new-gadget": {
+    table: "new_gadget_requests",
+    numberField: "request_number",
+    requesterField: "staff_name",
+    relatedType: "new_gadget_request",
+  },
+  maintenance: {
+    table: "maintenance_repair_requests",
+    numberField: "request_number",
+    requesterField: "staff_name",
+    relatedType: "maintenance_repair_request",
+  },
+}
+
 const supabaseAdmin = createClient(
   (process.env.NEXT_PUBLIC_SUPABASE_URL ?? "https://placeholder.supabase.co"),
   (process.env.SUPABASE_SERVICE_ROLE_KEY ?? "placeholder-build-key")
@@ -8,7 +31,12 @@ const supabaseAdmin = createClient(
 
 export async function POST(request: NextRequest) {
   try {
-    const { requisitionId, action, processedBy, processedById, processedByLocation, notes } = await request.json()
+    const { requisitionId, action, processedBy, processedById, processedByLocation, notes, formType = "requisition" } = await request.json()
+
+    const config = FORM_CONFIG[formType as FormType]
+    if (!config) {
+      return NextResponse.json({ error: "Unsupported form type" }, { status: 400 })
+    }
 
     if (!requisitionId || !action || !processedBy || !notes) {
       return NextResponse.json(
@@ -19,7 +47,7 @@ export async function POST(request: NextRequest) {
 
     // Get the current requisition
     const { data: requisition, error: fetchError } = await supabaseAdmin
-      .from("it_equipment_requisitions")
+      .from(config.table)
       .select()
       .eq("id", requisitionId)
       .single()
@@ -34,15 +62,31 @@ export async function POST(request: NextRequest) {
 
     // Update the requisition
     const updateData: any = {
-      service_desk_notes: notes,
-      service_desk_processed_by: processedBy,
-      service_desk_processed_at: new Date().toISOString(),
       updated_at: new Date().toISOString(),
     }
 
+    if (formType === "requisition") {
+      updateData.service_desk_notes = notes
+      updateData.service_desk_processed_by = processedBy
+      updateData.service_desk_processed_at = new Date().toISOString()
+    } else {
+      updateData.confirmed_by = processedBy
+      updateData.confirmed_date = new Date().toISOString().split("T")[0]
+      updateData.other_comments = [
+        requisition.other_comments,
+        `IT Office Use ${action === "process" ? "completed" : "hold"} note: ${notes}`,
+      ]
+        .filter(Boolean)
+        .join("\n")
+    }
+
     if (action === "process") {
-      updateData.service_desk_approved = true
-      updateData.status = "pending_it_head"
+      if (formType === "requisition") {
+        updateData.service_desk_approved = true
+        updateData.status = "pending_it_head"
+      } else {
+        updateData.status = "pending_manager"
+      }
     } else if (action === "hold") {
       updateData.status = "hold_it_office_use"
     }
@@ -61,7 +105,7 @@ export async function POST(request: NextRequest) {
     updateData.approval_timeline = approvalChain
 
     const { data: updated, error: updateError } = await supabaseAdmin
-      .from("it_equipment_requisitions")
+      .from(config.table)
       .update(updateData)
       .eq("id", requisitionId)
       .select()
@@ -87,10 +131,10 @@ export async function POST(request: NextRequest) {
         const managerNotifications = managerUsers.map((manager) => ({
           user_id: manager.id,
           title: "Request Ready for IT Head/Admin Review",
-          message: `Requisition ${requisition.requisition_number} has completed IT office-use processing and is ready for final review.`,
+          message: `Request ${requisition[config.numberField]} has completed IT office-use processing and is ready for final review.`,
           type: "info" as const,
           category: "approval" as const,
-          reference_type: "it_equipment_requisition",
+          reference_type: config.relatedType,
           reference_id: requisitionId,
           is_read: false,
         }))
@@ -103,13 +147,13 @@ export async function POST(request: NextRequest) {
 
       // Notify requester
       await supabaseAdmin.from("notifications").insert({
-        recipient_id: requisition.requested_by,
+        recipient_id: requisition.requested_by || requisition.staff_name,
         recipient_type: "staff",
         title: "Your Request Completed IT Office Use",
-        message: `Your IT equipment requisition ${requisition.requisition_number} has completed IT office-use checks and is now awaiting IT Head/Admin review.`,
+        message: `Your request ${requisition[config.numberField]} has completed IT office-use checks and is now awaiting IT Head/Admin review.`,
         type: "it_form_update",
         related_id: requisitionId,
-        related_type: "it_equipment_requisition",
+        related_type: config.relatedType,
         read: false,
       }).catch(err => console.error("[v0] Error creating notification:", err))
     }

@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from "next/server"
 import { createClient } from "@supabase/supabase-js"
+import { isLocationInSameRegion, normalizeLocation } from "@/lib/location-filter"
 
 const supabaseAdmin = createClient(
   process.env.NEXT_PUBLIC_SUPABASE_URL || "https://example.supabase.co",
@@ -107,6 +108,7 @@ export async function GET(request: NextRequest) {
     const department = searchParams.get("department")
     const requestedBy = searchParams.get("requestedBy")
     const officeUseLocation = searchParams.get("officeUseLocation")
+    const officeUseRole = searchParams.get("officeUseRole")
 
     console.log("[it-requisitions] Loading IT equipment requisitions:", { status, department })
 
@@ -146,10 +148,25 @@ export async function GET(request: NextRequest) {
           .in("id", requesterIds)
 
         const locationMap = new Map((requesterProfiles || []).map((p: any) => [p.id, String(p.location || "").toLowerCase()]))
-        requisitions = requisitions.filter((r: any) => {
-          const requesterLocation = locationMap.get(r.requested_by_id) || ""
-          return requesterLocation === officeUseLocation.toLowerCase()
-        })
+        const normalizedOfficeLocation = normalizeLocation(officeUseLocation)
+        const canSeeNationwide =
+          officeUseRole === "admin" ||
+          officeUseRole === "it_head" ||
+          (officeUseRole === "it_staff" && (normalizedOfficeLocation === "head_office" || normalizedOfficeLocation === "accra"))
+
+        if (!canSeeNationwide) {
+          requisitions = requisitions.filter((r: any) => {
+            const requesterLocation = locationMap.get(r.requested_by_id) || ""
+
+            if (!requesterLocation) return false
+
+            if (officeUseRole === "regional_it_head" || officeUseRole === "it_staff") {
+              return isLocationInSameRegion(requesterLocation, officeUseLocation)
+            }
+
+            return normalizeLocation(requesterLocation) === normalizedOfficeLocation
+          })
+        }
       }
     }
 

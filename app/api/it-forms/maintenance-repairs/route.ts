@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from "next/server"
 import { createClient } from "@supabase/supabase-js"
+import { isLocationInSameRegion, normalizeLocation } from "@/lib/location-filter"
 
 const supabaseAdmin = createClient(
   process.env.NEXT_PUBLIC_SUPABASE_URL || "https://example.supabase.co",
@@ -110,6 +111,8 @@ export async function GET(request: NextRequest) {
     const status = searchParams.get("status")
     const department = searchParams.get("department")
     const staffName = searchParams.get("staffName")
+    const officeUseLocation = searchParams.get("officeUseLocation")
+    const officeUseRole = searchParams.get("officeUseRole")
 
     console.log("[maintenance-repairs] Loading maintenance requests:", { status, department })
 
@@ -137,9 +140,47 @@ export async function GET(request: NextRequest) {
       return NextResponse.json({ error: error.message }, { status: 500 })
     }
 
+    let requests = data || []
+
+    if (requests.length > 0) {
+      const { data: profiles } = await supabaseAdmin
+        .from("profiles")
+        .select("full_name, username, location")
+
+      const staffLocationMap = new Map<string, string>()
+      for (const profile of profiles || []) {
+        if (profile.full_name) staffLocationMap.set(String(profile.full_name).toLowerCase().trim(), String(profile.location || ""))
+        if (profile.username) staffLocationMap.set(String(profile.username).toLowerCase().trim(), String(profile.location || ""))
+      }
+
+      requests = requests.map((req: any) => ({
+        ...req,
+        requester_location: staffLocationMap.get(String(req.staff_name || "").toLowerCase().trim()) || null,
+      }))
+
+      if (officeUseLocation) {
+        const normalizedOfficeLocation = normalizeLocation(officeUseLocation)
+        const canSeeNationwide =
+          officeUseRole === "admin" ||
+          officeUseRole === "it_head" ||
+          (officeUseRole === "it_staff" && (normalizedOfficeLocation === "head_office" || normalizedOfficeLocation === "accra"))
+
+        if (!canSeeNationwide) {
+          requests = requests.filter((req: any) => {
+            const requesterLocation = String(req.requester_location || "")
+            if (!requesterLocation) return false
+            if (officeUseRole === "regional_it_head" || officeUseRole === "it_staff") {
+              return isLocationInSameRegion(requesterLocation, officeUseLocation)
+            }
+            return normalizeLocation(requesterLocation) === normalizedOfficeLocation
+          })
+        }
+      }
+    }
+
     return NextResponse.json({
       success: true,
-      requests: data || []
+      requests
     })
 
   } catch (error: any) {

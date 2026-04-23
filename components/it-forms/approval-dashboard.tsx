@@ -42,6 +42,7 @@ export function ITFormsApprovalDashboard() {
   const canUseOfficeUseDesk =
     role === "admin" ||
     role === "it_staff" ||
+    role === "regional_it_head" ||
     role === "it_store_head" ||
     role.startsWith("service_desk")
   const canUseManagerDesk = ["it_head", "admin"].includes(role) || isITDepartmentHead
