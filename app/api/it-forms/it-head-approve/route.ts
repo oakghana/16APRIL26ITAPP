@@ -6,9 +6,22 @@ const supabaseAdmin = createClient(
   (process.env.SUPABASE_SERVICE_ROLE_KEY ?? "placeholder-build-key")
 )
 
+function isAuthorizedForRole(approverRole: string | undefined, userRole: string, userDepartment: string) {
+  if (approverRole === "admin") {
+    return userRole === "admin"
+  }
+  if (approverRole === "it_head") {
+    // Allow admin, it_head, or department_head from IT department
+    return userRole === "admin" || 
+           userRole === "it_head" || 
+           (userRole === "department_head" && userDepartment?.toLowerCase().includes("it"))
+  }
+  return false
+}
+
 export async function POST(request: NextRequest) {
   try {
-    const { requisitionId, action, approvedBy, approverRole, notes, approverSignature } = await request.json()
+    const { requisitionId, action, approvedBy, approverRole, notes, approverSignature, userRole, userDepartment } = await request.json()
 
     if (!requisitionId || !action || !approvedBy) {
       return NextResponse.json({ error: "Missing required fields" }, { status: 400 })
@@ -16,6 +29,10 @@ export async function POST(request: NextRequest) {
 
     if (!["approve", "reject"].includes(action)) {
       return NextResponse.json({ error: "Invalid action" }, { status: 400 })
+    }
+
+    if (!isAuthorizedForRole(approverRole, userRole, userDepartment)) {
+      return NextResponse.json({ error: "Unauthorized to approve in this role" }, { status: 403 })
     }
 
     if (action === "approve" && !approverSignature) {

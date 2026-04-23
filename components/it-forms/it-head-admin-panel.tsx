@@ -94,10 +94,16 @@ export function ITHeadAdminPanel() {
   const filterRequisitions = () => {
     let filtered = requisitions
 
+    // ITD Department Head can see pending_it_head forms
+    const isITDepartmentHead = user?.role === "department_head" && user?.department?.toLowerCase().includes("it")
+
     if (filterTab === "pending") {
       filtered = filtered.filter((req) => {
         if (user?.role === "admin") {
           return req.status === "pending_admin" || (req.status === "pending_it_head" && !req.it_head_approved)
+        }
+        if (isITDepartmentHead) {
+          return (req.status === "pending_it_head" && !req.it_head_approved)
         }
         return req.status === "pending_it_head" && !req.it_head_approved
       })
@@ -204,6 +210,8 @@ export function ITHeadAdminPanel() {
           approverRole: user?.role || "it_head",
           notes: approvalNotes,
           approverSignature: approvalAction === "approve" ? approverSignature : undefined,
+          userRole: user?.role,
+          userDepartment: user?.department,
         }),
       })
 

@@ -33,11 +33,15 @@ function LockedSection({ title, description }: { title: string; description: str
 export function ITFormsApprovalDashboard() {
   const { user } = useAuth()
   const role = user?.role || ""
+  const department = user?.department || ""
+
+  // ITD (IT Department) Department Head can act as IT Manager
+  const isITDepartmentHead = role === "department_head" && department?.toLowerCase().includes("it")
 
   const canUseHODDesk = ["department_head", "admin"].includes(role)
   const canUseServiceDeskDesk = role.startsWith("service_desk") || role === "admin"
-  const canUseManagerDesk = ["it_head", "admin"].includes(role)
-  const canUseHODTracker = ["it_head", "admin"].includes(role)
+  const canUseManagerDesk = ["it_head", "admin"].includes(role) || isITDepartmentHead
+  const canUseHODTracker = ["it_head", "admin"].includes(role) || isITDepartmentHead
   const canUseSignatureDesk = ["department_head", "admin"].includes(role)
 
   const defaultTab = useMemo(() => {
