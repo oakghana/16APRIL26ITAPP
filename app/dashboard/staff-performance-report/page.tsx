@@ -176,7 +176,7 @@ export default function StaffPerformanceReport() {
         <div>
           <h1 className="text-3xl font-bold">Staff Performance Report</h1>
           <p className="text-muted-foreground">
-            Year-end productivity metrics and rankings for IT staff
+            Productivity metrics and rankings for IT teams, Store Heads, and Service Desk Heads based on tasks and in-app activities
           </p>
         </div>
         <Button onClick={exportReport} className="gap-2">

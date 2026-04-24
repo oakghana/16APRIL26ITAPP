@@ -29,8 +29,8 @@ export function StaffProductivityWidget() {
   const [productivity, setProductivity] = useState<ProductivityData | null>(null)
   const [loading, setLoading] = useState(true)
 
-  // Only show for IT staff roles
-  const isITStaff = user?.role === "it_staff" || user?.role === "it_head" || user?.role === "regional_it_head"
+  // Show for IT and operational heads whose work is measured in the productivity engine
+  const isITStaff = ["it_staff", "it_head", "regional_it_head", "it_store_head", "service_desk_head"].includes(user?.role || "")
 
   useEffect(() => {
     if (!isITStaff || !user) return

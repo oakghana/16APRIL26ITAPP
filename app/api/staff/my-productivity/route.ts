@@ -1,6 +1,30 @@
 import { type NextRequest, NextResponse } from "next/server"
 import { createAdminClient } from "@/lib/supabase/admin"
 
+function normalizeText(value: string | null | undefined): string {
+  return (value || "").toLowerCase().trim().replace(/\s+/g, " ")
+}
+
+function makeIdentitySet(staff: any): Set<string> {
+  return new Set([
+    normalizeText(staff?.full_name),
+    normalizeText(staff?.name),
+    normalizeText(staff?.email),
+    normalizeText(staff?.username),
+  ].filter(Boolean))
+}
+
+function matchesIdentity(identity: Set<string>, raw: string | null | undefined): boolean {
+  const value = normalizeText(raw)
+  if (!value) return false
+  if (identity.has(value)) return true
+  for (const key of identity) {
+    if (!key) continue
+    if (value.includes(key) || key.includes(value)) return true
+  }
+  return false
+}
+
 export async function GET(request: NextRequest) {
   try {
     const { searchParams } = request.nextUrl
@@ -15,7 +39,7 @@ export async function GET(request: NextRequest) {
     // Get staff details
     const { data: staff, error: staffError } = await supabase
       .from("profiles")
-      .select("id, full_name, name, email, location, role")
+      .select("id, full_name, name, email, username, location, role")
       .eq("id", staffId)
       .single()
 
@@ -36,11 +60,57 @@ export async function GET(request: NextRequest) {
 
     // Get service tickets assigned to this staff (by id or name)
     const staffName = (staff.name || staff.full_name || staff.email || "").toLowerCase().trim()
+    const identity = makeIdentitySet(staff)
 
     const { data: ticketTasks } = await supabase
       .from("service_tickets")
       .select("id, status, priority, created_at, updated_at, completed_at, resolved_at")
       .or(`assigned_to.eq.${staffId},assigned_to_name.ilike.%${staffName}%`)
+
+    // Store issuance actions (stock assignments made by this staff)
+    const { data: stockAssignments } = await supabase
+      .from("stock_assignments")
+      .select("id, created_at, assigned_by")
+
+    const myStoreAssignments = (stockAssignments || []).filter((row: any) =>
+      matchesIdentity(identity, row.assigned_by)
+    )
+
+    // Service desk dispatch actions (ticket assignment actions)
+    const { data: dispatchRows } = await supabase
+      .from("service_tickets")
+      .select("id, created_at, assigned_at, assigned_by")
+      .not("assigned_at", "is", null)
+
+    const myDispatches = (dispatchRows || []).filter((row: any) =>
+      matchesIdentity(identity, row.assigned_by)
+    )
+
+    // Office-use processing actions across IT forms
+    const [itReqRes, gadgetRes, maintenanceRes] = await Promise.all([
+      supabase
+        .from("it_equipment_requisitions")
+        .select("id, created_at, service_desk_processed_at, service_desk_processed_by")
+        .not("service_desk_processed_at", "is", null),
+      supabase
+        .from("new_gadget_requests")
+        .select("id, created_at, confirmed_date, confirmed_by"),
+      supabase
+        .from("maintenance_repair_requests")
+        .select("id, created_at, confirmed_date, confirmed_by"),
+    ])
+
+    const processedRequisitions = (itReqRes.data || []).filter((row: any) =>
+      matchesIdentity(identity, row.service_desk_processed_by)
+    )
+    const processedGadget = (gadgetRes.data || []).filter((row: any) =>
+      !!row.confirmed_date && matchesIdentity(identity, row.confirmed_by)
+    )
+    const processedMaintenance = (maintenanceRes.data || []).filter((row: any) =>
+      !!row.confirmed_date && matchesIdentity(identity, row.confirmed_by)
+    )
+
+    const officeUseActions = [...processedRequisitions, ...processedGadget, ...processedMaintenance]
 
     const tasks = [...(repairTasks || []), ...(ticketTasks || [])]
     const totalTasksAssigned = tasks.length
@@ -50,12 +120,24 @@ export async function GET(request: NextRequest) {
     const completedTasks = tasks.filter((task) => completedStatuses.includes((task.status || "").toLowerCase()))
     const completedCount = completedTasks.length
 
+    const storeIssuances = myStoreAssignments.length
+    const serviceDeskDispatches = myDispatches.length
+    const officeUseProcesses = officeUseActions.length
+    const activityActions = storeIssuances + serviceDeskDispatches + officeUseProcesses
+
+    const effectiveAssignedUnits = totalTasksAssigned + activityActions
+    const effectiveCompletedUnits = completedCount + activityActions
+
     // Calculate completion rate
-    const completionRate = totalTasksAssigned > 0 ? Math.round((completedCount / totalTasksAssigned) * 100) : 0
+    const completionRate = effectiveAssignedUnits > 0
+      ? Math.round((effectiveCompletedUnits / effectiveAssignedUnits) * 100)
+      : 0
 
     // Calculate on-time completions and average completion time
     let onTimeCompletions = 0
     let totalCompletionDays = 0
+    let activityOnTimeCompletions = 0
+    let activityTotalDays = 0
 
     completedTasks.forEach((task: any) => {
       if (!task.created_at) return
@@ -77,12 +159,46 @@ export async function GET(request: NextRequest) {
       }
     })
 
-    const averageCompletionDays = completedTasks.length > 0 
-      ? parseFloat((totalCompletionDays / completedTasks.length).toFixed(1)) 
+    // Ticket dispatch lag: expected <= 1 day
+    myDispatches.forEach((dispatch: any) => {
+      if (!dispatch.created_at || !dispatch.assigned_at) return
+      const createdDate = new Date(dispatch.created_at)
+      const assignedDate = new Date(dispatch.assigned_at)
+      const lagDays = Math.max(0, (assignedDate.getTime() - createdDate.getTime()) / (1000 * 60 * 60 * 24))
+      activityTotalDays += lagDays
+      if (lagDays <= 1) activityOnTimeCompletions++
+    })
+
+    // Office-use processing lag: expected <= 2 days
+    const toDate = (value: string | null | undefined) => (value ? new Date(value) : null)
+
+    processedRequisitions.forEach((row: any) => {
+      if (!row.created_at || !row.service_desk_processed_at) return
+      const createdDate = new Date(row.created_at)
+      const processedDate = new Date(row.service_desk_processed_at)
+      const lagDays = Math.max(0, (processedDate.getTime() - createdDate.getTime()) / (1000 * 60 * 60 * 24))
+      activityTotalDays += lagDays
+      if (lagDays <= 2) activityOnTimeCompletions++
+    })
+
+    ;[...processedGadget, ...processedMaintenance].forEach((row: any) => {
+      const createdDate = toDate(row.created_at)
+      const confirmedDate = toDate(row.confirmed_date)
+      if (!createdDate || !confirmedDate) return
+      const lagDays = Math.max(0, (confirmedDate.getTime() - createdDate.getTime()) / (1000 * 60 * 60 * 24))
+      activityTotalDays += lagDays
+      if (lagDays <= 2) activityOnTimeCompletions++
+    })
+
+    const totalCompletedUnits = completedCount + activityActions
+    const totalOnTimeCompletions = onTimeCompletions + activityOnTimeCompletions
+
+    const averageCompletionDays = totalCompletedUnits > 0 
+      ? parseFloat(((totalCompletionDays + activityTotalDays) / totalCompletedUnits).toFixed(1)) 
       : 0
     
-    const onTimeRate = completedTasks.length > 0 
-      ? Math.round((onTimeCompletions / completedTasks.length) * 100) 
+    const onTimeRate = totalCompletedUnits > 0 
+      ? Math.round((totalOnTimeCompletions / totalCompletedUnits) * 100) 
       : 0
 
     // Calculate speed bonus
@@ -92,11 +208,17 @@ export async function GET(request: NextRequest) {
     else if (averageCompletionDays <= 7) speedBonus = 5
 
     // Calculate volume bonus
-    const volumeBonus = Math.min(30, completedTasks.length * 0.5)
+    const volumeBonus = Math.min(30, totalCompletedUnits * 0.5)
+
+    // Activity bonus rewards real operational work captured in app flows
+    const activityBonus = Math.min(
+      25,
+      storeIssuances * 1.2 + serviceDeskDispatches * 1.0 + officeUseProcesses * 1.0,
+    )
     
     // Calculate productivity score with volume weighting
     const baseScore = completionRate * 0.4 + onTimeRate * 0.25 + speedBonus * 0.75
-    const productivityScore = Math.round(baseScore + volumeBonus)
+    const productivityScore = Math.round(baseScore + volumeBonus + activityBonus)
 
     // Determine grading
     let grading: "Excellent" | "Good" | "Average" | "Below Average" | "Poor"
@@ -123,15 +245,20 @@ export async function GET(request: NextRequest) {
       email: staff.email,
       location: staff.location,
       role: staff.role,
-      totalTasksAssigned,
-      completedTasks: completedCount,
-      onTimeCompletions,
+      totalTasksAssigned: effectiveAssignedUnits,
+      completedTasks: effectiveCompletedUnits,
+      onTimeCompletions: totalOnTimeCompletions,
       averageCompletionDays,
       completionRate,
       onTimeRate,
       productivityScore,
       speedBonus,
       volumeBonus,
+      activityBonus: Math.round(activityBonus * 10) / 10,
+      activityActions,
+      storeIssuances,
+      serviceDeskDispatches,
+      officeUseProcesses,
       grading,
       rank,
       totalStaff,
