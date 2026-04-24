@@ -28,6 +28,7 @@ import { canSeeAllLocations } from "@/lib/location-filter"
 import { getLocationOptions } from "@/lib/locations"
 import { useToast } from "@/hooks/use-toast"
 import { DataPagination } from "@/components/ui/data-pagination"
+import { useSearchParams } from "next/navigation"
 import {
   AlertDialog,
   AlertDialogAction,
@@ -135,12 +136,15 @@ export function RequisitionManagement() {
   const { user } = useAuth()
   const { toast } = useToast()
   const supabase = createClient()
+  const searchParams = useSearchParams()
 
   const [filteredRequisitions, setFilteredRequisitions] = useState<Requisition[]>([])
   const [approvedQuantities, setApprovedQuantities] = useState<Record<string, number>>({})
   const [activeTab, setActiveTab] = useState<RequisitionTabValue>("all")
   const [pageByTab, setPageByTab] = useState<Record<RequisitionTabValue, number>>(INITIAL_PAGE_STATE)
   const [pageSizeByTab, setPageSizeByTab] = useState<Record<RequisitionTabValue, number>>(INITIAL_PAGE_SIZE_STATE)
+  const [isSyncingApprovedIt, setIsSyncingApprovedIt] = useState(false)
+  const [hasHandledAutoSync, setHasHandledAutoSync] = useState(false)
 
   useEffect(() => {
     loadRequisitions()
@@ -268,6 +272,68 @@ export function RequisitionManagement() {
       rejected: 1,
     }))
   }, [searchTerm, requisitions])
+
+  useEffect(() => {
+    if (hasHandledAutoSync) {
+      return
+    }
+
+    if (searchParams.get("syncApprovedIt") !== "1") {
+      return
+    }
+
+    if (!user || !["admin", "it_store_head"].includes(user.role)) {
+      return
+    }
+
+    setHasHandledAutoSync(true)
+    void syncApprovedItRequisitions()
+  }, [hasHandledAutoSync, searchParams, user])
+
+  const syncApprovedItRequisitions = async () => {
+    if (!user || !["admin", "it_store_head"].includes(user.role)) {
+      return
+    }
+
+    try {
+      setIsSyncingApprovedIt(true)
+
+      const response = await fetch("/api/store/sync-approved-it-requisitions", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          userRole: user.role,
+          triggeredBy: user.full_name || user.email,
+        }),
+      })
+
+      const result = await response.json()
+
+      if (!response.ok) {
+        throw new Error(result.error || "Failed to sync approved IT requisitions")
+      }
+
+      toast({
+        title: result.createdCount > 0 ? "Approved Requests Synced" : "No New Approved Requests",
+        description:
+          result.createdCount > 0
+            ? `${result.createdCount} approved IT requisition(s) moved into Store Requisitions. ${result.skippedCount || 0} already existed.`
+            : "All approved IT requisitions are already available in Store Requisitions.",
+      })
+
+      await loadRequisitions()
+      setActiveTab("all")
+    } catch (error: any) {
+      console.error("[v0] Error syncing approved IT requisitions:", error)
+      toast({
+        title: "Sync failed",
+        description: error.message || "Failed to sync approved IT requisitions",
+        variant: "destructive",
+      })
+    } finally {
+      setIsSyncingApprovedIt(false)
+    }
+  }
 
   const handleTabChange = (value: string) => {
     const nextTab = value as RequisitionTabValue
@@ -708,6 +774,17 @@ export function RequisitionManagement() {
           {/* Add Stock to Central Store - Only Admin or IT Store Head */}
           {(user?.role === "admin" || user?.role === "it_store_head") && (
             <AddStockToCentralStore onStockAdded={loadRequisitions} />
+          )}
+
+          {(user?.role === "admin" || user?.role === "it_store_head") && (
+            <Button
+              variant="outline"
+              onClick={syncApprovedItRequisitions}
+              disabled={isSyncingApprovedIt}
+              className="border-blue-300 bg-blue-50 text-blue-900 hover:bg-blue-100"
+            >
+              {isSyncingApprovedIt ? "Syncing Approved IT Requests..." : "Sync Approved IT Requests"}
+            </Button>
           )}
           
           {canCreateRequisition() ? (

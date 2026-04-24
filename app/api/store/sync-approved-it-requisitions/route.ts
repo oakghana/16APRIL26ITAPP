@@ -1,0 +1,154 @@
+import { NextRequest, NextResponse } from "next/server"
+import { createClient } from "@supabase/supabase-js"
+
+const supabaseAdmin = createClient(
+  process.env.NEXT_PUBLIC_SUPABASE_URL || "https://example.supabase.co",
+  process.env.SUPABASE_SERVICE_ROLE_KEY || "service-role-key-placeholder"
+)
+
+function parseItemsRequired(itemsRequired: string | null | undefined) {
+  const rawText = String(itemsRequired || "").trim()
+
+  if (!rawText) {
+    return []
+  }
+
+  const segments = rawText
+    .split(/\r?\n|;/)
+    .map((entry) => entry.replace(/^[\s\-•*]+/, "").trim())
+    .filter(Boolean)
+
+  const normalizedSegments = segments.length > 0 ? segments : [rawText]
+
+  return normalizedSegments.map((segment) => {
+    let quantity = 1
+    let itemName = segment
+
+    const leadingQuantityMatch = segment.match(/^(\d+)\s*(?:x\s*)?(.+)$/i)
+    const trailingQuantityMatch = segment.match(/^(.+?)\s*(?:x|qty:?|quantity:?)[\s-]*(\d+)$/i)
+
+    if (leadingQuantityMatch) {
+      quantity = Number.parseInt(leadingQuantityMatch[1], 10) || 1
+      itemName = leadingQuantityMatch[2].trim()
+    } else if (trailingQuantityMatch) {
+      quantity = Number.parseInt(trailingQuantityMatch[2], 10) || 1
+      itemName = trailingQuantityMatch[1].trim()
+    }
+
+    return {
+      itemName,
+      quantity,
+      unit: "pcs",
+    }
+  })
+}
+
+function generateStoreRequisitionNumber(sourceNumber: string, index: number) {
+  const dateStr = new Date().toISOString().slice(0, 10).replace(/-/g, "")
+  const sourceSuffix = sourceNumber.split("-").pop() || "0000"
+  return `REQ-${dateStr}-${sourceSuffix}-${String(index + 1).padStart(2, "0")}`
+}
+
+export async function POST(request: NextRequest) {
+  try {
+    const { userRole, triggeredBy } = await request.json()
+
+    if (!["admin", "it_store_head"].includes(userRole)) {
+      return NextResponse.json({ error: "Only Admin or IT Store Head can sync approved IT requisitions" }, { status: 403 })
+    }
+
+    const { data: approvedRequisitions, error: requisitionsError } = await supabaseAdmin
+      .from("it_equipment_requisitions")
+      .select("id, requisition_number, items_required, purpose, requested_by, requested_by_id, requested_by_email, department, status, it_head_approved, it_head_approved_by, admin_approved, admin_approved_by, store_head_approved")
+      .eq("status", "ready_for_issuance")
+      .neq("store_head_approved", true)
+      .order("created_at", { ascending: false })
+
+    if (requisitionsError) {
+      return NextResponse.json({ error: requisitionsError.message || "Failed to load approved IT requisitions" }, { status: 500 })
+    }
+
+    const approvedList = approvedRequisitions || []
+
+    if (approvedList.length === 0) {
+      return NextResponse.json({ success: true, createdCount: 0, skippedCount: 0, message: "No approved IT requisitions are waiting to be synced" })
+    }
+
+    const { data: existingStoreRequisitions, error: existingError } = await supabaseAdmin
+      .from("store_requisitions")
+      .select("it_req_number")
+      .not("it_req_number", "is", null)
+
+    if (existingError) {
+      return NextResponse.json({ error: existingError.message || "Failed to load existing store requisitions" }, { status: 500 })
+    }
+
+    const existingItReqNumbers = new Set(
+      (existingStoreRequisitions || [])
+        .map((row: any) => String(row.it_req_number || "").trim())
+        .filter(Boolean)
+    )
+
+    const requesterIds = approvedList.map((req: any) => req.requested_by_id).filter(Boolean)
+    const requesterIdSet = Array.from(new Set(requesterIds))
+    let requesterLocationById = new Map<string, string>()
+
+    if (requesterIdSet.length > 0) {
+      const { data: requesterProfiles } = await supabaseAdmin
+        .from("profiles")
+        .select("id, location")
+        .in("id", requesterIdSet)
+
+      requesterLocationById = new Map(
+        (requesterProfiles || []).map((profile: any) => [String(profile.id), String(profile.location || "")])
+      )
+    }
+
+    const syncCandidates = approvedList.filter((req: any) => !existingItReqNumbers.has(String(req.requisition_number || "")))
+
+    if (syncCandidates.length === 0) {
+      return NextResponse.json({ success: true, createdCount: 0, skippedCount: approvedList.length, message: "All approved IT requisitions are already synced" })
+    }
+
+    const now = new Date().toISOString()
+    const insertRows = syncCandidates.map((req: any, index: number) => {
+      const destinationLocation = requesterLocationById.get(String(req.requested_by_id || "")) || req.department || "Head Office"
+      const requestedItems = parseItemsRequired(req.items_required)
+      const approvalSource = req.admin_approved_by || req.it_head_approved_by || triggeredBy || "IT Approval Workflow"
+
+      return {
+        requisition_number: generateStoreRequisitionNumber(String(req.requisition_number || "IT-REQ"), index),
+        requested_by: req.requested_by || "Unknown",
+        beneficiary: req.requested_by || "Unknown",
+        requested_by_role: "staff",
+        location: "Central Stores",
+        destination_location: destinationLocation,
+        it_req_number: req.requisition_number,
+        items: requestedItems.length > 0 ? requestedItems : [{ itemName: String(req.items_required || "IT request item"), quantity: 1, unit: "pcs" }],
+        status: "approved",
+        approved_by: approvalSource,
+        notes: `Synced from approved IT requisition ${req.requisition_number}. Purpose: ${req.purpose || "N/A"}`,
+        created_at: now,
+        updated_at: now,
+      }
+    })
+
+    const { data: insertedRows, error: insertError } = await supabaseAdmin
+      .from("store_requisitions")
+      .insert(insertRows)
+      .select("id, requisition_number, it_req_number")
+
+    if (insertError) {
+      return NextResponse.json({ error: insertError.message || "Failed to sync approved IT requisitions" }, { status: 500 })
+    }
+
+    return NextResponse.json({
+      success: true,
+      createdCount: insertedRows?.length || 0,
+      skippedCount: approvedList.length - syncCandidates.length,
+      syncedItRequisitionNumbers: insertRows.map((row) => row.it_req_number),
+    })
+  } catch (error: any) {
+    return NextResponse.json({ error: error.message || "Internal server error" }, { status: 500 })
+  }
+}

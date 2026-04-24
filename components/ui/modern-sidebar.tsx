@@ -329,7 +329,6 @@ export function ModernSidebar({ isOpen, setIsOpen, className, onCollapseChange }
             icon: Target,
           },
           { name: "IT Documents", href: "/dashboard/it-documents", icon: FileText },
-          { name: "Users", href: "/dashboard/users", icon: Users },
           { name: "My Complaints", href: "/dashboard/complaints", icon: MessageSquare },
         ],
         groups: [

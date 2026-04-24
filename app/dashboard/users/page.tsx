@@ -10,8 +10,8 @@ export default function UsersPage() {
   const { user, loading } = useAuth()
   const router = useRouter()
 
-  // Allow admin, it_head, and it_store_head to view users
-  const allowedRoles = ["admin", "it_head", "it_store_head"]
+  // Allow admin and it_head to view users
+  const allowedRoles = ["admin", "it_head"]
 
   useEffect(() => {
     if (!loading && user && !allowedRoles.includes(user.role)) {

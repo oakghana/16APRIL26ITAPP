@@ -510,6 +510,14 @@ export function DashboardOverview() {
                       <Users className="h-5 w-5 mr-3 text-blue-600" />
                       <span className="text-sm font-medium">Assign Stock to Staff</span>
                     </Button>
+                    <Button
+                      variant="outline"
+                      className="w-full justify-start bg-transparent hover:bg-blue-50 hover:border-blue-200 transition-colors"
+                      onClick={() => router.push("/dashboard/store-requisitions?syncApprovedIt=1")}
+                    >
+                      <Plus className="h-5 w-5 mr-3 text-blue-600" />
+                      <span className="text-sm font-medium">Sync Approved IT Requests</span>
+                    </Button>
                   </>
                 )}
 
