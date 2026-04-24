@@ -109,6 +109,7 @@ export async function GET(request: NextRequest) {
     const requestedBy = searchParams.get("requestedBy")
     const officeUseLocation = searchParams.get("officeUseLocation")
     const officeUseRole = searchParams.get("officeUseRole")
+    const processedBy = searchParams.get("processedBy")
 
     console.log("[it-requisitions] Loading IT equipment requisitions:", { status, department })
 
@@ -127,6 +128,10 @@ export async function GET(request: NextRequest) {
 
     if (requestedBy) {
       query = query.eq("requested_by", requestedBy)
+    }
+
+    if (processedBy) {
+      query = query.eq("service_desk_processed_by", processedBy)
     }
 
     const { data, error } = await query
