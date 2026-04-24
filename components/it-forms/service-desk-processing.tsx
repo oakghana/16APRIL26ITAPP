@@ -83,7 +83,7 @@ export function ITServiceDeskProcessingPanel() {
   const fetchRequisitions = async () => {
     try {
       setLoading(true)
-      const params = new URLSearchParams({ status: "pending_it_office_use" })
+      const params = new URLSearchParams({ status: "all" })
       if (user?.location) {
         params.set("officeUseLocation", user.location)
       }
@@ -108,7 +108,18 @@ export function ITServiceDeskProcessingPanel() {
         ...((maintenanceData.requests || []).map((r: any) => ({ ...r, formType: "maintenance" as const }))),
       ]
 
-      setRequisitions(combined)
+      const pendingStatusesByType: Record<FormType, string[]> = {
+        requisition: ["pending_it_office_use", "pending_service_desk"],
+        "new-gadget": ["pending_it_office_use", "hod_approved"],
+        maintenance: ["pending_it_office_use", "hod_approved"],
+      }
+
+      const officeUseQueue = combined.filter((req) => {
+        const statuses = pendingStatusesByType[req.formType]
+        return statuses.includes(req.status)
+      })
+
+      setRequisitions(officeUseQueue)
     } catch (error) {
       console.error("[v0] Error fetching requisitions:", error)
       toast({
@@ -124,10 +135,14 @@ export function ITServiceDeskProcessingPanel() {
   const filterRequisitions = () => {
     let filtered = requisitions
 
-    const isProcessed = (req: ITRequisition) => {
-      if (req.formType === "requisition") return !!req.service_desk_approved
-      return req.status !== "pending_it_office_use"
+    const isPendingOfficeUse = (req: ITRequisition) => {
+      if (req.formType === "requisition") {
+        return req.status === "pending_it_office_use" || req.status === "pending_service_desk"
+      }
+      return req.status === "pending_it_office_use" || req.status === "hod_approved"
     }
+
+    const isProcessed = (req: ITRequisition) => !isPendingOfficeUse(req)
 
     if (filterTab === "pending") {
       filtered = filtered.filter((req) => !isProcessed(req))
@@ -161,8 +176,8 @@ export function ITServiceDeskProcessingPanel() {
         stage: "IT Office Use",
         role: "IT Staff",
         status: req.formType === "requisition"
-          ? (req.service_desk_approved ? "completed" : "pending")
-          : req.status === "pending_it_office_use"
+          ? (req.status === "pending_it_office_use" || req.status === "pending_service_desk" ? "pending" : "completed")
+          : req.status === "pending_it_office_use" || req.status === "hod_approved"
             ? "pending"
             : "completed",
         approver: req.service_desk_processed_by,
@@ -247,8 +262,12 @@ export function ITServiceDeskProcessingPanel() {
     }
   }
 
-  const getPendingCount = () => requisitions.filter((r) => (r.formType === "requisition" ? !r.service_desk_approved : r.status === "pending_it_office_use")).length
-  const getProcessedCount = () => requisitions.filter((r) => (r.formType === "requisition" ? !!r.service_desk_approved : r.status !== "pending_it_office_use")).length
+  const getPendingCount = () =>
+    requisitions.filter((r) => {
+      if (r.formType === "requisition") return r.status === "pending_it_office_use" || r.status === "pending_service_desk"
+      return r.status === "pending_it_office_use" || r.status === "hod_approved"
+    }).length
+  const getProcessedCount = () => requisitions.filter((r) => !((r.formType === "requisition" ? (r.status === "pending_it_office_use" || r.status === "pending_service_desk") : (r.status === "pending_it_office_use" || r.status === "hod_approved")))).length
 
   return (
     <div className="space-y-6">
@@ -340,8 +359,8 @@ export function ITServiceDeskProcessingPanel() {
                               <Badge variant="outline" className="text-xs">
                                 {req.formType === "maintenance" ? "Maintenance" : req.formType === "new-gadget" ? "New Gadget" : "Requisition"}
                               </Badge>
-                              <Badge variant={(req.formType === "requisition" ? req.service_desk_approved : req.status !== "pending_it_office_use") ? "secondary" : "default"} className="text-xs">
-                                {(req.formType === "requisition" ? req.service_desk_approved : req.status !== "pending_it_office_use") ? "Office Use Completed" : "Pending Office Use"}
+                              <Badge variant={((req.formType === "requisition" ? (req.status === "pending_it_office_use" || req.status === "pending_service_desk") : (req.status === "pending_it_office_use" || req.status === "hod_approved"))) ? "default" : "secondary"} className="text-xs">
+                                {((req.formType === "requisition" ? (req.status === "pending_it_office_use" || req.status === "pending_service_desk") : (req.status === "pending_it_office_use" || req.status === "hod_approved"))) ? "Pending Office Use" : "Office Use Completed"}
                               </Badge>
                               <Badge variant="secondary" className="text-xs">
                                 {getRequesterLocation(req)}
@@ -369,7 +388,7 @@ export function ITServiceDeskProcessingPanel() {
                               <Eye className="h-4 w-4 mr-1" />
                               View
                             </Button>
-                            {!((req.formType === "requisition" ? req.service_desk_approved : req.status !== "pending_it_office_use")) && (
+                            {((req.formType === "requisition" ? (req.status === "pending_it_office_use" || req.status === "pending_service_desk") : (req.status === "pending_it_office_use" || req.status === "hod_approved"))) && (
                               <Button
                                 variant="default"
                                 size="sm"

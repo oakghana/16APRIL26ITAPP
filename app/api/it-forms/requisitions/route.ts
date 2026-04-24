@@ -140,33 +140,48 @@ export async function GET(request: NextRequest) {
 
     if (officeUseLocation && requisitions.length > 0) {
       const requesterIds = [...new Set(requisitions.map((r: any) => r.requested_by_id).filter(Boolean))]
+      const { data: requesterProfiles } = await supabaseAdmin
+        .from("profiles")
+        .select("id, full_name, username, location")
 
-      if (requesterIds.length > 0) {
-        const { data: requesterProfiles } = await supabaseAdmin
-          .from("profiles")
-          .select("id, location")
-          .in("id", requesterIds)
+      const locationById = new Map((requesterProfiles || []).map((p: any) => [p.id, String(p.location || "")]))
+      const locationByName = new Map<string, string>()
 
-        const locationMap = new Map((requesterProfiles || []).map((p: any) => [p.id, String(p.location || "").toLowerCase()]))
-        const normalizedOfficeLocation = normalizeLocation(officeUseLocation)
-        const canSeeNationwide =
-          officeUseRole === "admin" ||
-          officeUseRole === "it_head" ||
-          (officeUseRole === "it_staff" && (normalizedOfficeLocation === "head_office" || normalizedOfficeLocation === "accra"))
-
-        if (!canSeeNationwide) {
-          requisitions = requisitions.filter((r: any) => {
-            const requesterLocation = locationMap.get(r.requested_by_id) || ""
-
-            if (!requesterLocation) return false
-
-            if (officeUseRole === "regional_it_head" || officeUseRole === "it_staff") {
-              return isLocationInSameRegion(requesterLocation, officeUseLocation)
-            }
-
-            return normalizeLocation(requesterLocation) === normalizedOfficeLocation
-          })
+      for (const p of requesterProfiles || []) {
+        if (p.full_name) {
+          locationByName.set(String(p.full_name).toLowerCase().trim(), String(p.location || ""))
         }
+        if (p.username) {
+          locationByName.set(String(p.username).toLowerCase().trim(), String(p.location || ""))
+        }
+      }
+
+      requisitions = requisitions.map((r: any) => ({
+        ...r,
+        requester_location:
+          (r.requested_by_id ? locationById.get(r.requested_by_id) : "") ||
+          locationByName.get(String(r.requested_by || "").toLowerCase().trim()) ||
+          null,
+      }))
+
+      const normalizedOfficeLocation = normalizeLocation(officeUseLocation)
+      const canSeeNationwide =
+        officeUseRole === "admin" ||
+        officeUseRole === "it_head" ||
+        (officeUseRole === "it_staff" && (normalizedOfficeLocation === "head_office" || normalizedOfficeLocation === "accra"))
+
+      if (!canSeeNationwide) {
+        requisitions = requisitions.filter((r: any) => {
+          const requesterLocation = String(r.requester_location || "")
+
+          if (!requesterLocation) return false
+
+          if (officeUseRole === "regional_it_head" || officeUseRole === "it_staff") {
+            return isLocationInSameRegion(requesterLocation, officeUseLocation)
+          }
+
+          return normalizeLocation(requesterLocation) === normalizedOfficeLocation
+        })
       }
     }
 
