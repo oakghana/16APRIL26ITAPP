@@ -53,6 +53,10 @@ interface ITRequisition {
   department?: string
   department_name?: string
   department_head?: string
+  departmental_head_name?: string
+  departmental_head_date?: string
+  sectional_head_name?: string
+  sectional_head_date?: string
   request_date: string
   status: string
   department_head_approved_by?: string
@@ -199,13 +203,20 @@ export function ITServiceDeskProcessingPanel() {
   }
 
   const buildApprovalStages = (req: ITRequisition): any[] => {
+    const hasLegacyHodApproval = Boolean(req.department_head_approved_by)
+    const hasNonRequisitionHodApproval = Boolean(req.departmental_head_name || req.sectional_head_name)
+      || req.status === "hod_approved"
+      || ["pending_it_office_use", "pending_service_desk", "pending_it_head", "pending_admin", "pending_store", "pending_manager", "recommended", "not_recommended", "approved", "issued", "completed"].includes(req.status)
+
+    const hodCompleted = req.formType === "requisition" ? hasLegacyHodApproval : hasNonRequisitionHodApproval
+
     return [
       {
         stage: "Department Head Review",
         role: "Department Head",
-        status: req.department_head_approved_by ? "completed" : "pending",
-        approver: req.department_head_approved_by,
-        timestamp: req.department_head_approved_at,
+        status: hodCompleted ? "completed" : "pending",
+        approver: req.department_head_approved_by || req.departmental_head_name || req.sectional_head_name,
+        timestamp: req.department_head_approved_at || req.departmental_head_date || req.sectional_head_date,
         notes: req.department_head_notes,
       },
       {

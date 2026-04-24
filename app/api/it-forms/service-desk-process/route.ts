@@ -91,18 +91,21 @@ export async function POST(request: NextRequest) {
       updateData.status = "hold_it_office_use"
     }
 
-    // Update the approval chain
-    const approvalChain = requisition.approval_timeline || requisition.approval_chain || []
-    approvalChain.push({
-      approver: processedBy,
-      approverId: processedById || null,
-      location: processedByLocation || null,
-      role: "it_office_use",
-      action: action,
-      notes: notes,
-      timestamp: new Date().toISOString(),
-    })
-    updateData.approval_timeline = approvalChain
+    // Only write approval_timeline when that column exists on the underlying table.
+    const hasApprovalTimelineColumn = Object.prototype.hasOwnProperty.call(requisition, "approval_timeline")
+    if (hasApprovalTimelineColumn) {
+      const approvalChain = requisition.approval_timeline || requisition.approval_chain || []
+      approvalChain.push({
+        approver: processedBy,
+        approverId: processedById || null,
+        location: processedByLocation || null,
+        role: "it_office_use",
+        action: action,
+        notes: notes,
+        timestamp: new Date().toISOString(),
+      })
+      updateData.approval_timeline = approvalChain
+    }
 
     const { data: updated, error: updateError } = await supabaseAdmin
       .from(config.table)
