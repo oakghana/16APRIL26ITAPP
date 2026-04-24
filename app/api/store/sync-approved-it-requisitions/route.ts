@@ -49,6 +49,17 @@ function generateStoreRequisitionNumber(sourceNumber: string, index: number) {
   return `REQ-${dateStr}-${sourceSuffix}-${String(index + 1).padStart(2, "0")}`
 }
 
+function resolveSourceRequestNumber(requisition: Record<string, any>) {
+  return String(
+    requisition.requisition_number ||
+      requisition.request_number ||
+      requisition.req_number ||
+      requisition.reference_number ||
+      requisition.id ||
+      "IT-REQ"
+  )
+}
+
 export async function POST(request: NextRequest) {
   try {
     const { userRole, triggeredBy } = await request.json()
@@ -59,7 +70,7 @@ export async function POST(request: NextRequest) {
 
     const { data: approvedRequisitions, error: requisitionsError } = await supabaseAdmin
       .from("it_equipment_requisitions")
-      .select("id, requisition_number, items_required, purpose, requested_by, requested_by_id, requested_by_email, department, status, it_head_approved, it_head_approved_by, admin_approved, admin_approved_by, store_head_approved")
+      .select("*")
       .eq("status", "ready_for_issuance")
       .neq("store_head_approved", true)
       .order("created_at", { ascending: false })
@@ -104,7 +115,7 @@ export async function POST(request: NextRequest) {
       )
     }
 
-    const syncCandidates = approvedList.filter((req: any) => !existingItReqNumbers.has(String(req.requisition_number || "")))
+    const syncCandidates = approvedList.filter((req: any) => !existingItReqNumbers.has(resolveSourceRequestNumber(req)))
 
     if (syncCandidates.length === 0) {
       return NextResponse.json({ success: true, createdCount: 0, skippedCount: approvedList.length, message: "All approved IT requisitions are already synced" })
@@ -112,22 +123,23 @@ export async function POST(request: NextRequest) {
 
     const now = new Date().toISOString()
     const insertRows = syncCandidates.map((req: any, index: number) => {
+      const sourceRequestNumber = resolveSourceRequestNumber(req)
       const destinationLocation = requesterLocationById.get(String(req.requested_by_id || "")) || req.department || "Head Office"
       const requestedItems = parseItemsRequired(req.items_required)
       const approvalSource = req.admin_approved_by || req.it_head_approved_by || triggeredBy || "IT Approval Workflow"
 
       return {
-        requisition_number: generateStoreRequisitionNumber(String(req.requisition_number || "IT-REQ"), index),
+        requisition_number: generateStoreRequisitionNumber(sourceRequestNumber, index),
         requested_by: req.requested_by || "Unknown",
         beneficiary: req.requested_by || "Unknown",
         requested_by_role: "staff",
         location: "Central Stores",
         destination_location: destinationLocation,
-        it_req_number: req.requisition_number,
+        it_req_number: sourceRequestNumber,
         items: requestedItems.length > 0 ? requestedItems : [{ itemName: String(req.items_required || "IT request item"), quantity: 1, unit: "pcs" }],
         status: "approved",
         approved_by: approvalSource,
-        notes: `Synced from approved IT requisition ${req.requisition_number}. Purpose: ${req.purpose || "N/A"}`,
+        notes: `Synced from approved IT requisition ${sourceRequestNumber}. Purpose: ${req.purpose || "N/A"}`,
         created_at: now,
         updated_at: now,
       }
