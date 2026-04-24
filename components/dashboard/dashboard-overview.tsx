@@ -489,6 +489,14 @@ export function DashboardOverview() {
                     <Button
                       variant="outline"
                       className="w-full justify-start bg-transparent hover:bg-blue-50 hover:border-blue-200 transition-colors"
+                      onClick={() => router.push("/dashboard/it-forms/equipment-requisition")}
+                    >
+                      <Package className="h-5 w-5 mr-3 text-blue-600" />
+                      <span className="text-sm font-medium">IT Requisition</span>
+                    </Button>
+                    <Button
+                      variant="outline"
+                      className="w-full justify-start bg-transparent hover:bg-blue-50 hover:border-blue-200 transition-colors"
                       onClick={() => router.push("/dashboard/store-overview")}
                     >
                       <Monitor className="h-5 w-5 mr-3 text-blue-600" />

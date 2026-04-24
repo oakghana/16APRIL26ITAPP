@@ -124,6 +124,8 @@ export function ModernLayout({ children, className }: ModernLayoutProps) {
         { name: "Dashboard", href: "/dashboard", icon: Home },
         { name: "Messages", href: "/dashboard/notifications", icon: Bell },
         { name: "Tasks", href: "/dashboard/assigned-tasks", icon: ClipboardList },
+        { name: "IT Requisition", href: "/dashboard/it-forms/equipment-requisition", icon: Package },
+        { name: "Store Requisitions", href: "/dashboard/store-requisitions", icon: ClipboardList },
         { name: "Performance", href: "/dashboard/staff-performance-report", icon: Target },
         { name: "Repairs", href: "/dashboard/repairs", icon: Wrench },
         { name: "Devices", href: "/dashboard/devices", icon: Monitor },
