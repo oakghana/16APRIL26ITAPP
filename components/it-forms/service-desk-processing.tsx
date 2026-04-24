@@ -168,8 +168,12 @@ export function ITServiceDeskProcessingPanel() {
     if (!user?.full_name && !user?.email) return
     try {
       setHistoryLoading(true)
-      const processedByName = user.full_name || user.email || ""
-      const params = new URLSearchParams({ status: "all", processedBy: processedByName })
+      const params = new URLSearchParams({ status: "all" })
+
+      if (user?.role !== "admin") {
+        const processedByName = user.full_name || user.email || ""
+        params.set("processedBy", processedByName)
+      }
 
       const [reqRes, gadgetRes, maintRes] = await Promise.all([
         fetch(`/api/it-forms/requisitions?${params.toString()}`),
@@ -254,9 +258,38 @@ export function ITServiceDeskProcessingPanel() {
     const hasLegacyHodApproval = Boolean(req.department_head_approved_by)
     const hasNonRequisitionHodApproval = Boolean(req.departmental_head_name || req.sectional_head_name)
       || req.status === "hod_approved"
-      || ["pending_it_office_use", "pending_service_desk", "pending_it_head", "pending_admin", "pending_store", "pending_manager", "recommended", "not_recommended", "approved", "issued", "completed"].includes(req.status)
+      || ["pending_it_office_use", "pending_service_desk", "pending_manager", "recommended", "not_recommended", "manager_confirmed", "sent_for_repair", "repaired", "confirmed_working"].includes(req.status)
 
     const hodCompleted = req.formType === "requisition" ? hasLegacyHodApproval : hasNonRequisitionHodApproval
+
+    if (req.formType !== "requisition") {
+      const managerRejected = ["not_recommended", "rejected"].includes(req.status)
+      const managerCompleted = ["recommended", "manager_confirmed", "gadget_issued", "sent_for_repair", "repaired", "confirmed_working"].includes(req.status)
+
+      return [
+        {
+          stage: "Department Head Review",
+          role: "Department Head",
+          status: hodCompleted ? "completed" : "pending",
+          approver: req.departmental_head_name || req.sectional_head_name,
+          timestamp: req.departmental_head_date || req.sectional_head_date,
+          notes: req.department_head_notes,
+        },
+        {
+          stage: "IT Office Use",
+          role: "IT Staff",
+          status: req.status === "pending_it_office_use" || req.status === "hod_approved" ? "pending" : "completed",
+          approver: req.confirmed_by,
+          timestamp: req.confirmed_date,
+          notes: req.other_comments,
+        },
+        {
+          stage: "IT Manager Review",
+          role: "IT Manager",
+          status: managerCompleted ? "completed" : managerRejected ? "rejected" : "pending",
+        },
+      ]
+    }
 
     return [
       {
@@ -270,11 +303,7 @@ export function ITServiceDeskProcessingPanel() {
       {
         stage: "IT Office Use",
         role: "IT Staff",
-        status: req.formType === "requisition"
-          ? (req.status === "pending_it_office_use" || req.status === "pending_service_desk" ? "pending" : "completed")
-          : req.status === "pending_it_office_use" || req.status === "hod_approved"
-            ? "pending"
-            : "completed",
+        status: req.status === "pending_it_office_use" || req.status === "pending_service_desk" ? "pending" : "completed",
         approver: req.service_desk_processed_by,
         timestamp: req.service_desk_processed_at,
         notes: req.service_desk_notes,
@@ -372,7 +401,16 @@ export function ITServiceDeskProcessingPanel() {
   }
   const canEditWork = (req: ITRequisition) => {
     const locked = NEXT_STAGE_ACTED[req.formType] || []
-    return !locked.includes(req.status)
+    if (locked.includes(req.status)) return false
+
+    if (user?.role === "admin") return true
+
+    const actorName = (user?.full_name || user?.email || "").trim().toLowerCase()
+    const processedByName = (req.formType === "requisition" ? req.service_desk_processed_by : req.confirmed_by || "")
+      .trim()
+      .toLowerCase()
+
+    return Boolean(actorName && processedByName && actorName === processedByName)
   }
 
   const handleEditWork = (req: ITRequisition) => {
@@ -396,6 +434,7 @@ export function ITServiceDeskProcessingPanel() {
           formType: selectedRequisition.formType,
           newNotes: editNotes,
           processedBy: user?.full_name || user?.email || "Unknown",
+          userRole: user?.role || "",
         }),
       })
       const data = await res.json()
@@ -542,7 +581,11 @@ export function ITServiceDeskProcessingPanel() {
               <div className="flex items-center justify-between">
                 <div>
                   <CardTitle>My Completed Work</CardTitle>
-                  <CardDescription>All IT forms you have processed. You can edit your notes while the next reviewer has not yet acted.</CardDescription>
+                  <CardDescription>
+                    {user?.role === "admin"
+                      ? "All processed IT forms across all teams. You can edit office-use notes while the next reviewer has not yet acted."
+                      : "All IT forms you have processed. You can edit your notes while the next reviewer has not yet acted."}
+                  </CardDescription>
                 </div>
                 <History className="h-5 w-5 text-muted-foreground" />
               </div>
@@ -591,7 +634,7 @@ export function ITServiceDeskProcessingPanel() {
                               <p className="text-sm">Fault: {getFaultSummary(req).substring(0, 100)}...</p>
                               {(req.service_desk_notes || req.confirmed_by) && (
                                 <p className="text-xs text-blue-600 dark:text-blue-400 italic">
-                                  Your notes: {req.service_desk_notes || req.other_comments || "—"}
+                                  {user?.role === "admin" ? "Notes:" : "Your notes:"} {req.service_desk_notes || req.other_comments || "—"}
                                 </p>
                               )}
                               <p className="text-xs text-muted-foreground">

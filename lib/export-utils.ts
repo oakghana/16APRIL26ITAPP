@@ -49,6 +49,11 @@ export interface ITFormPDFData {
   repairStatus?: string
 }
 
+interface SignatureLookupResponse {
+  hodSignature?: string | null
+  managerSignature?: string | null
+}
+
 async function getLogoDataUrl() {
   try {
     const response = await fetch(LOGO_PATH)
@@ -107,6 +112,83 @@ function blankLineValue(value?: string | number | boolean | null, fallback = "..
   if (value === undefined || value === null) return fallback
   const text = String(value).trim()
   return text || fallback
+}
+
+function normalizeReportNotes(value?: string | null) {
+  const raw = (value || "").replace(/\r\n?/g, "\n").trim()
+  if (!raw) return ""
+
+  const seen = new Set<string>()
+  const dedupedLines: string[] = []
+
+  for (const line of raw.split("\n")) {
+    const cleaned = line.trim()
+    if (!cleaned) continue
+    const key = cleaned.toLowerCase()
+    if (!seen.has(key)) {
+      seen.add(key)
+      dedupedLines.push(cleaned)
+    }
+  }
+
+  return dedupedLines.join("\n")
+}
+
+async function enrichITFormSignatures(data: ITFormPDFData): Promise<ITFormPDFData> {
+  if (data.hodSignature && data.managerSignature) return data
+
+  try {
+    const response = await fetch("/api/it-forms/signature-lookup", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        hodName: data.hodName,
+        managerName: data.managerName,
+      }),
+    })
+
+    if (!response.ok) return data
+
+    const payload = (await response.json()) as SignatureLookupResponse
+    return {
+      ...data,
+      hodSignature: data.hodSignature || payload.hodSignature || undefined,
+      managerSignature: data.managerSignature || payload.managerSignature || undefined,
+    }
+  } catch {
+    return data
+  }
+}
+
+async function normalizeSignatureForPdf(signatureDataUrl?: string) {
+  if (!signatureDataUrl) return undefined
+  if (signatureDataUrl.startsWith("data:image/png")) return signatureDataUrl
+
+  try {
+    return await new Promise<string | undefined>((resolve) => {
+      const image = new Image()
+      image.onload = () => {
+        try {
+          const canvas = document.createElement("canvas")
+          canvas.width = image.naturalWidth || image.width || 1
+          canvas.height = image.naturalHeight || image.height || 1
+          const context = canvas.getContext("2d")
+          if (!context) {
+            resolve(signatureDataUrl)
+            return
+          }
+          context.drawImage(image, 0, 0)
+          resolve(canvas.toDataURL("image/png"))
+        } catch {
+          resolve(signatureDataUrl)
+        }
+      }
+      image.onerror = () => resolve(signatureDataUrl)
+      image.src = signatureDataUrl
+    })
+  } catch {
+    return signatureDataUrl
+  }
 }
 
 function formatRecommendation(value?: string | boolean | null) {
@@ -294,116 +376,341 @@ export async function exportToPDF(data: ExportData) {
 }
 
 export async function exportITFormPDF(data: ITFormPDFData) {
+  const enrichedData = await enrichITFormSignatures(data)
+  const pdfHodSignature = await normalizeSignatureForPdf(enrichedData.hodSignature)
+  const pdfManagerSignature = await normalizeSignatureForPdf(enrichedData.managerSignature)
   const doc = new jsPDF("p", "mm", "a4")
   const logoDataUrl = await getLogoDataUrl()
   const pageWidth = doc.internal.pageSize.getWidth()
+  const generatedAt = new Date().toLocaleString()
 
   const title =
-    data.formType === "maintenance"
-      ? "MAINTENANCE AND REPAIRS REQUEST FORM"
-      : data.formType === "new-gadget"
-        ? "NEW IT GADGET REQUEST FORM"
-        : "REQUISITION FORM: COMPUTER CONSUMABLE (TONER & GADGET)"
+    enrichedData.formType === "maintenance"
+      ? "Maintenance and Repairs Report"
+      : enrichedData.formType === "new-gadget"
+        ? "New IT Gadget Request Report"
+        : "IT Equipment Requisition Report"
 
-  doc.setDrawColor(120, 120, 120)
-  doc.rect(10, 8, 190, 279)
+  doc.setFillColor(237, 246, 241)
+  doc.rect(0, 0, pageWidth, 32, "F")
+  doc.setDrawColor(186, 230, 203)
+  doc.line(10, 32, pageWidth - 10, 32)
 
   if (logoDataUrl) {
-    doc.addImage(logoDataUrl, "PNG", pageWidth / 2 - 8, 11, 16, 16)
+    doc.addImage(logoDataUrl, "PNG", 12, 8, 14, 14)
   }
 
   doc.setFont("helvetica", "bold")
-  doc.setFontSize(7)
-  doc.text("FOR ISD DEPARTMENT OF QCC", pageWidth / 2, 30, { align: "center" })
-  doc.setFontSize(12)
-  doc.text(title, pageWidth / 2, 37, { align: "center" })
-  doc.setFontSize(8)
-  doc.rect(164, 12, 30, 9)
-  doc.text(data.requestNumber || COMPANY_REG_TEXT, 179, 18, { align: "center" })
+  doc.setFontSize(13)
+  doc.setTextColor(15, 23, 42)
+  doc.text(BRAND_NAME, 30, 14)
+  doc.setFont("helvetica", "normal")
+  doc.setFontSize(9)
+  doc.setTextColor(71, 85, 105)
+  doc.text(title, 30, 20)
+  doc.text(`Generated: ${generatedAt}`, 30, 25)
 
-  let y = 47
+  doc.setFont("helvetica", "bold")
+  doc.setFontSize(9)
+  doc.setTextColor(22, 101, 52)
+  doc.setDrawColor(167, 243, 208)
+  doc.roundedRect(pageWidth - 70, 10, 58, 12, 3, 3)
+  doc.text(`Ref: ${enrichedData.requestNumber}`, pageWidth - 41, 17, { align: "center" })
 
-  y = addSectionHeader(doc, "REQUESTING STAFF INFORMATION", "SECTION A", y)
-  y = addFieldLine(doc, "Name of staff making request", blankLineValue(data.staffName), 16, y)
-  y = addFieldLine(doc, "Department name", blankLineValue(data.department), 16, y)
-  y = addWrappedField(
-    doc,
-    data.formType === "new-gadget" ? "Complaints / reason" : "Items / complaint",
-    blankLineValue(data.summary),
-    16,
-    y
-  )
-  y = addWrappedField(doc, "Purpose / notes", blankLineValue(data.purpose || data.extraNotes), 16, y)
-  y = addFieldLine(doc, "Date of request", blankLineValue(data.requestDate), 16, y)
+  const summaryRows = [
+    ["Request Number", blankLineValue(enrichedData.requestNumber, "-")],
+    ["Staff Name", blankLineValue(enrichedData.staffName, "-")],
+    ["Department", blankLineValue(enrichedData.department, "-")],
+    ["Request Date", blankLineValue(enrichedData.requestDate, "-")],
+    ["Status", formatStatus(enrichedData.status)],
+  ]
 
-  if (data.formType === "requisition") {
-    y = addSectionHeader(doc, "REQUISITION DETAILS", "SECTION B", y + 2)
-    y = addFieldLine(doc, "Item S/N", blankLineValue(data.serialNumber), 16, y)
-    y = addFieldLine(doc, "Supplier name", blankLineValue(data.gadgetMake), 16, y)
-    y = addWrappedField(doc, "Items required", blankLineValue(data.summary), 16, y)
-    y = addWrappedField(doc, "Purpose", blankLineValue(data.purpose), 16, y)
-  }
+  autoTable(doc, {
+    startY: 40,
+    head: [["Request Summary", "Details"]],
+    body: summaryRows,
+    styles: { fontSize: 9, cellPadding: 3, textColor: [15, 23, 42] },
+    headStyles: { fillColor: [15, 118, 110], textColor: [255, 255, 255], fontStyle: "bold" },
+    columnStyles: { 0: { cellWidth: 52, fontStyle: "bold", fillColor: [248, 250, 252] }, 1: { cellWidth: 128 } },
+    margin: { left: 14, right: 14 },
+  })
 
-  if (data.formType === "new-gadget") {
-    y = addSectionHeader(doc, "PREVIOUS IT GADGET HISTORY", "SECTION B", y + 2)
-    y = addFieldLine(doc, "Make of IT gadget", blankLineValue(data.gadgetMake), 16, y)
-    y = addFieldLine(doc, "Serial number", blankLineValue(data.serialNumber), 16, y)
-    y = addFieldLine(doc, "Year of purchase", blankLineValue(data.yearOfPurchase), 16, y)
-    y = addWrappedField(doc, "Any other comments", blankLineValue(data.extraNotes), 16, y)
-  }
+  const detailRows: Array<[string, string]> = [
+    [enrichedData.formType === "new-gadget" ? "Complaints / Reason" : "Request Summary", blankLineValue(enrichedData.summary, "-")],
+    ["Purpose / Notes", blankLineValue(normalizeReportNotes(enrichedData.purpose || enrichedData.extraNotes), "-")],
+  ]
 
-  if (data.formType === "maintenance") {
-    y = addSectionHeader(doc, "TECHNICIAN USE ONLY: INITIAL DIAGNOSIS", "SECTION B", y + 2)
+  if (enrichedData.gadgetMake) detailRows.push(["Make / Supplier", blankLineValue(enrichedData.gadgetMake, "-")])
+  if (enrichedData.serialNumber) detailRows.push(["Serial Number", blankLineValue(enrichedData.serialNumber, "-")])
+  if (enrichedData.yearOfPurchase !== undefined && enrichedData.yearOfPurchase !== null) detailRows.push(["Year of Purchase", blankLineValue(enrichedData.yearOfPurchase, "-")])
+  if (enrichedData.dateOfPurchase) detailRows.push(["Date of Purchase", blankLineValue(enrichedData.dateOfPurchase, "-")])
+  if (enrichedData.lastRepairDate) detailRows.push(["Last Repair Date", blankLineValue(enrichedData.lastRepairDate, "-")])
+  if (enrichedData.timesRepaired !== undefined && enrichedData.timesRepaired !== null) detailRows.push(["Times Repaired", blankLineValue(enrichedData.timesRepaired, "-")])
+  if (enrichedData.repairStatus) detailRows.push(["Repair Status", blankLineValue(enrichedData.repairStatus, "-")])
+  if (enrichedData.formType === "new-gadget") detailRows.push(["Recommendation", blankLineValue(formatRecommendation(enrichedData.recommendation), "-")])
 
-    const diagnosisItems = data.diagnosisItems?.length
-      ? data.diagnosisItems.slice(0, 2)
-      : [{ partItem: "", makeSerialNo: "", faultRemarks: "" }, { partItem: "", makeSerialNo: "", faultRemarks: "" }]
+  autoTable(doc, {
+    startY: (doc as any).lastAutoTable.finalY + 6,
+    head: [["Form Details", "Value"]],
+    body: detailRows,
+    styles: { fontSize: 9, cellPadding: 3, textColor: [15, 23, 42] },
+    headStyles: { fillColor: [30, 64, 175], textColor: [255, 255, 255], fontStyle: "bold" },
+    columnStyles: { 0: { cellWidth: 52, fontStyle: "bold", fillColor: [248, 250, 252] }, 1: { cellWidth: 128 } },
+    margin: { left: 14, right: 14 },
+  })
 
-    diagnosisItems.forEach((item, index) => {
-      y = addFieldLine(doc, `${index + 1}. Part / item`, blankLineValue(item.partItem), 16, y)
-      y = addFieldLine(doc, "Make / serial no", blankLineValue(item.makeSerialNo), 80, y - 6)
-      y = addFieldLine(doc, "Fault / remarks", blankLineValue(item.faultRemarks), 138, y - 6)
-      y += 1
-    })
+  const approvalsRows: Array<[string, string]> = [
+    ["Department Head", blankLineValue(enrichedData.hodName, "-")],
+    ["Department Head Date", blankLineValue(enrichedData.hodDate, "-")],
+    ["IT Manager / IT Head", blankLineValue(enrichedData.managerName, "-")],
+    ["Manager Date", blankLineValue(enrichedData.managerDate, "-")],
+  ]
 
-    y = addWrappedField(doc, "Any other comments", blankLineValue(data.extraNotes), 16, y)
-    y = addFieldLine(doc, "IT Hardware Supervisor", blankLineValue(data.supervisorName), 16, y)
-    y = addFieldLine(doc, "Date", blankLineValue(data.supervisorDate), 126, y - 6)
-    y = addFieldLine(doc, "Date of last repairs", blankLineValue(data.lastRepairDate), 16, y)
-    y = addFieldLine(doc, "Date of purchase", blankLineValue(data.dateOfPurchase), 96, y - 6)
-    y = addFieldLine(doc, "Number of times repaired", blankLineValue(data.timesRepaired), 16, y)
-  }
+  autoTable(doc, {
+    startY: (doc as any).lastAutoTable.finalY + 6,
+    head: [["Approval Summary", "Value"]],
+    body: approvalsRows,
+    styles: { fontSize: 9, cellPadding: 3, textColor: [15, 23, 42] },
+    headStyles: { fillColor: [124, 58, 237], textColor: [255, 255, 255], fontStyle: "bold" },
+    columnStyles: { 0: { cellWidth: 52, fontStyle: "bold", fillColor: [248, 250, 252] }, 1: { cellWidth: 128 } },
+    margin: { left: 14, right: 14 },
+  })
 
-  y = addSectionHeader(doc, "AUTHORIZATION FROM THE HEAD OF DEPARTMENT", "SECTION C", y + 3)
-  y = addFieldLine(doc, "Name of sectional / departmental head", blankLineValue(data.hodName), 16, y)
-  y = addFieldLine(doc, "Date", blankLineValue(data.hodDate), 126, y - 6)
-  y = addSignatureField(doc, "Stamp / Signature", data.hodSignature, 16, y)
+  let y = (doc as any).lastAutoTable.finalY + 10
+  doc.setFont("helvetica", "bold")
+  doc.setFontSize(10)
+  doc.setTextColor(15, 23, 42)
+  doc.text("Signatures", 14, y)
+  y += 4
 
-  y = addSectionHeader(doc, "IS MANAGER / OFFICE USE ONLY", "SECTION D", y + 3)
-
-  if (data.formType === "new-gadget") {
-    y = addCheckboxRow(doc, "Recommended", formatRecommendation(data.recommendation).toLowerCase(), [
-      { label: "Yes", value: "yes" },
-      { label: "No", value: "no" },
-    ], y)
-  }
-
-  y = addFieldLine(doc, data.formType === "requisition" ? "Approved / issued by" : "Confirmed by", blankLineValue(data.managerName), 16, y)
-  y = addFieldLine(doc, "Date", blankLineValue(data.managerDate), 126, y - 6)
-  y = addSignatureField(doc, "IT Head / Admin Signature", data.managerSignature, 16, y)
-
-  if (data.formType === "maintenance") {
-    y = addCheckboxRow(doc, "Was your repaired gadget working properly?", data.repairStatus || "", [
-      { label: "Working perfectly well now", value: "working_perfectly" },
-      { label: "In the same bad condition", value: "same_bad_condition" },
-    ], y + 1)
-  }
+  doc.setDrawColor(148, 163, 184)
+  doc.rect(14, y, 86, 24)
+  doc.rect(110, y, 86, 24)
 
   doc.setFont("helvetica", "normal")
-  doc.setFontSize(7)
-  doc.setTextColor(90, 90, 90)
-  doc.text(`${BRAND_NAME}`, 14, 283)
-  doc.text(`Generated: ${new Date().toLocaleString()}`, 196, 283, { align: "right" })
+  doc.setFontSize(8)
+  doc.setTextColor(71, 85, 105)
+  doc.text("Department Head Signature", 16, y + 4)
+  doc.text("IT Manager / IT Head Signature", 112, y + 4)
 
-  doc.save(`${data.fileName}-${new Date().toISOString().split("T")[0]}.pdf`)
+  if (pdfHodSignature) {
+    try {
+      doc.addImage(pdfHodSignature, "PNG", 16, y + 6, 82, 16)
+    } catch {
+      doc.text("signature image unavailable", 16, y + 14)
+    }
+  } else {
+    doc.text("not signed", 16, y + 14)
+  }
+
+  if (pdfManagerSignature) {
+    try {
+      doc.addImage(pdfManagerSignature, "PNG", 112, y + 6, 82, 16)
+    } catch {
+      doc.text("signature image unavailable", 112, y + 14)
+    }
+  } else {
+    doc.text("not signed", 112, y + 14)
+  }
+
+  doc.setFontSize(8)
+  doc.setTextColor(100, 116, 139)
+  doc.text(`${BRAND_NAME} • ${COMPANY_REG_TEXT}`, 14, 287)
+  doc.text(`Reference: ${blankLineValue(enrichedData.requestNumber, "-")}`, 196, 287, { align: "right" })
+
+  doc.save(`${enrichedData.fileName}-${new Date().toISOString().split("T")[0]}.pdf`)
+}
+
+function escapeHtml(value?: string | number | boolean | null) {
+  const text = value === undefined || value === null ? "" : String(value)
+  return text
+    .replace(/&/g, "&amp;")
+    .replace(/</g, "&lt;")
+    .replace(/>/g, "&gt;")
+    .replace(/\"/g, "&quot;")
+    .replace(/'/g, "&#039;")
+}
+
+function buildPrintSections(data: ITFormPDFData) {
+  const commonRows = [
+    ["Request Number", data.requestNumber],
+    ["Staff Name", data.staffName],
+    ["Department", data.department],
+    ["Request Date", data.requestDate],
+    ["Status", formatStatus(data.status)],
+  ]
+
+  const detailRows: Array<[string, string | number | boolean | null | undefined]> = []
+  if (data.formType === "requisition") {
+    detailRows.push(["Item S/N", data.serialNumber])
+    detailRows.push(["Supplier", data.gadgetMake])
+    detailRows.push(["Items Required", data.summary])
+    detailRows.push(["Purpose", data.purpose])
+  } else if (data.formType === "new-gadget") {
+    detailRows.push(["Complaints / Reason", data.summary])
+    detailRows.push(["Gadget Make", data.gadgetMake])
+    detailRows.push(["Serial Number", data.serialNumber])
+    detailRows.push(["Year of Purchase", data.yearOfPurchase])
+    detailRows.push(["Recommendation", formatRecommendation(data.recommendation)])
+  } else {
+    detailRows.push(["Complaints", data.summary])
+    detailRows.push(["Date of Purchase", data.dateOfPurchase])
+    detailRows.push(["Date of Last Repairs", data.lastRepairDate])
+    detailRows.push(["Times Repaired", data.timesRepaired])
+    detailRows.push(["Repair Status", data.repairStatus])
+  }
+
+  const approvalsRows: Array<[string, string | number | boolean | null | undefined]> = [
+    ["Department Head", data.hodName],
+    ["Department Head Date", data.hodDate],
+    ["IT Manager / IT Head", data.managerName],
+    ["Manager Date", data.managerDate],
+    ["Additional Notes", normalizeReportNotes(data.extraNotes || data.purpose)],
+  ]
+
+  return { commonRows, detailRows, approvalsRows }
+}
+
+export function openITFormPrintView(data: ITFormPDFData) {
+  void (async () => {
+    const enrichedData = await enrichITFormSignatures(data)
+    const printWindow = window.open("", "_blank", "width=1100,height=820")
+    if (!printWindow) {
+      window.print()
+      return
+    }
+
+    const title =
+      enrichedData.formType === "maintenance"
+        ? "Maintenance and Repairs Request"
+        : enrichedData.formType === "new-gadget"
+          ? "New IT Gadget Request"
+          : "IT Equipment Requisition"
+
+    const { commonRows, detailRows, approvalsRows } = buildPrintSections(enrichedData)
+    const logoUrl = `${window.location.origin}${LOGO_PATH}`
+    const hodSignatureImg = enrichedData.hodSignature
+      ? `<img src="${escapeHtml(enrichedData.hodSignature)}" alt="HOD Signature" class="sig-img" />`
+      : `<span class="sig-empty">not signed</span>`
+    const managerSignatureImg = enrichedData.managerSignature
+      ? `<img src="${escapeHtml(enrichedData.managerSignature)}" alt="Manager Signature" class="sig-img" />`
+      : `<span class="sig-empty">not signed</span>`
+    const renderRows = (rows: Array<[string, string | number | boolean | null | undefined]>) =>
+      rows
+        .map(([label, value]) => `<tr><th>${escapeHtml(label)}</th><td>${escapeHtml(value) || "-"}</td></tr>`)
+        .join("")
+
+  printWindow.document.write(`
+    <html>
+      <head>
+        <title>${escapeHtml(enrichedData.requestNumber)} - ${escapeHtml(title)}</title>
+        <style>
+          @page { size: A4 portrait; margin: 8mm; }
+          * { box-sizing: border-box; }
+          body { font-family: "Segoe UI", Tahoma, sans-serif; margin: 0; background: #eef3f8; color: #0f172a; }
+          .page { width: 194mm; min-height: 280mm; margin: 0 auto; background: #fff; border-radius: 14px; border: 1px solid #d9e2ec; overflow: hidden; box-shadow: 0 20px 35px rgba(15, 23, 42, 0.08); }
+          .header { display: flex; justify-content: space-between; align-items: center; padding: 22px 26px; background: linear-gradient(120deg, #ecfdf5, #f8fafc 45%, #eff6ff); border-bottom: 1px solid #dbeafe; }
+          .brand { display: flex; gap: 14px; align-items: center; }
+          .brand img { width: 54px; height: 54px; object-fit: contain; border-radius: 50%; background: #fff; border: 1px solid #dbeafe; padding: 6px; }
+          .brand h1 { margin: 0; font-size: 20px; font-weight: 800; letter-spacing: 0.01em; }
+          .brand p { margin: 4px 0 0; color: #475569; font-size: 13px; }
+          .meta { text-align: right; }
+          .meta .pill { display: inline-block; padding: 6px 10px; border-radius: 999px; background: #dcfce7; color: #166534; font-size: 12px; font-weight: 700; }
+          .meta .date { margin-top: 8px; color: #64748b; font-size: 12px; }
+          .content { padding: 22px 26px 28px; display: grid; gap: 16px; }
+          .section { border: 1px solid #e2e8f0; border-radius: 12px; overflow: hidden; page-break-inside: avoid; }
+          .section h2 { margin: 0; padding: 10px 14px; font-size: 13px; text-transform: uppercase; letter-spacing: 0.04em; background: #f8fafc; border-bottom: 1px solid #e2e8f0; }
+          table { width: 100%; border-collapse: collapse; }
+          th, td { padding: 10px 14px; border-bottom: 1px solid #f1f5f9; vertical-align: top; font-size: 13px; }
+          th { width: 34%; text-align: left; color: #334155; font-weight: 700; background: #fcfdff; }
+          td { color: #0f172a; }
+          tr:last-child th, tr:last-child td { border-bottom: 0; }
+          .sig-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
+          .sig-box { border: 1px solid #cbd5e1; border-radius: 10px; padding: 10px; min-height: 86px; background: #f8fafc; }
+          .sig-label { font-size: 12px; color: #334155; font-weight: 700; margin-bottom: 6px; }
+          .sig-img { width: 100%; max-height: 56px; object-fit: contain; background: #fff; border: 1px solid #dbeafe; border-radius: 8px; padding: 4px; }
+          .sig-empty { display: inline-block; margin-top: 14px; color: #64748b; font-size: 12px; }
+          .footer { padding: 14px 26px 20px; color: #64748b; font-size: 12px; display: flex; justify-content: space-between; border-top: 1px solid #e2e8f0; }
+          @media print {
+            body { background: #fff; }
+            .page { width: 100%; min-height: auto; margin: 0; border-radius: 0; box-shadow: none; border: none; }
+          }
+        </style>
+      </head>
+      <body>
+        <div class="page">
+          <div class="header">
+            <div class="brand">
+              <img src="${logoUrl}" alt="QCC Logo" />
+              <div>
+                <h1>${escapeHtml(BRAND_NAME)}</h1>
+                <p>${escapeHtml(title)}</p>
+              </div>
+            </div>
+            <div class="meta">
+              <div class="pill">${escapeHtml(formatStatus(enrichedData.status))}</div>
+              <div class="date">Generated: ${escapeHtml(new Date().toLocaleString())}</div>
+            </div>
+          </div>
+
+          <div class="content">
+            <section class="section">
+              <h2>Request Summary</h2>
+              <table>${renderRows(commonRows)}</table>
+            </section>
+
+            <section class="section">
+              <h2>Form Details</h2>
+              <table>${renderRows(detailRows)}</table>
+            </section>
+
+            <section class="section">
+              <h2>Approval and Sign-off</h2>
+              <table>${renderRows(approvalsRows)}</table>
+            </section>
+
+            <section class="section">
+              <h2>Signatures</h2>
+              <div class="sig-grid" style="padding: 12px;">
+                <div class="sig-box">
+                  <div class="sig-label">Department Head Signature</div>
+                  ${hodSignatureImg}
+                </div>
+                <div class="sig-box">
+                  <div class="sig-label">IT Manager / IT Head Signature</div>
+                  ${managerSignatureImg}
+                </div>
+              </div>
+            </section>
+          </div>
+
+          <div class="footer">
+            <span>${escapeHtml(BRAND_NAME)} • ${escapeHtml(COMPANY_REG_TEXT)}</span>
+            <span>Reference: ${escapeHtml(enrichedData.requestNumber)}</span>
+          </div>
+        </div>
+      </body>
+    </html>
+  `)
+
+    printWindow.document.close()
+
+    const waitForImages = () => {
+      const images = Array.from(printWindow.document.images || [])
+      if (images.length === 0) return Promise.resolve()
+      return Promise.all(
+        images.map((img) => {
+          if (img.complete) return Promise.resolve()
+          return new Promise<void>((resolve) => {
+            img.onload = () => resolve()
+            img.onerror = () => resolve()
+          })
+        })
+      )
+    }
+
+    await waitForImages()
+    printWindow.focus()
+    printWindow.print()
+  })()
 }

@@ -6,11 +6,11 @@ import { Button } from "@/components/ui/button"
 import { Badge } from "@/components/ui/badge"
 import { Input } from "@/components/ui/input"
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from "@/components/ui/dialog"
-import { AlertCircle, Download, Eye, FileEdit, Loader2, Lock, RefreshCw } from "lucide-react"
+import { AlertCircle, Download, Eye, FileEdit, Loader2, Lock, Printer, RefreshCw } from "lucide-react"
 import { useAuth } from "@/lib/auth-context"
 import { useToast } from "@/hooks/use-toast"
 import { ApprovalTracker } from "./approval-tracker"
-import { exportITFormPDF } from "@/lib/export-utils"
+import { exportITFormPDF, openITFormPrintView } from "@/lib/export-utils"
 import { formatDisplayDate, formatDisplayDateTime } from "@/lib/utils"
 import { Label } from "@/components/ui/label"
 import { Textarea } from "@/components/ui/textarea"
@@ -48,6 +48,9 @@ interface ITRequisition {
   hardware_supervisor_date?: string
   confirmed_by?: string
   confirmed_date?: string
+  it_manager_approved_by?: string
+  it_manager_approved_at?: string
+  it_manager_signature?: string
   recommended?: boolean | null
   gadget_working_status?: string
   request_date: string
@@ -157,10 +160,19 @@ export function RequestStatusTracker({
 
   const canEditRequest = (req: ITRequisition) => ["draft", "pending_department_head", "pending", "pending_hod"].includes(req.status)
 
-  const handleDownload = async (req: ITRequisition) => {
-    const requestNumber = getRequestNumber(req)
+  const extractManagerMeta = (req: ITRequisition) => {
+    const noteText = req.other_comments || ""
+    const match = noteText.match(/IT Manager\s+(approved|rejected)\s+note:[\s\S]*?\(by\s+(.+?)\s+on\s+([^\)]+)\)/i)
+    return {
+      managerName: req.it_manager_approved_by || req.admin_approved_by || req.it_head_approved_by || (match?.[2] || ""),
+      managerDate: req.it_manager_approved_at || req.admin_approved_at || req.it_head_approved_at || (match?.[3] || ""),
+    }
+  }
 
-    await exportITFormPDF({
+  const buildExportPayload = (req: ITRequisition) => {
+    const requestNumber = getRequestNumber(req)
+    const { managerName, managerDate } = extractManagerMeta(req)
+    return {
       formType,
       fileName: requestNumber,
       requestNumber,
@@ -183,12 +195,20 @@ export function RequestStatusTracker({
       diagnosisItems: req.diagnosis_items,
       supervisorName: req.hardware_supervisor_name,
       supervisorDate: req.hardware_supervisor_date,
-      managerName: req.admin_approved_by || req.it_head_approved_by || req.confirmed_by,
-      managerDate: req.admin_approved_at || req.it_head_approved_at || req.confirmed_date,
-      managerSignature: req.admin_signature || req.it_head_signature,
+      managerName,
+      managerDate,
+      managerSignature: req.it_manager_signature || req.admin_signature || req.it_head_signature,
       recommendation: req.recommended,
       repairStatus: req.gadget_working_status,
-    })
+    }
+  }
+
+  const handleDownload = async (req: ITRequisition) => {
+    await exportITFormPDF(buildExportPayload(req))
+  }
+
+  const handlePrintView = (req: ITRequisition) => {
+    openITFormPrintView(buildExportPayload(req))
   }
 
   const handleEditSave = async () => {
@@ -228,10 +248,10 @@ export function RequestStatusTracker({
     if (formType !== "requisition") {
       const hodApprover = req.departmental_head_name || req.sectional_head_name
       const hodTimestamp = req.departmental_head_date || req.sectional_head_date
-      const isRejected = req.status.includes("rejected")
-      const hodCompleted = Boolean(hodApprover) || ["hod_approved", "pending_manager", "recommended", "not_recommended", "gadget_issued", "sent_for_repair", "repaired", "confirmed_working", "pending_it_office_use", "pending_service_desk", "pending_it_head", "pending_admin", "pending_store", "approved", "issued", "completed"].includes(req.status)
-      const serviceDeskCompleted = ["hod_approved", "pending_manager", "recommended", "not_recommended", "gadget_issued", "sent_for_repair", "repaired", "confirmed_working", "pending_it_head", "pending_admin", "pending_store", "approved", "issued", "completed"].includes(req.status)
-      const adminCompleted = ["pending_manager", "recommended", "not_recommended", "gadget_issued", "sent_for_repair", "repaired", "confirmed_working", "pending_store", "approved", "issued", "completed"].includes(req.status)
+      const isRejected = req.status.includes("rejected") || req.status.includes("not_recommended")
+      const hodCompleted = Boolean(hodApprover) || ["hod_approved", "pending_it_office_use", "pending_manager", "recommended", "not_recommended", "manager_confirmed", "gadget_issued", "sent_for_repair", "repaired", "confirmed_working", "rejected"].includes(req.status)
+      const serviceDeskCompleted = ["pending_manager", "recommended", "not_recommended", "manager_confirmed", "gadget_issued", "sent_for_repair", "repaired", "confirmed_working", "rejected"].includes(req.status)
+      const managerCompleted = ["recommended", "manager_confirmed", "gadget_issued", "sent_for_repair", "repaired", "confirmed_working"].includes(req.status)
 
       return [
         {
@@ -253,10 +273,12 @@ export function RequestStatusTracker({
           status: isRejected ? "rejected" : serviceDeskCompleted ? "completed" : "pending",
         },
         {
-          stage: "IT Head / Admin Review",
-          role: "IT Head / Admin",
-          status: isRejected ? "rejected" : adminCompleted ? "completed" : "pending",
-          timestamp: req.updated_at,
+          stage: "IT Manager Review",
+          role: "IT Manager",
+          status: isRejected ? "rejected" : managerCompleted ? "completed" : "pending",
+          approver: req.it_manager_approved_by,
+          timestamp: req.it_manager_approved_at || req.updated_at,
+          signatureDataUrl: req.it_manager_signature,
         },
       ]
     }
@@ -471,6 +493,10 @@ export function RequestStatusTracker({
                         <Download className="h-4 w-4 mr-1" />
                         PDF
                       </Button>
+                      <Button variant="outline" size="sm" onClick={() => handlePrintView(req)}>
+                        <Printer className="h-4 w-4 mr-1" />
+                        Print
+                      </Button>
                     </div>
                   </div>
                 </div>
@@ -545,6 +571,10 @@ export function RequestStatusTracker({
                   <Button variant="outline" onClick={() => handleDownload(selectedRequisition)}>
                     <Download className="mr-2 h-4 w-4" />
                     Download PDF
+                  </Button>
+                  <Button variant="outline" onClick={() => handlePrintView(selectedRequisition)}>
+                    <Printer className="mr-2 h-4 w-4" />
+                    Print View
                   </Button>
                 </div>
               </div>

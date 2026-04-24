@@ -73,11 +73,16 @@ export function InitialNotificationsToast() {
 
             // Mark as read after showing
             setTimeout(() => {
-              supabase
-                .from("notifications")
-                .update({ is_read: true, read_at: new Date().toISOString() })
-                .eq("id", notification.id)
-                .catch((err) => console.error("[v0] Error marking notification as read:", err))
+              ;(async () => {
+                const { error: markReadError } = await supabase
+                  .from("notifications")
+                  .update({ is_read: true, read_at: new Date().toISOString() })
+                  .eq("id", notification.id)
+
+                if (markReadError) {
+                  console.error("[v0] Error marking notification as read:", markReadError)
+                }
+              })()
             }, 500)
           }, index * 2500) // 2.5 second delay between each toast
         })

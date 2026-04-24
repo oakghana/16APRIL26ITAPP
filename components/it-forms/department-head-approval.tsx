@@ -180,6 +180,38 @@ export function DepartmentHeadApprovalModule() {
     const hodApprover = req.department_head_approved_by || req.departmental_head_name || req.sectional_head_name
     const hodTimestamp = req.department_head_approved_at || req.departmental_head_date || req.sectional_head_date
 
+    if (req.formType !== "requisition") {
+      const managerRejected = ["not_recommended", "rejected"].includes(req.status)
+      const managerCompleted = ["recommended", "manager_confirmed", "gadget_issued", "sent_for_repair", "repaired", "confirmed_working"].includes(req.status)
+      const serviceDeskCompleted = ["pending_manager", "recommended", "not_recommended", "manager_confirmed", "gadget_issued", "sent_for_repair", "repaired", "confirmed_working", "rejected"]
+
+      return [
+        {
+          stage: "Department Head Review",
+          role: "Department Head",
+          status: isRejected(req) ? "rejected" : isApproved(req) ? "completed" : "pending",
+          approver: hodApprover,
+          timestamp: hodTimestamp,
+          notes: req.department_head_notes,
+          signatureDataUrl: req.department_head_signature,
+        },
+        {
+          stage: "IT Office Use",
+          role: "IT Staff",
+          status: serviceDeskCompleted.includes(req.status)
+            ? "completed"
+            : isRejected(req)
+              ? "rejected"
+              : "pending",
+        },
+        {
+          stage: "IT Manager Review",
+          role: "IT Manager",
+          status: managerCompleted ? "completed" : managerRejected ? "rejected" : "pending",
+        },
+      ]
+    }
+
     return [
       {
         stage: "Department Head Review",

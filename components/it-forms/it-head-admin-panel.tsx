@@ -15,22 +15,32 @@ import {
   DialogTitle,
 } from "@/components/ui/dialog"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
-import { CheckCircle2, XCircle, Eye, AlertCircle, Loader2, BarChart3, PenLine } from "lucide-react"
+import { CheckCircle2, XCircle, Eye, AlertCircle, Loader2, BarChart3, Download, PenLine, Printer } from "lucide-react"
 import { useAuth } from "@/lib/auth-context"
 import { useToast } from "@/hooks/use-toast"
 import { ApprovalTracker } from "./approval-tracker"
 import { SignaturePad } from "@/components/ui/signature-pad"
+import { exportITFormPDF, openITFormPrintView } from "@/lib/export-utils"
 import { formatDisplayDate } from "@/lib/utils"
+
+type FormType = "requisition" | "new-gadget" | "maintenance"
 
 interface ITRequisition {
   id: string
-  requisition_number: string
-  items_required: string
-  purpose: string
-  requested_by: string
-  requested_by_email: string
-  department: string
+  formType: FormType
+  requisition_number?: string
+  request_number?: string
+  items_required?: string
+  complaints_from_users?: string
+  purpose?: string
+  other_comments?: string
+  requested_by?: string
+  staff_name?: string
+  requested_by_email?: string
+  department?: string
+  department_name?: string
   status: string
+  department_head_signature?: string
   service_desk_notes?: string
   service_desk_processed_by?: string
   service_desk_processed_at?: string
@@ -44,6 +54,17 @@ interface ITRequisition {
   admin_signature?: string
   admin_approved?: boolean
   store_head_approved?: boolean
+  departmental_head_name?: string
+  departmental_head_date?: string
+  sectional_head_name?: string
+  sectional_head_date?: string
+  confirmed_by?: string
+  confirmed_date?: string
+  it_manager_approved_by?: string
+  it_manager_approved_at?: string
+  it_manager_signature?: string
+  recommended?: boolean | null
+  gadget_working_status?: string
   approval_timeline?: Array<any>
   created_at: string
 }
@@ -89,18 +110,84 @@ export function ITHeadAdminPanel() {
     filterRequisitions()
   }, [searchQuery, requisitions, filterTab])
 
+  const getRequestNumber = (req: ITRequisition) => req.requisition_number || req.request_number || req.id
+  const getRequester = (req: ITRequisition) => req.requested_by || req.staff_name || "Unknown requester"
+  const getDepartment = (req: ITRequisition) => req.department || req.department_name || "Unknown department"
+  const getSummary = (req: ITRequisition) => req.items_required || req.complaints_from_users || "No details provided"
+  const getTypeLabel = (req: ITRequisition) =>
+    req.formType === "maintenance"
+      ? "Maintenance"
+      : req.formType === "new-gadget"
+        ? "New Gadget"
+        : "Requisition"
+
+  const extractManagerMeta = (req: ITRequisition) => {
+    const noteText = req.other_comments || ""
+    const match = noteText.match(/IT Manager\s+(approved|rejected)\s+note:[\s\S]*?\(by\s+(.+?)\s+on\s+([^\)]+)\)/i)
+    return {
+      managerName: req.it_manager_approved_by || req.admin_approved_by || req.it_head_approved_by || (match?.[2] || ""),
+      managerDate: req.it_manager_approved_at || req.admin_approved_at || req.it_head_approved_at || (match?.[3] || ""),
+    }
+  }
+
+  const buildExportPayload = (req: ITRequisition) => {
+    const requestNumber = getRequestNumber(req)
+    const { managerName, managerDate } = extractManagerMeta(req)
+    return {
+      formType: req.formType,
+      fileName: requestNumber,
+      requestNumber,
+      staffName: getRequester(req),
+      department: getDepartment(req),
+      requestDate: req.created_at ? formatDisplayDate(req.created_at) : "",
+      summary: getSummary(req),
+      purpose: req.purpose || req.other_comments || "",
+      status: req.status,
+      hodName: req.department_head_approved_by || req.departmental_head_name || req.sectional_head_name,
+      hodDate: req.department_head_approved_at || req.departmental_head_date || req.sectional_head_date,
+      hodSignature: req.department_head_signature,
+      extraNotes: req.other_comments,
+      managerName,
+      managerDate,
+      managerSignature: req.it_manager_signature || req.admin_signature || req.it_head_signature,
+      recommendation: req.recommended,
+      repairStatus: req.gadget_working_status,
+    }
+  }
+
+  const handleDownload = async (req: ITRequisition) => {
+    await exportITFormPDF(buildExportPayload(req))
+  }
+
+  const handlePrint = (req: ITRequisition) => {
+    openITFormPrintView(buildExportPayload(req))
+  }
+
   const fetchRequisitions = async () => {
     try {
       setLoading(true)
-      const statusFilter = user?.role === "admin" ? "all" : "pending_it_head"
-      const response = await fetch(`/api/it-forms/requisitions?status=${statusFilter}`)
-      const data = await response.json()
-      setRequisitions(data.requisitions || [])
+      const [requisitionRes, gadgetRes, maintenanceRes] = await Promise.all([
+        fetch("/api/it-forms/requisitions?status=all"),
+        fetch("/api/it-forms/new-gadget?status=all"),
+        fetch("/api/it-forms/maintenance-repairs?status=all"),
+      ])
+
+      const requisitionData = requisitionRes.ok ? await requisitionRes.json() : { requisitions: [] }
+      const gadgetData = gadgetRes.ok ? await gadgetRes.json() : { requests: [] }
+      const maintenanceData = maintenanceRes.ok ? await maintenanceRes.json() : { requests: [] }
+
+      const combined: ITRequisition[] = [
+        ...(requisitionData.requisitions || []).map((req: any) => ({ ...req, formType: "requisition" as const })),
+        ...(gadgetData.requests || []).map((req: any) => ({ ...req, formType: "new-gadget" as const })),
+        ...(maintenanceData.requests || []).map((req: any) => ({ ...req, formType: "maintenance" as const })),
+      ].sort((a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime())
+
+      setRequisitions(combined)
     } catch (error) {
       console.error("[v0] Error fetching requisitions:", error)
       toast({
         title: "Error",
-        description: "Failed to load requisitions",
+        description: "Failed to load IT requests",
         variant: "destructive",
       })
     } finally {
@@ -113,47 +200,97 @@ export function ITHeadAdminPanel() {
 
     // ITD Department Head can see pending_it_head forms
     const isITDepartmentHead = user?.role === "department_head" && user?.department?.toLowerCase().includes("it")
+    const isPendingForManager = (req: ITRequisition) =>
+      req.formType === "requisition"
+        ? req.status === "pending_it_head" && !req.it_head_approved
+        : req.status === "pending_manager"
+
+    const isApprovedForManager = (req: ITRequisition) =>
+      req.formType === "requisition"
+        ? Boolean(req.it_head_approved || req.admin_approved)
+        : ["recommended", "not_recommended", "gadget_issued", "manager_confirmed", "sent_for_repair", "repaired", "confirmed_working"].includes(req.status)
+
+    const isRejectedForManager = (req: ITRequisition) =>
+      ["rejected_it_head", "rejected_admin", "rejected"].includes(req.status)
 
     if (filterTab === "pending") {
       filtered = filtered.filter((req) => {
         if (user?.role === "admin") {
-          return req.status === "pending_admin" || (req.status === "pending_it_head" && !req.it_head_approved)
+          if (req.formType === "requisition") {
+            return req.status === "pending_admin" || isPendingForManager(req)
+          }
+          return isPendingForManager(req)
         }
         if (isITDepartmentHead) {
-          return (req.status === "pending_it_head" && !req.it_head_approved)
+          return isPendingForManager(req)
         }
-        return req.status === "pending_it_head" && !req.it_head_approved
+        return isPendingForManager(req)
       })
     } else if (filterTab === "approved") {
-      filtered = filtered.filter((req) => req.it_head_approved || req.admin_approved)
+      filtered = filtered.filter((req) => isApprovedForManager(req))
     } else if (filterTab === "rejected") {
-      filtered = filtered.filter((req) => req.status === "rejected_it_head" || req.status === "rejected_admin")
+      filtered = filtered.filter((req) => isRejectedForManager(req))
     }
 
     filtered = filtered.filter(
       (req) =>
-        req.requisition_number.toLowerCase().includes(searchQuery.toLowerCase()) ||
-        req.requested_by.toLowerCase().includes(searchQuery.toLowerCase()) ||
-        req.items_required.toLowerCase().includes(searchQuery.toLowerCase())
+        getRequestNumber(req).toLowerCase().includes(searchQuery.toLowerCase()) ||
+        getRequester(req).toLowerCase().includes(searchQuery.toLowerCase()) ||
+        getSummary(req).toLowerCase().includes(searchQuery.toLowerCase())
     )
 
     setFilteredRequisitions(filtered)
   }
 
   const buildApprovalStages = (req: ITRequisition): any[] => {
+    const isNonRequisition = req.formType !== "requisition"
+    const managerDoneForNonReq = ["recommended", "not_recommended", "gadget_issued", "manager_confirmed", "sent_for_repair", "repaired", "confirmed_working"].includes(req.status)
+    const managerRejectedForNonReq = req.status === "rejected" || req.status === "not_recommended"
+
+    if (isNonRequisition) {
+      return [
+        {
+          stage: "Department Head Review",
+          role: "Department Head",
+          status: "completed",
+          approver: req.departmental_head_name || req.sectional_head_name,
+          timestamp: req.departmental_head_date || req.sectional_head_date,
+        },
+        {
+          stage: "IT Office Use",
+          role: "IT Staff",
+          status: "completed",
+          approver: req.confirmed_by,
+          timestamp: req.confirmed_date,
+          notes: req.other_comments,
+        },
+        {
+          stage: "IT Manager Review",
+          role: "IT Manager",
+          status: managerDoneForNonReq ? (managerRejectedForNonReq ? "rejected" : "completed") : "pending",
+          approver: managerDoneForNonReq ? (req.it_manager_approved_by || "IT Manager") : undefined,
+          timestamp: req.it_manager_approved_at,
+          notes: req.other_comments,
+          signatureDataUrl: req.it_manager_signature,
+        },
+      ]
+    }
+
     return [
       {
         stage: "Department Head Review",
         role: "Department Head",
         status: "completed",
+        approver: req.department_head_approved_by || req.departmental_head_name || req.sectional_head_name,
+        timestamp: req.department_head_approved_at || req.departmental_head_date || req.sectional_head_date,
       },
       {
         stage: "IT Office Use",
         role: "IT Staff",
         status: "completed",
-        approver: req.service_desk_processed_by,
-        timestamp: req.service_desk_processed_at,
-        notes: req.service_desk_notes,
+        approver: req.formType === "requisition" ? req.service_desk_processed_by : req.confirmed_by,
+        timestamp: req.formType === "requisition" ? req.service_desk_processed_at : req.confirmed_date,
+        notes: req.formType === "requisition" ? req.service_desk_notes : req.other_comments,
       },
       {
         stage: "IT Head Review",
@@ -197,6 +334,15 @@ export function ITHeadAdminPanel() {
     setIsApprovalDialogOpen(true)
   }
 
+  const handleReview = (req: ITRequisition) => {
+    setSelectedRequisition(req)
+    setApprovalAction("approve")
+    setApprovalNotes("")
+    setApproverSignature(null)
+    setIsApprovalDialogOpen(true)
+    loadStoredSignature()
+  }
+
   const submitApproval = async () => {
     if (!selectedRequisition || !approvalNotes.trim()) {
       toast({
@@ -218,19 +364,36 @@ export function ITHeadAdminPanel() {
 
     setIsSubmitting(true)
     try {
-      const response = await fetch("/api/it-forms/it-head-approve", {
+      const endpoint = selectedRequisition.formType === "requisition"
+        ? "/api/it-forms/it-head-approve"
+        : "/api/it-forms/manager-approve"
+
+      const payload = selectedRequisition.formType === "requisition"
+        ? {
+            requisitionId: selectedRequisition.id,
+            action: approvalAction,
+            approvedBy: user?.full_name || "Unknown",
+            approverRole: user?.role || "it_head",
+            notes: approvalNotes,
+            approverSignature: approvalAction === "approve" ? approverSignature : undefined,
+            userRole: user?.role,
+            userDepartment: user?.department,
+          }
+        : {
+            requisitionId: selectedRequisition.id,
+            formType: selectedRequisition.formType,
+            action: approvalAction,
+            approvedBy: user?.full_name || user?.email || "Unknown",
+            notes: approvalNotes,
+            approverSignature: approvalAction === "approve" ? approverSignature : undefined,
+            userRole: user?.role,
+            userDepartment: user?.department,
+          }
+
+      const response = await fetch(endpoint, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          requisitionId: selectedRequisition.id,
-          action: approvalAction,
-          approvedBy: user?.full_name || "Unknown",
-          approverRole: user?.role || "it_head",
-          notes: approvalNotes,
-          approverSignature: approvalAction === "approve" ? approverSignature : undefined,
-          userRole: user?.role,
-          userDepartment: user?.department,
-        }),
+        body: JSON.stringify(payload),
       })
 
       const data = await response.json()
@@ -238,12 +401,13 @@ export function ITHeadAdminPanel() {
 
       toast({
         title: "Success",
-        description: `Requisition ${approvalAction}d successfully`,
+        description: `${getTypeLabel(selectedRequisition)} ${approvalAction === "approve" ? "reviewed" : "rejected"} successfully`,
       })
 
       fetchRequisitions()
       setIsApprovalDialogOpen(false)
       setSelectedRequisition(null)
+      setApprovalNotes("")
       setApproverSignature(null)
     } catch (error: any) {
       toast({
@@ -256,19 +420,33 @@ export function ITHeadAdminPanel() {
     }
   }
 
+  const isPendingForManager = (req: ITRequisition) =>
+    req.formType === "requisition"
+      ? req.status === "pending_it_head" && !req.it_head_approved
+      : req.status === "pending_manager"
+  const isApprovedForManager = (req: ITRequisition) =>
+    req.formType === "requisition"
+      ? Boolean(req.it_head_approved || req.admin_approved)
+      : ["recommended", "not_recommended", "gadget_issued", "manager_confirmed", "sent_for_repair", "repaired", "confirmed_working"].includes(req.status)
+  const isRejectedForManager = (req: ITRequisition) =>
+    ["rejected_it_head", "rejected_admin", "rejected"].includes(req.status)
+
   const pendingCount = requisitions.filter((r) => {
-    if (user?.role === "admin") return r.status === "pending_admin"
-    return r.status === "pending_it_head" && !r.it_head_approved
+    if (user?.role === "admin") {
+      if (r.formType === "requisition") return r.status === "pending_admin" || isPendingForManager(r)
+      return isPendingForManager(r)
+    }
+    return isPendingForManager(r)
   }).length
-  const approvedCount = requisitions.filter((r) => r.it_head_approved || r.admin_approved).length
-  const rejectedCount = requisitions.filter((r) => ["rejected_it_head", "rejected_admin"].includes(r.status)).length
+  const approvedCount = requisitions.filter((r) => isApprovedForManager(r)).length
+  const rejectedCount = requisitions.filter((r) => isRejectedForManager(r)).length
 
   return (
     <div className="space-y-6">
       <div>
         <h1 className="text-3xl font-bold tracking-tight">IT Head / Admin Review Panel</h1>
         <p className="text-muted-foreground mt-2">
-          Review and approve IT requisitions from your departments
+          Review IT requests completed by IT office-use teams and handle manager-stage approvals
         </p>
       </div>
 
@@ -314,8 +492,8 @@ export function ITHeadAdminPanel() {
         <CardHeader>
           <div className="flex items-center justify-between">
             <div>
-              <CardTitle>Requisition Review Queue</CardTitle>
-              <CardDescription>Review and approve all departmentally processed requisitions</CardDescription>
+              <CardTitle>IT Manager Review Queue</CardTitle>
+              <CardDescription>Requisitions, new gadgets, and maintenance requests ready for manager stage</CardDescription>
             </div>
             <BarChart3 className="h-5 w-5 text-muted-foreground" />
           </div>
@@ -344,7 +522,7 @@ export function ITHeadAdminPanel() {
               ) : filteredRequisitions.length === 0 ? (
                 <div className="text-center py-12 text-muted-foreground">
                   <AlertCircle className="h-12 w-12 mx-auto mb-2 opacity-30" />
-                  No requisitions found
+                  No IT requests found
                 </div>
               ) : (
                 filteredRequisitions.map((req) => (
@@ -354,16 +532,17 @@ export function ITHeadAdminPanel() {
                   >
                     <div className="flex items-start justify-between">
                       <div className="flex-1 space-y-2">
-                        <div className="flex items-center gap-2">
-                          <span className="font-semibold">{req.requisition_number}</span>
-                          <Badge variant={req.it_head_approved ? "secondary" : req.it_head_notes ? "destructive" : "default"}>
-                            {req.it_head_approved ? "Approved" : req.it_head_notes ? "Rejected" : "Pending"}
+                        <div className="flex items-center gap-2 flex-wrap">
+                          <span className="font-semibold">{getRequestNumber(req)}</span>
+                          <Badge variant="outline" className="text-xs">{getTypeLabel(req)}</Badge>
+                          <Badge variant={isApprovedForManager(req) ? "secondary" : isRejectedForManager(req) ? "destructive" : "default"}>
+                            {isApprovedForManager(req) ? "Approved" : isRejectedForManager(req) ? "Rejected" : "Pending"}
                           </Badge>
                         </div>
                         <p className="text-sm text-muted-foreground">
-                          From: {req.requested_by} • {req.department}
+                          From: {getRequester(req)} • {getDepartment(req)}
                         </p>
-                        <p className="text-sm">Items: {req.items_required.substring(0, 80)}...</p>
+                        <p className="text-sm">Details: {getSummary(req).substring(0, 100)}...</p>
                       </div>
                       <div className="flex gap-2">
                         <Button
@@ -377,7 +556,7 @@ export function ITHeadAdminPanel() {
                           <Eye className="h-4 w-4 mr-1" />
                           View
                         </Button>
-                        {(user?.role === "admin"
+                        {req.formType === "requisition" && (user?.role === "admin"
                           ? req.status === "pending_admin"
                           : req.status === "pending_it_head") && (
                           <>
@@ -390,6 +569,12 @@ export function ITHeadAdminPanel() {
                               Reject
                             </Button>
                           </>
+                        )}
+                        {req.formType !== "requisition" && req.status === "pending_manager" && (
+                          <Button size="sm" className="bg-amber-600 hover:bg-amber-700" onClick={() => handleReview(req)}>
+                            <CheckCircle2 className="h-4 w-4 mr-1" />
+                            Review
+                          </Button>
                         )}
                       </div>
                     </div>
@@ -404,27 +589,37 @@ export function ITHeadAdminPanel() {
       <Dialog open={isDetailDialogOpen} onOpenChange={setIsDetailDialogOpen}>
         <DialogContent className="max-w-3xl max-h-[90vh] overflow-y-auto">
           <DialogHeader>
-            <DialogTitle>{selectedRequisition?.requisition_number}</DialogTitle>
+            <DialogTitle>{selectedRequisition ? getRequestNumber(selectedRequisition) : ""}</DialogTitle>
           </DialogHeader>
           {selectedRequisition && (
             <div className="space-y-6">
               <div className="grid grid-cols-2 gap-4 text-sm">
                 <div>
                   <Label className="text-muted-foreground">Requested By</Label>
-                  <p className="font-medium">{selectedRequisition.requested_by}</p>
+                  <p className="font-medium">{getRequester(selectedRequisition)}</p>
                 </div>
                 <div>
                   <Label className="text-muted-foreground">Department</Label>
-                  <p className="font-medium">{selectedRequisition.department}</p>
+                  <p className="font-medium">{getDepartment(selectedRequisition)}</p>
                 </div>
               </div>
               <div>
-                <Label className="text-muted-foreground">Items</Label>
-                <p className="text-sm whitespace-pre-wrap">{selectedRequisition.items_required}</p>
+                <Label className="text-muted-foreground">Request Details</Label>
+                <p className="text-sm whitespace-pre-wrap">{getSummary(selectedRequisition)}</p>
               </div>
               <div>
                 <h3 className="font-semibold mb-3">Approval Status</h3>
                 <ApprovalTracker stages={buildApprovalStages(selectedRequisition)} currentStatus={selectedRequisition.status} />
+              </div>
+              <div className="flex flex-wrap gap-2">
+                <Button variant="outline" onClick={() => handleDownload(selectedRequisition)}>
+                  <Download className="mr-2 h-4 w-4" />
+                  Download PDF
+                </Button>
+                <Button variant="outline" onClick={() => handlePrint(selectedRequisition)}>
+                  <Printer className="mr-2 h-4 w-4" />
+                  Print View
+                </Button>
               </div>
               <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
                 {selectedRequisition.it_head_signature && (
@@ -461,10 +656,28 @@ export function ITHeadAdminPanel() {
         <DialogContent className="max-w-md">
           <DialogHeader>
             <DialogTitle>
-              {approvalAction === "approve" ? "Approve" : "Reject"} Requisition
+              {approvalAction === "approve" ? "Approve" : "Reject"} IT Request
             </DialogTitle>
           </DialogHeader>
           <div className="space-y-4">
+            {selectedRequisition?.formType !== "requisition" && (
+              <div className="flex gap-2">
+                <Button
+                  type="button"
+                  variant={approvalAction === "approve" ? "default" : "outline"}
+                  onClick={() => setApprovalAction("approve")}
+                >
+                  Approve
+                </Button>
+                <Button
+                  type="button"
+                  variant={approvalAction === "reject" ? "destructive" : "outline"}
+                  onClick={() => setApprovalAction("reject")}
+                >
+                  Reject
+                </Button>
+              </div>
+            )}
             <Textarea
               placeholder={approvalAction === "approve" ? "Approval notes..." : "Rejection reason..."}
               value={approvalNotes}
@@ -475,12 +688,14 @@ export function ITHeadAdminPanel() {
               <div>
                 <Label className="flex items-center gap-1.5 mb-1.5">
                   <PenLine className="h-4 w-4 text-orange-500" />
-                  {user?.role === "admin" ? "Admin Signature" : "IT Head Signature"}
+                  {selectedRequisition?.formType === "requisition"
+                    ? (user?.role === "admin" ? "Admin Signature" : "IT Head Signature")
+                    : "IT Manager Signature"}
                   {approverSignature ? <span className="text-green-600 text-xs">(saved signature loaded)</span> : <span className="text-muted-foreground text-xs">(required)</span>}
                 </Label>
                 <SignaturePad
                   signerLabel={user?.full_name || user?.email || "Unknown"}
-                  roleLabel={user?.role === "admin" ? "Admin" : "IT Head"}
+                  roleLabel={selectedRequisition?.formType === "requisition" ? (user?.role === "admin" ? "Admin" : "IT Head") : "IT Manager"}
                   initialValue={approverSignature || undefined}
                   onSave={(dataUrl) => setApproverSignature(dataUrl)}
                   onClear={() => setApproverSignature(null)}
