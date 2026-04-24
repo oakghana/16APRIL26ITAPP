@@ -126,6 +126,12 @@ export function AssignStockToStaff() {
 
   // Edit assignment state
   const [editDialogOpen, setEditDialogOpen] = useState(false)
+
+  // Revoke assignment state
+  const [revokeDialogOpen, setRevokeDialogOpen] = useState(false)
+  const [revokingAssignment, setRevokingAssignment] = useState<StockAssignment | null>(null)
+  const [revokeReason, setRevokeReason] = useState("")
+  const [isRevoking, setIsRevoking] = useState(false)
   const [editingAssignment, setEditingAssignment] = useState<StockAssignment | null>(null)
   const [editForm, setEditForm] = useState({
     assigned_to: "",
@@ -603,6 +609,49 @@ export function AssignStockToStaff() {
     }
   }
 
+  const handleRevokeAssignment = async () => {
+    if (!revokingAssignment || !revokeReason.trim()) return
+
+    setIsRevoking(true)
+    try {
+      const response = await fetch("/api/store/delete-assignment", {
+        method: "DELETE",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          assignmentId: revokingAssignment.id,
+          deletedBy: user?.full_name || user?.email,
+          userRole: user?.role,
+          reason: revokeReason.trim(),
+        }),
+      })
+
+      const result = await response.json()
+      if (!response.ok) {
+        toast({
+          title: "Error",
+          description: result.error || "Failed to revoke assignment",
+          variant: "destructive",
+        })
+        return
+      }
+
+      toast({
+        title: "✅ Assignment Revoked",
+        description: `Assignment of ${revokingAssignment.item_name} to ${revokingAssignment.assigned_to} has been revoked.`,
+      })
+
+      setRevokeDialogOpen(false)
+      setRevokingAssignment(null)
+      setRevokeReason("")
+      loadAssignments()
+    } catch (error) {
+      console.error("[assign-stock] Error revoking assignment:", error)
+      toast({ title: "Error", description: "Failed to revoke assignment", variant: "destructive" })
+    } finally {
+      setIsRevoking(false)
+    }
+  }
+
   const handleExportAssignments = () => {
     const headers = [
       "Date",
@@ -957,6 +1006,21 @@ export function AssignStockToStaff() {
                                 >
                                   <Edit className="h-4 w-4 mr-1" />
                                   Edit
+                                </Button>
+                              )}
+                              {["admin", "it_store_head"].includes(user?.role || "") && (
+                                <Button
+                                  size="sm"
+                                  variant="destructive"
+                                  className="ml-1"
+                                  onClick={() => {
+                                    setRevokingAssignment(assignment)
+                                    setRevokeReason("")
+                                    setRevokeDialogOpen(true)
+                                  }}
+                                >
+                                  <Trash2 className="h-4 w-4 mr-1" />
+                                  Revoke
                                 </Button>
                               )}
                             </TableCell>
@@ -1556,6 +1620,55 @@ export function AssignStockToStaff() {
             </Button>
             <Button onClick={handleSaveEdit} disabled={editLoading} className="bg-green-100 hover:bg-green-200 text-green-900 border border-green-300">
               {editLoading ? "Saving..." : "Save Changes"}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* Revoke Assignment Dialog */}
+      <Dialog open={revokeDialogOpen} onOpenChange={setRevokeDialogOpen}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle className="text-red-600">Revoke Assignment</DialogTitle>
+            <DialogDescription>
+              This will permanently revoke the assignment of{" "}
+              <strong>{revokingAssignment?.item_name}</strong> (qty: {revokingAssignment?.quantity}) from{" "}
+              <strong>{revokingAssignment?.assigned_to}</strong>. This action cannot be undone.
+            </DialogDescription>
+          </DialogHeader>
+          <div className="space-y-4 py-2">
+            <div>
+              <Label htmlFor="revoke-reason" className="text-sm font-medium">
+                Reason for revoking *
+              </Label>
+              <Textarea
+                id="revoke-reason"
+                placeholder="Provide a reason (e.g., staff transferred, item returned, duplicate assignment)"
+                value={revokeReason}
+                onChange={(e) => setRevokeReason(e.target.value)}
+                className="mt-2"
+                rows={3}
+              />
+            </div>
+          </div>
+          <DialogFooter>
+            <Button
+              variant="outline"
+              onClick={() => {
+                setRevokeDialogOpen(false)
+                setRevokingAssignment(null)
+                setRevokeReason("")
+              }}
+              disabled={isRevoking}
+            >
+              Cancel
+            </Button>
+            <Button
+              variant="destructive"
+              onClick={handleRevokeAssignment}
+              disabled={isRevoking || !revokeReason.trim()}
+            >
+              {isRevoking ? "Revoking..." : "Revoke Assignment"}
             </Button>
           </DialogFooter>
         </DialogContent>

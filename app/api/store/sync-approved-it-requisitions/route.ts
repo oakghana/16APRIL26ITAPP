@@ -72,14 +72,15 @@ export async function POST(request: NextRequest) {
       .from("it_equipment_requisitions")
       .select("*")
       .eq("status", "ready_for_issuance")
-      .neq("store_head_approved", true)
       .order("created_at", { ascending: false })
 
     if (requisitionsError) {
       return NextResponse.json({ error: requisitionsError.message || "Failed to load approved IT requisitions" }, { status: 500 })
     }
 
-    const approvedList = approvedRequisitions || []
+    const approvedList = (approvedRequisitions || []).filter(
+      (req: any) => req.store_head_approved !== true
+    )
 
     if (approvedList.length === 0) {
       return NextResponse.json({ success: true, createdCount: 0, skippedCount: 0, message: "No approved IT requisitions are waiting to be synced" })

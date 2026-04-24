@@ -276,8 +276,8 @@ export function ModernSidebar({ isOpen, setIsOpen, className, onCollapseChange }
             icon: BarChart3,
           },
           {
-            name: "My Stock Requests",
-            href: "/dashboard/store-summary-report",
+            name: "My Requests",
+            href: "/dashboard/my-requests",
             icon: FileText,
           },
           {
@@ -473,7 +473,13 @@ export function ModernSidebar({ isOpen, setIsOpen, className, onCollapseChange }
     // Regional IT Head role - manages regional IT operations (location-based)
     if (user?.role === "regional_it_head") {
       return {
-        items: [],
+        items: [
+          {
+            name: "My Requests",
+            href: "/dashboard/my-requests",
+            icon: FileText,
+          },
+        ],
         groups: [
           {
             name: "IT Forms",
