@@ -29,10 +29,23 @@ interface ITRequisition {
   formType: FormType
   requisition_number?: string
   request_number?: string
+  item_sn?: string
+  supplier_name?: string
   items_required?: string
   complaints_from_users?: string
   purpose?: string
   other_comments?: string
+  diagnosis_items?: string[]
+  gadget_make?: string
+  serial_number?: string
+  year_of_purchase?: number
+  hardware_supervisor_name?: string
+  date_of_last_repairs?: string
+  date_of_purchase?: string
+  times_repaired?: number
+  gadget_working_status?: string
+  confirmed_by?: string
+  confirmed_date?: string
   requested_by?: string
   staff_name?: string
   requester_location?: string | null
@@ -161,6 +174,29 @@ export function ITServiceDeskProcessingPanel() {
   }
 
   const getRequesterLocation = (req: ITRequisition) => req.requester_location || "Unknown Location"
+  const getRequester = (req: ITRequisition) => req.requested_by || req.staff_name || "Unknown"
+  const getRequestNumber = (req: ITRequisition) => req.requisition_number || req.request_number || req.id
+  const getDepartment = (req: ITRequisition) => req.department || req.department_name || "Unknown"
+  const getFaultSummary = (req: ITRequisition) => req.complaints_from_users || req.items_required || req.purpose || "N/A"
+
+  const getDeviceDetails = (req: ITRequisition) => {
+    const details: string[] = []
+    if (req.gadget_make) details.push(`Make: ${req.gadget_make}`)
+    if (req.serial_number) details.push(`Serial: ${req.serial_number}`)
+    if (req.year_of_purchase) details.push(`Year: ${req.year_of_purchase}`)
+    if (req.item_sn) details.push(`Item SN: ${req.item_sn}`)
+    if (req.supplier_name) details.push(`Supplier: ${req.supplier_name}`)
+    return details
+  }
+
+  const getMaintenanceContext = (req: ITRequisition) => {
+    const details: string[] = []
+    if (req.diagnosis_items && req.diagnosis_items.length > 0) details.push(`Diagnosis: ${req.diagnosis_items.join(", ")}`)
+    if (req.times_repaired !== undefined && req.times_repaired !== null) details.push(`Times repaired: ${req.times_repaired}`)
+    if (req.date_of_last_repairs) details.push(`Last repair: ${req.date_of_last_repairs}`)
+    if (req.gadget_working_status) details.push(`Current status: ${req.gadget_working_status}`)
+    return details
+  }
 
   const buildApprovalStages = (req: ITRequisition): any[] => {
     return [
@@ -343,7 +379,7 @@ export function ITServiceDeskProcessingPanel() {
                 ) : filteredRequisitions.length === 0 ? (
                   <div className="text-center py-12">
                     <AlertCircle className="h-12 w-12 text-muted-foreground/30 mx-auto mb-3" />
-                    <p className="text-muted-foreground">No requisitions for office-use processing</p>
+                    <p className="text-muted-foreground">No IT forms for office-use processing</p>
                   </div>
                 ) : (
                   <div className="space-y-3">
@@ -355,7 +391,7 @@ export function ITServiceDeskProcessingPanel() {
                         <div className="flex items-start justify-between">
                           <div className="flex-1 space-y-2">
                             <div className="flex items-center gap-2 flex-wrap">
-                              <span className="font-semibold">{req.requisition_number || req.request_number || req.id}</span>
+                              <span className="font-semibold">{getRequestNumber(req)}</span>
                               <Badge variant="outline" className="text-xs">
                                 {req.formType === "maintenance" ? "Maintenance" : req.formType === "new-gadget" ? "New Gadget" : "Requisition"}
                               </Badge>
@@ -367,9 +403,15 @@ export function ITServiceDeskProcessingPanel() {
                               </Badge>
                             </div>
                             <p className="text-sm text-muted-foreground">
-                              From: <span className="font-medium">{req.requested_by || req.staff_name || "Unknown"}</span> ({req.department || req.department_name || "Unknown"})
+                              From: <span className="font-medium">{getRequester(req)}</span> ({getDepartment(req)})
                             </p>
-                            <p className="text-sm">Items: {(req.items_required || req.complaints_from_users || "N/A").substring(0, 80)}...</p>
+                            <p className="text-sm">Fault / Request: {getFaultSummary(req).substring(0, 120)}...</p>
+                            {getDeviceDetails(req).length > 0 && (
+                              <p className="text-xs text-muted-foreground">{getDeviceDetails(req).join(" • ")}</p>
+                            )}
+                            {getMaintenanceContext(req).length > 0 && (
+                              <p className="text-xs text-muted-foreground">{getMaintenanceContext(req).join(" • ")}</p>
+                            )}
                             {req.department_head_notes && (
                               <p className="text-xs text-muted-foreground italic">
                                 HOD Notes: {req.department_head_notes.substring(0, 60)}...
@@ -415,7 +457,7 @@ export function ITServiceDeskProcessingPanel() {
       <Dialog open={isDetailDialogOpen} onOpenChange={setIsDetailDialogOpen}>
         <DialogContent className="max-w-3xl max-h-[90vh] overflow-y-auto">
           <DialogHeader>
-            <DialogTitle>{selectedRequisition?.requisition_number || selectedRequisition?.request_number}</DialogTitle>
+            <DialogTitle>{selectedRequisition ? getRequestNumber(selectedRequisition) : ""}</DialogTitle>
             <DialogDescription>
               Submitted on {selectedRequisition ? new Date(selectedRequisition.created_at).toLocaleDateString() : ""}
             </DialogDescription>
@@ -427,15 +469,15 @@ export function ITServiceDeskProcessingPanel() {
                 <div className="grid grid-cols-2 gap-4 text-sm">
                   <div>
                     <Label className="text-muted-foreground">Requested By</Label>
-                    <p className="font-medium">{selectedRequisition.requested_by || selectedRequisition.staff_name || "Unknown"}</p>
+                    <p className="font-medium">{getRequester(selectedRequisition)}</p>
                   </div>
                   <div>
                     <Label className="text-muted-foreground">Email</Label>
-                    <p className="font-medium text-sm">{selectedRequisition.requested_by_email}</p>
+                    <p className="font-medium text-sm">{selectedRequisition.requested_by_email || "N/A"}</p>
                   </div>
                   <div>
                     <Label className="text-muted-foreground">Department</Label>
-                    <p className="font-medium">{selectedRequisition.department || selectedRequisition.department_name || "Unknown"}</p>
+                    <p className="font-medium">{getDepartment(selectedRequisition)}</p>
                   </div>
                   <div>
                     <Label className="text-muted-foreground">Location</Label>
@@ -450,14 +492,49 @@ export function ITServiceDeskProcessingPanel() {
                 </div>
 
                 <div>
-                  <Label className="text-muted-foreground">Items Required</Label>
-                  <p className="font-medium text-sm whitespace-pre-wrap">{selectedRequisition.items_required || selectedRequisition.complaints_from_users || "N/A"}</p>
+                  <Label className="text-muted-foreground">Fault / Request Details</Label>
+                  <p className="font-medium text-sm whitespace-pre-wrap">{getFaultSummary(selectedRequisition)}</p>
                 </div>
 
                 <div>
-                  <Label className="text-muted-foreground">Purpose</Label>
-                  <p className="font-medium text-sm">{selectedRequisition.purpose || selectedRequisition.other_comments || "N/A"}</p>
+                  <Label className="text-muted-foreground">Purpose / Additional Notes</Label>
+                  <p className="font-medium text-sm whitespace-pre-wrap">{selectedRequisition.purpose || selectedRequisition.other_comments || "N/A"}</p>
                 </div>
+
+                {getDeviceDetails(selectedRequisition).length > 0 && (
+                  <div>
+                    <Label className="text-muted-foreground">Device Information</Label>
+                    <ul className="mt-1 text-sm space-y-1">
+                      {getDeviceDetails(selectedRequisition).map((detail) => (
+                        <li key={detail}>• {detail}</li>
+                      ))}
+                    </ul>
+                  </div>
+                )}
+
+                {getMaintenanceContext(selectedRequisition).length > 0 && (
+                  <div>
+                    <Label className="text-muted-foreground">Maintenance Context</Label>
+                    <ul className="mt-1 text-sm space-y-1">
+                      {getMaintenanceContext(selectedRequisition).map((detail) => (
+                        <li key={detail}>• {detail}</li>
+                      ))}
+                    </ul>
+                  </div>
+                )}
+
+                {(selectedRequisition.confirmed_by || selectedRequisition.confirmed_date) && (
+                  <div className="grid grid-cols-2 gap-4 text-sm">
+                    <div>
+                      <Label className="text-muted-foreground">Last Office Use By</Label>
+                      <p className="font-medium">{selectedRequisition.confirmed_by || "N/A"}</p>
+                    </div>
+                    <div>
+                      <Label className="text-muted-foreground">Office Use Date</Label>
+                      <p className="font-medium">{selectedRequisition.confirmed_date || "N/A"}</p>
+                    </div>
+                  </div>
+                )}
               </div>
 
               <div>
@@ -475,11 +552,20 @@ export function ITServiceDeskProcessingPanel() {
           <DialogHeader>
             <DialogTitle>Process Requisition</DialogTitle>
             <DialogDescription>
-              {selectedRequisition?.requisition_number || selectedRequisition?.request_number}
+              {selectedRequisition ? getRequestNumber(selectedRequisition) : ""}
             </DialogDescription>
           </DialogHeader>
 
           <div className="space-y-4">
+            {selectedRequisition && (
+              <div className="rounded-md border bg-muted/30 p-3 text-sm space-y-1">
+                <p><span className="font-medium">Requester:</span> {getRequester(selectedRequisition)}</p>
+                <p><span className="font-medium">Location:</span> {getRequesterLocation(selectedRequisition)}</p>
+                <p><span className="font-medium">Department:</span> {getDepartment(selectedRequisition)}</p>
+                <p className="line-clamp-3"><span className="font-medium">Fault:</span> {getFaultSummary(selectedRequisition)}</p>
+              </div>
+            )}
+
             <div>
               <Label htmlFor="action">Action</Label>
               <Select value={processingAction} onValueChange={(v) => setProcessingAction(v as any)}>

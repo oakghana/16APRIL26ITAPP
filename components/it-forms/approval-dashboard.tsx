@@ -7,7 +7,8 @@ import { Button } from "@/components/ui/button"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import { Badge } from "@/components/ui/badge"
 import { useAuth } from "@/lib/auth-context"
-import { Laptop, Wrench, ClipboardList, ShieldCheck, Lock, ArrowRight, Users } from "lucide-react"
+import { Laptop, Wrench, ClipboardList, ShieldCheck, Lock, ArrowRight, Users, Loader2, Trash2 } from "lucide-react"
+import { useToast } from "@/hooks/use-toast"
 import { DepartmentHeadApprovalModule } from "./department-head-approval"
 import { ITServiceDeskProcessingPanel } from "./service-desk-processing"
 import { ITHeadAdminPanel } from "./it-head-admin-panel"
@@ -32,8 +33,10 @@ function LockedSection({ title, description }: { title: string; description: str
 
 export function ITFormsApprovalDashboard() {
   const { user } = useAuth()
+  const { toast } = useToast()
   const role = user?.role || ""
   const department = user?.department || ""
+  const [isDeletingAll, setIsDeletingAll] = useState(false)
 
   // ITD (IT Department) Department Head can act as IT Manager
   const isITDepartmentHead = role === "department_head" && department?.toLowerCase().includes("it")
@@ -79,6 +82,52 @@ export function ITFormsApprovalDashboard() {
     },
   ]
 
+  const deleteAllITForms = async () => {
+    if (role !== "admin") return
+
+    const confirmed = window.confirm(
+      "This will permanently delete ALL IT form requests (Requisitions, New Gadget, Maintenance & Repairs). Continue?"
+    )
+    if (!confirmed) return
+
+    const secondCheck = window.prompt('Type DELETE ALL to confirm this irreversible action:')
+    if (secondCheck !== "DELETE ALL") {
+      toast({
+        title: "Cancelled",
+        description: "Confirmation text did not match. No records were deleted.",
+        variant: "destructive",
+      })
+      return
+    }
+
+    setIsDeletingAll(true)
+    try {
+      const response = await fetch("/api/it-forms/admin-clear", {
+        method: "DELETE",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ userRole: role, userId: user?.id, username: user?.full_name || user?.email || user?.username || "admin" }),
+      })
+
+      const data = await response.json()
+      if (!response.ok) throw new Error(data.error || "Failed to clear IT forms")
+
+      toast({
+        title: "All IT forms deleted",
+        description: `Deleted ${data.deleted?.total || 0} records across all IT form modules.`,
+      })
+
+      window.location.reload()
+    } catch (error: any) {
+      toast({
+        title: "Delete failed",
+        description: error.message || "Unable to delete all IT forms",
+        variant: "destructive",
+      })
+    } finally {
+      setIsDeletingAll(false)
+    }
+  }
+
   return (
     <div className="space-y-6">
       <div className="space-y-2">
@@ -87,6 +136,23 @@ export function ITFormsApprovalDashboard() {
           All staff can request IT services here. Staff requests move through the Department Head first, then IT Office Use by IT staff in location, and finally to IT Head or Admin review.
         </p>
       </div>
+
+      {role === "admin" && (
+        <Card className="border-red-200 bg-red-50/70">
+          <CardContent className="p-4 flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
+            <div>
+              <p className="font-semibold text-red-700">Admin Emergency Reset</p>
+              <p className="text-sm text-red-700/90">
+                Delete all submitted IT form requests when there is a critical fault in form processing.
+              </p>
+            </div>
+            <Button variant="destructive" onClick={deleteAllITForms} disabled={isDeletingAll}>
+              {isDeletingAll ? <Loader2 className="h-4 w-4 mr-2 animate-spin" /> : <Trash2 className="h-4 w-4 mr-2" />}
+              Delete All IT Forms
+            </Button>
+          </CardContent>
+        </Card>
+      )}
 
       <div className="grid gap-4 md:grid-cols-4">
         <Card className="shadow-sm">
