@@ -21,6 +21,12 @@ interface ProductivityData {
   rank: number | null
   totalStaff: number
   grading: "Excellent" | "Good" | "Average" | "Below Average" | "Poor"
+  // Activity-based metrics (store heads & service desk heads)
+  activityBonus?: number
+  activityActions?: number
+  storeIssuances?: number
+  serviceDeskDispatches?: number
+  officeUseProcesses?: number
 }
 
 export function StaffProductivityWidget() {
@@ -231,6 +237,52 @@ export function StaffProductivityWidget() {
             <p className="text-xs text-muted-foreground">assigned to you</p>
           </div>
         </div>
+
+        {/* Activity row — shown only for roles with in-app operational work */}
+        {(user?.role === "it_store_head" || user?.role === "service_desk_head") &&
+          ((productivity.activityActions ?? 0) > 0 || (productivity.storeIssuances ?? 0) > 0) && (
+          <div className="mb-4">
+            <p className="text-xs font-semibold uppercase tracking-wide text-muted-foreground mb-2">In-App Activity Contributions</p>
+            <div className="grid grid-cols-3 gap-3">
+              {user?.role === "it_store_head" && (
+                <div className="bg-white/50 dark:bg-white/5 rounded-lg p-3 border border-white/20">
+                  <div className="flex items-center gap-1.5 mb-1">
+                    <TrendingUp className="h-3.5 w-3.5 text-teal-600" />
+                    <span className="text-xs text-muted-foreground font-medium">Store Issues</span>
+                  </div>
+                  <p className="text-xl font-bold">{productivity.storeIssuances ?? 0}</p>
+                  <p className="text-xs text-muted-foreground">items issued</p>
+                </div>
+              )}
+              {user?.role === "service_desk_head" && (
+                <div className="bg-white/50 dark:bg-white/5 rounded-lg p-3 border border-white/20">
+                  <div className="flex items-center gap-1.5 mb-1">
+                    <Zap className="h-3.5 w-3.5 text-indigo-600" />
+                    <span className="text-xs text-muted-foreground font-medium">Dispatches</span>
+                  </div>
+                  <p className="text-xl font-bold">{productivity.serviceDeskDispatches ?? 0}</p>
+                  <p className="text-xs text-muted-foreground">tickets dispatched</p>
+                </div>
+              )}
+              <div className="bg-white/50 dark:bg-white/5 rounded-lg p-3 border border-white/20">
+                <div className="flex items-center gap-1.5 mb-1">
+                  <CheckCircle className="h-3.5 w-3.5 text-violet-600" />
+                  <span className="text-xs text-muted-foreground font-medium">Office-Use</span>
+                </div>
+                <p className="text-xl font-bold">{productivity.officeUseProcesses ?? 0}</p>
+                <p className="text-xs text-muted-foreground">forms processed</p>
+              </div>
+              <div className="bg-white/50 dark:bg-white/5 rounded-lg p-3 border border-white/20">
+                <div className="flex items-center gap-1.5 mb-1">
+                  <Award className="h-3.5 w-3.5 text-amber-600" />
+                  <span className="text-xs text-muted-foreground font-medium">Activity Bonus</span>
+                </div>
+                <p className="text-xl font-bold">+{productivity.activityBonus ?? 0}</p>
+                <p className="text-xs text-muted-foreground">pts to score</p>
+              </div>
+            </div>
+          </div>
+        )}
 
         {/* Action button */}
         <Button

@@ -30,6 +30,12 @@ interface ProductivityMetrics {
   onTimeRate: number
   productivityScore: number
   speedBonus: number
+  activityBonus: number
+  activityActions: number
+  storeIssuances: number
+  serviceDeskDispatches: number
+  officeUseProcesses: number
+  lastStoreIssuanceAt: string | null
   rank: number
   grading: "Excellent" | "Good" | "Average" | "Below Average" | "Poor"
 }
@@ -107,7 +113,25 @@ export default function StaffPerformanceReport() {
 
   const exportReport = () => {
     const csvData = [
-      ["Rank", "Name", "Email", "Location", "Total Tasks", "Completed", "On-Time", "Avg Days", "Completion %", "On-Time %", "Score", "Grade"],
+      [
+        "Rank",
+        "Name",
+        "Email",
+        "Location",
+        "Total Tasks",
+        "Completed",
+        "On-Time",
+        "Avg Days",
+        "Completion %",
+        "On-Time %",
+        "Store Issuances",
+        "Dispatch Actions",
+        "Office-Use Actions",
+        "Total Activity Actions",
+        "Activity Bonus",
+        "Score",
+        "Grade",
+      ],
       ...metrics.map((m) => [
         m.rank,
         m.staffName,
@@ -119,6 +143,11 @@ export default function StaffPerformanceReport() {
         m.averageCompletionDays,
         m.completionRate,
         m.onTimeRate,
+        m.storeIssuances || 0,
+        m.serviceDeskDispatches || 0,
+        m.officeUseProcesses || 0,
+        m.activityActions || 0,
+        m.activityBonus || 0,
         m.productivityScore,
         m.grading,
       ]),
@@ -246,6 +275,10 @@ export default function StaffPerformanceReport() {
                   <span className="text-muted-foreground">Avg Completion</span>
                   <span className="font-semibold">{performer.averageCompletionDays} days</span>
                 </div>
+                <div className="flex items-center justify-between text-sm">
+                  <span className="text-muted-foreground">Activity Actions</span>
+                  <span className="font-semibold">{performer.activityActions || 0}</span>
+                </div>
               </CardContent>
             </Card>
           ))}
@@ -274,6 +307,10 @@ export default function StaffPerformanceReport() {
                   <TableHead className="text-center">Avg Days</TableHead>
                   <TableHead className="text-center">Complete %</TableHead>
                   <TableHead className="text-center">On-Time %</TableHead>
+                  <TableHead className="text-center">Store Issues</TableHead>
+                  <TableHead className="text-center">Dispatches</TableHead>
+                  <TableHead className="text-center">Office-Use</TableHead>
+                  <TableHead className="text-center">Activity Bonus</TableHead>
                   <TableHead className="text-center">Score</TableHead>
                   <TableHead>Grade</TableHead>
                 </TableRow>
@@ -300,6 +337,10 @@ export default function StaffPerformanceReport() {
                     <TableCell className="text-center">{metric.averageCompletionDays}</TableCell>
                     <TableCell className="text-center">{metric.completionRate}%</TableCell>
                     <TableCell className="text-center">{metric.onTimeRate}%</TableCell>
+                    <TableCell className="text-center">{metric.storeIssuances || 0}</TableCell>
+                    <TableCell className="text-center">{metric.serviceDeskDispatches || 0}</TableCell>
+                    <TableCell className="text-center">{metric.officeUseProcesses || 0}</TableCell>
+                    <TableCell className="text-center">+{metric.activityBonus || 0}</TableCell>
                     <TableCell className="text-center">
                       <span className="font-bold text-lg">{metric.productivityScore}</span>
                     </TableCell>
