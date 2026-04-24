@@ -158,6 +158,9 @@ export function ITEquipmentRequisitionForm({ onSubmit }: { onSubmit: () => void 
 
       <div className="border rounded-lg p-4 bg-muted/30">
         <h3 className="font-semibold text-sm mb-4">Requisition Details</h3>
+        <div className="mb-4 rounded-md border border-dashed border-amber-200 bg-amber-50 px-3 py-2 text-xs text-amber-700 dark:border-amber-800 dark:bg-amber-950/30 dark:text-amber-300">
+          Item S/N is auto-generated during store issuance. Supplier Name is entered by IT Store Head after IT Manager / IT Head / Admin approval.
+        </div>
 
         <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
           <div className="space-y-2">
@@ -167,7 +170,9 @@ export function ITEquipmentRequisitionForm({ onSubmit }: { onSubmit: () => void 
               name="itemSN"
               value={formData.itemSN}
               onChange={handleInputChange}
-              placeholder="Enter item serial number (if applicable)"
+              placeholder="Auto-generated at store issuance"
+              disabled
+              className="opacity-70"
             />
           </div>
 
@@ -178,7 +183,9 @@ export function ITEquipmentRequisitionForm({ onSubmit }: { onSubmit: () => void 
               name="supplierName"
               value={formData.supplierName}
               onChange={handleInputChange}
-              placeholder="Enter supplier name"
+              placeholder="Provided by IT Store Head"
+              disabled
+              className="opacity-70"
             />
           </div>
         </div>

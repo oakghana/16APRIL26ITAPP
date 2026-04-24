@@ -40,6 +40,7 @@ export function StoreHeadIssuanceModule() {
   const [isDetailDialogOpen, setIsDetailDialogOpen] = useState(false)
   const [isIssueDialogOpen, setIsIssueDialogOpen] = useState(false)
   const [issueNotes, setIssueNotes] = useState("")
+  const [supplierName, setSupplierName] = useState("")
   const [isSubmitting, setIsSubmitting] = useState(false)
   const [searchQuery, setSearchQuery] = useState("")
   const [filterTab, setFilterTab] = useState<"pending" | "issued" | "all">("pending")
@@ -108,14 +109,15 @@ export function StoreHeadIssuanceModule() {
   const handleIssue = (req: ITRequisition) => {
     setSelectedRequisition(req)
     setIssueNotes("")
+    setSupplierName("")
     setIsIssueDialogOpen(true)
   }
 
   const submitIssuance = async () => {
-    if (!selectedRequisition || !issueNotes.trim()) {
+    if (!selectedRequisition || !issueNotes.trim() || !supplierName.trim()) {
       toast({
         title: "Required",
-        description: "Please add issuance notes",
+        description: "Please add supplier name and issuance notes",
         variant: "destructive",
       })
       return
@@ -129,6 +131,8 @@ export function StoreHeadIssuanceModule() {
         body: JSON.stringify({
           requisitionId: selectedRequisition.id,
           issuedBy: user?.full_name || "Unknown",
+          userRole: user?.role || "",
+          supplierName,
           notes: issueNotes,
         }),
       })
@@ -314,6 +318,18 @@ export function StoreHeadIssuanceModule() {
             <DialogTitle>Issue Items</DialogTitle>
           </DialogHeader>
           <div className="space-y-4">
+            <div className="space-y-2">
+              <Label htmlFor="supplierName">Supplier Name *</Label>
+              <Input
+                id="supplierName"
+                placeholder="Enter supplier name"
+                value={supplierName}
+                onChange={(e) => setSupplierName(e.target.value)}
+              />
+              <p className="text-xs text-muted-foreground">
+                Item S/N will be auto-generated as a 5-character alphanumeric code when issued.
+              </p>
+            </div>
             <Textarea
               placeholder="Record issuance details (serial numbers, quantities, etc.)..."
               value={issueNotes}
@@ -327,7 +343,7 @@ export function StoreHeadIssuanceModule() {
             </Button>
             <Button
               onClick={submitIssuance}
-              disabled={isSubmitting || !issueNotes.trim()}
+              disabled={isSubmitting || !supplierName.trim() || !issueNotes.trim()}
               className="bg-green-600 hover:bg-green-700"
             >
               {isSubmitting ? <Loader2 className="h-4 w-4 mr-2 animate-spin" /> : null}

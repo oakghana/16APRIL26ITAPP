@@ -6,9 +6,44 @@ const supabaseAdmin = createClient(
   (process.env.SUPABASE_SERVICE_ROLE_KEY ?? "placeholder-build-key")
 )
 
+function generateFiveCharAlphaNumeric() {
+  const alphabet = "ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789"
+  let token = ""
+  for (let i = 0; i < 5; i++) {
+    token += alphabet[Math.floor(Math.random() * alphabet.length)]
+  }
+  return token
+}
+
+async function generateUniqueItemSn() {
+  for (let i = 0; i < 20; i++) {
+    const candidate = generateFiveCharAlphaNumeric()
+    const { data } = await supabaseAdmin
+      .from("it_equipment_requisitions")
+      .select("id")
+      .eq("item_sn", candidate)
+      .limit(1)
+
+    if (!data || data.length === 0) {
+      return candidate
+    }
+  }
+
+  // Fallback with timestamp suffix to avoid hard failure on unlikely collision loops.
+  return `${generateFiveCharAlphaNumeric().slice(0, 3)}${Date.now().toString().slice(-2)}`
+}
+
 export async function POST(request: NextRequest) {
   try {
-    const { requisitionId, issuedBy, notes } = await request.json()
+    const { requisitionId, issuedBy, notes, supplierName, userRole } = await request.json()
+
+    if (!requisitionId || !issuedBy || !notes || !supplierName) {
+      return NextResponse.json({ error: "Missing required fields" }, { status: 400 })
+    }
+
+    if (userRole !== "it_store_head") {
+      return NextResponse.json({ error: "Only IT Store Head can issue and complete supplier details" }, { status: 403 })
+    }
 
     const { data: requisition } = await supabaseAdmin
       .from("it_equipment_requisitions")
@@ -20,11 +55,23 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: "Not found" }, { status: 404 })
     }
 
+    if (!(requisition.it_head_approved || requisition.admin_approved)) {
+      return NextResponse.json({ error: "Requisition must be approved by IT Manager/IT Head or Admin before store issuance" }, { status: 409 })
+    }
+
+    if (requisition.store_head_approved) {
+      return NextResponse.json({ error: "Requisition already issued" }, { status: 409 })
+    }
+
+    const generatedItemSn = requisition.item_sn || (await generateUniqueItemSn())
+
     const updateData: any = {
       store_head_approved: true,
       issued_by: issuedBy,
       issued_at: new Date().toISOString(),
       issuance_notes: notes,
+      supplier_name: supplierName,
+      item_sn: generatedItemSn,
       status: "issued",
       updated_at: new Date().toISOString(),
     }
@@ -34,7 +81,7 @@ export async function POST(request: NextRequest) {
       approver: issuedBy,
       role: "store_head",
       action: "issued",
-      notes,
+      notes: `${notes} | Supplier: ${supplierName} | Item S/N: ${generatedItemSn}`,
       timestamp: new Date().toISOString(),
     })
     updateData.approval_timeline = approvalChain

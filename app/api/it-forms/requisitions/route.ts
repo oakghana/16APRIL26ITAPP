@@ -24,8 +24,6 @@ export async function POST(request: NextRequest) {
     const body = await request.json()
     
     const {
-      itemSN,
-      supplierName,
       itemsRequired,
       purpose,
       requestedBy,
@@ -36,8 +34,6 @@ export async function POST(request: NextRequest) {
     } = body
 
     console.log("[it-requisitions] Creating new IT equipment requisition:", {
-      itemSN,
-      supplierName,
       department,
       requestedBy,
     })
@@ -47,8 +43,9 @@ export async function POST(request: NextRequest) {
     const now = new Date().toISOString()
     const insertData = {
       requisition_number: requisitionNumber,
-      item_sn: itemSN,
-      supplier_name: supplierName,
+      // Requesters cannot set these fields; they are completed at store issuance.
+      item_sn: null,
+      supplier_name: null,
       items_required: itemsRequired,
       purpose: purpose,
       requested_by: requestedBy,

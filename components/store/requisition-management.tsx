@@ -27,6 +27,7 @@ import { useAuth } from "@/lib/auth-context"
 import { canSeeAllLocations } from "@/lib/location-filter"
 import { getLocationOptions } from "@/lib/locations"
 import { useToast } from "@/hooks/use-toast"
+import { DataPagination } from "@/components/ui/data-pagination"
 import {
   AlertDialog,
   AlertDialogAction,
@@ -76,6 +77,28 @@ const statusConfig = {
   rejected: { icon: XCircle, color: "destructive", label: "Rejected" },
 }
 
+const DEFAULT_PAGE_SIZE = 10
+
+type RequisitionTabValue = "all" | "pending" | "approved" | "issued" | "rejected" | "transactions"
+
+const INITIAL_PAGE_STATE: Record<RequisitionTabValue, number> = {
+  all: 1,
+  pending: 1,
+  approved: 1,
+  issued: 1,
+  rejected: 1,
+  transactions: 1,
+}
+
+const INITIAL_PAGE_SIZE_STATE: Record<RequisitionTabValue, number> = {
+  all: DEFAULT_PAGE_SIZE,
+  pending: DEFAULT_PAGE_SIZE,
+  approved: DEFAULT_PAGE_SIZE,
+  issued: DEFAULT_PAGE_SIZE,
+  rejected: DEFAULT_PAGE_SIZE,
+  transactions: DEFAULT_PAGE_SIZE,
+}
+
 export function RequisitionManagement() {
   const [requisitions, setRequisitions] = useState<Requisition[]>([])
   const [transactions, setTransactions] = useState<StockTransaction[]>([])
@@ -115,6 +138,9 @@ export function RequisitionManagement() {
 
   const [filteredRequisitions, setFilteredRequisitions] = useState<Requisition[]>([])
   const [approvedQuantities, setApprovedQuantities] = useState<Record<string, number>>({})
+  const [activeTab, setActiveTab] = useState<RequisitionTabValue>("all")
+  const [pageByTab, setPageByTab] = useState<Record<RequisitionTabValue, number>>(INITIAL_PAGE_STATE)
+  const [pageSizeByTab, setPageSizeByTab] = useState<Record<RequisitionTabValue, number>>(INITIAL_PAGE_SIZE_STATE)
 
   useEffect(() => {
     loadRequisitions()
@@ -233,7 +259,41 @@ export function RequisitionManagement() {
       return siv.includes(term) || requester.includes(term)
     })
     setFilteredRequisitions(filtered)
+    setPageByTab((prev) => ({
+      ...prev,
+      all: 1,
+      pending: 1,
+      approved: 1,
+      issued: 1,
+      rejected: 1,
+    }))
   }, [searchTerm, requisitions])
+
+  const handleTabChange = (value: string) => {
+    const nextTab = value as RequisitionTabValue
+    setActiveTab(nextTab)
+
+    if (nextTab === "transactions") {
+      loadTransactions()
+    }
+  }
+
+  const handlePageChange = (tab: RequisitionTabValue, page: number) => {
+    setPageByTab((prev) => ({ ...prev, [tab]: page }))
+  }
+
+  const handlePageSizeChange = (tab: RequisitionTabValue, pageSize: number) => {
+    setPageSizeByTab((prev) => ({ ...prev, [tab]: pageSize }))
+    setPageByTab((prev) => ({ ...prev, [tab]: 1 }))
+  }
+
+  const paginateItems = <T,>(items: T[], tab: RequisitionTabValue) => {
+    const currentPage = pageByTab[tab]
+    const pageSize = pageSizeByTab[tab]
+    const startIndex = (currentPage - 1) * pageSize
+
+    return items.slice(startIndex, startIndex + pageSize)
+  }
 
   const updateRequisitionStatus = async (reqId: string, newStatus: "approved" | "rejected", approvedBy?: string) => {
     try {
@@ -689,14 +749,14 @@ export function RequisitionManagement() {
         </CardContent>
       </Card>
 
-      <Tabs defaultValue="all" className="space-y-4">
+      <Tabs value={activeTab} onValueChange={handleTabChange} className="space-y-4">
         <TabsList className="grid w-full grid-cols-6">
           <TabsTrigger value="all">All</TabsTrigger>
           <TabsTrigger value="pending">Pending</TabsTrigger>
           <TabsTrigger value="approved">Approved</TabsTrigger>
           <TabsTrigger value="issued">Issued</TabsTrigger>
           <TabsTrigger value="rejected">Rejected</TabsTrigger>
-          <TabsTrigger value="transactions" onClick={loadTransactions} className="flex items-center gap-1">
+          <TabsTrigger value="transactions" className="flex items-center gap-1">
             <Zap className="h-4 w-4" />
             Transactions
           </TabsTrigger>
@@ -704,7 +764,7 @@ export function RequisitionManagement() {
 
         {["all", "pending", "approved", "issued", "rejected"].map((status) => (
           <TabsContent key={status} value={status} className="space-y-4">
-            {getFilteredByStatus(status).map((req) => {
+            {paginateItems(getFilteredByStatus(status), status as RequisitionTabValue).map((req) => {
               const StatusIcon = statusConfig[req.status].icon
               return (
                 <Card key={req.id}>
@@ -1017,6 +1077,18 @@ export function RequisitionManagement() {
                 </CardContent>
               </Card>
             )}
+
+            {getFilteredByStatus(status).length > 0 && (
+              <DataPagination
+                currentPage={pageByTab[status as RequisitionTabValue]}
+                totalItems={getFilteredByStatus(status).length}
+                pageSize={pageSizeByTab[status as RequisitionTabValue]}
+                onPageChange={(page) => handlePageChange(status as RequisitionTabValue, page)}
+                onPageSizeChange={(pageSize) => handlePageSizeChange(status as RequisitionTabValue, pageSize)}
+                pageSizeOptions={[5, 10, 20, 50]}
+                itemLabel="requisitions"
+              />
+            )}
           </TabsContent>
         ))}
 
@@ -1033,56 +1105,68 @@ export function RequisitionManagement() {
               ) : transactions.length === 0 ? (
                 <div className="text-center py-8 text-muted-foreground">No transactions found</div>
               ) : (
-                <div className="overflow-x-auto">
-                  <table className="w-full text-sm">
-                    <thead>
-                      <tr className="border-b bg-slate-50">
-                        <th className="text-left py-3 px-4 font-semibold">Item Name</th>
-                        <th className="text-left py-3 px-4 font-semibold">Type</th>
-                        <th className="text-left py-3 px-4 font-semibold">Quantity</th>
-                        <th className="text-left py-3 px-4 font-semibold">Location</th>
-                        <th className="text-left py-3 px-4 font-semibold">Reference Type</th>
-                        <th className="text-left py-3 px-4 font-semibold">Date</th>
-                        {user?.role === 'admin' && <th className="text-left py-3 px-4 font-semibold">Actions</th>}
-                      </tr>
-                    </thead>
-                    <tbody>
-                      {transactions.map((transaction) => (
-                        <tr key={transaction.id} className="border-b hover:bg-slate-50">
-                          <td className="py-3 px-4 font-medium">{transaction.item_name}</td>
-                          <td className="py-3 px-4">
-                            <Badge className={getTransactionBadgeColor(transaction.transaction_type)}>
-                              {transaction.transaction_type}
-                            </Badge>
-                          </td>
-                          <td className="py-3 px-4">{transaction.quantity}</td>
-                          <td className="py-3 px-4">
-                            <Badge variant="outline">{transaction.location}</Badge>
-                          </td>
-                          <td className="py-3 px-4 text-slate-600 text-xs">{transaction.reference_type}</td>
-                          <td className="py-3 px-4 text-slate-600">
-                            {new Date(transaction.created_at).toLocaleDateString()}
-                          </td>
-                          {user?.role === 'admin' && (
-                            <td className="py-3 px-4">
-                              <Button
-                                variant="ghost"
-                                size="sm"
-                                onClick={() => {
-                                  setSelectedTransaction(transaction)
-                                  setTransactionDeleteDialog(true)
-                                }}
-                                className="text-red-600 hover:text-red-800 hover:bg-red-50"
-                              >
-                                <Trash2 className="h-4 w-4" />
-                              </Button>
-                            </td>
-                          )}
+                <>
+                  <div className="overflow-x-auto">
+                    <table className="w-full text-sm">
+                      <thead>
+                        <tr className="border-b bg-slate-50">
+                          <th className="text-left py-3 px-4 font-semibold">Item Name</th>
+                          <th className="text-left py-3 px-4 font-semibold">Type</th>
+                          <th className="text-left py-3 px-4 font-semibold">Quantity</th>
+                          <th className="text-left py-3 px-4 font-semibold">Location</th>
+                          <th className="text-left py-3 px-4 font-semibold">Reference Type</th>
+                          <th className="text-left py-3 px-4 font-semibold">Date</th>
+                          {user?.role === 'admin' && <th className="text-left py-3 px-4 font-semibold">Actions</th>}
                         </tr>
-                      ))}
-                    </tbody>
-                  </table>
-                </div>
+                      </thead>
+                      <tbody>
+                        {paginateItems(transactions, "transactions").map((transaction) => (
+                          <tr key={transaction.id} className="border-b hover:bg-slate-50">
+                            <td className="py-3 px-4 font-medium">{transaction.item_name}</td>
+                            <td className="py-3 px-4">
+                              <Badge className={getTransactionBadgeColor(transaction.transaction_type)}>
+                                {transaction.transaction_type}
+                              </Badge>
+                            </td>
+                            <td className="py-3 px-4">{transaction.quantity}</td>
+                            <td className="py-3 px-4">
+                              <Badge variant="outline">{transaction.location}</Badge>
+                            </td>
+                            <td className="py-3 px-4 text-slate-600 text-xs">{transaction.reference_type}</td>
+                            <td className="py-3 px-4 text-slate-600">
+                              {new Date(transaction.created_at).toLocaleDateString()}
+                            </td>
+                            {user?.role === 'admin' && (
+                              <td className="py-3 px-4">
+                                <Button
+                                  variant="ghost"
+                                  size="sm"
+                                  onClick={() => {
+                                    setSelectedTransaction(transaction)
+                                    setTransactionDeleteDialog(true)
+                                  }}
+                                  className="text-red-600 hover:text-red-800 hover:bg-red-50"
+                                >
+                                  <Trash2 className="h-4 w-4" />
+                                </Button>
+                              </td>
+                            )}
+                          </tr>
+                        ))}
+                      </tbody>
+                    </table>
+                  </div>
+
+                  <DataPagination
+                    currentPage={pageByTab.transactions}
+                    totalItems={transactions.length}
+                    pageSize={pageSizeByTab.transactions}
+                    onPageChange={(page) => handlePageChange("transactions", page)}
+                    onPageSizeChange={(pageSize) => handlePageSizeChange("transactions", pageSize)}
+                    pageSizeOptions={[5, 10, 20, 50]}
+                    itemLabel="transactions"
+                  />
+                </>
               )}
             </CardContent>
           </Card>
