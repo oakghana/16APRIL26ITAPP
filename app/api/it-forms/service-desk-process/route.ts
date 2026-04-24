@@ -45,6 +45,10 @@ export async function POST(request: NextRequest) {
       )
     }
 
+    if (!["process", "hold"].includes(action)) {
+      return NextResponse.json({ error: "Invalid action" }, { status: 400 })
+    }
+
     // Get the current requisition
     const { data: requisition, error: fetchError } = await supabaseAdmin
       .from(config.table)
@@ -61,17 +65,18 @@ export async function POST(request: NextRequest) {
     }
 
     // Update the requisition
+    const nowIso = new Date().toISOString()
     const updateData: any = {
-      updated_at: new Date().toISOString(),
+      updated_at: nowIso,
     }
 
     if (formType === "requisition") {
       updateData.service_desk_notes = notes
       updateData.service_desk_processed_by = processedBy
-      updateData.service_desk_processed_at = new Date().toISOString()
+      updateData.service_desk_processed_at = nowIso
     } else {
       updateData.confirmed_by = processedBy
-      updateData.confirmed_date = new Date().toISOString().split("T")[0]
+      updateData.confirmed_date = nowIso.split("T")[0]
       updateData.other_comments = [
         requisition.other_comments,
         `IT Office Use ${action === "process" ? "completed" : "hold"} note: ${notes}`,
@@ -94,7 +99,12 @@ export async function POST(request: NextRequest) {
     // Only write approval_timeline when that column exists on the underlying table.
     const hasApprovalTimelineColumn = Object.prototype.hasOwnProperty.call(requisition, "approval_timeline")
     if (hasApprovalTimelineColumn) {
-      const approvalChain = requisition.approval_timeline || requisition.approval_chain || []
+      const existingTimeline = Array.isArray(requisition.approval_timeline)
+        ? requisition.approval_timeline
+        : Array.isArray(requisition.approval_chain)
+          ? requisition.approval_chain
+          : []
+      const approvalChain = [...existingTimeline]
       approvalChain.push({
         approver: processedBy,
         approverId: processedById || null,
@@ -102,7 +112,7 @@ export async function POST(request: NextRequest) {
         role: "it_office_use",
         action: action,
         notes: notes,
-        timestamp: new Date().toISOString(),
+        timestamp: nowIso,
       })
       updateData.approval_timeline = approvalChain
     }
@@ -124,41 +134,57 @@ export async function POST(request: NextRequest) {
 
     // Create notifications
     if (action === "process") {
-      const { data: managerUsers } = await supabaseAdmin
-        .from("profiles")
-        .select("id")
-        .or("role.eq.admin,role.eq.it_head,and(role.eq.department_head,department.ilike.%it%)")
-        .eq("is_active", true)
+      try {
+        const requestNumber = requisition?.[config.numberField] || requisitionId
 
-      if (managerUsers && managerUsers.length > 0) {
-        const managerNotifications = managerUsers.map((manager) => ({
-          user_id: manager.id,
-          title: "Request Ready for IT Head/Admin Review",
-          message: `Request ${requisition[config.numberField]} has completed IT office-use processing and is ready for final review.`,
-          type: "info" as const,
-          category: "approval" as const,
-          reference_type: config.relatedType,
-          reference_id: requisitionId,
-          is_read: false,
-        }))
+        const { data: managerUsers, error: managerQueryError } = await supabaseAdmin
+          .from("profiles")
+          .select("id")
+          .or("role.eq.admin,role.eq.it_head,and(role.eq.department_head,department.ilike.%it%)")
+          .eq("is_active", true)
 
-        await supabaseAdmin
-          .from("notifications")
-          .insert(managerNotifications)
-          .catch((err) => console.error("[v0] Error creating manager notifications:", err))
+        if (managerQueryError) {
+          console.error("[v0] Error loading manager users for notifications:", managerQueryError)
+        }
+
+        if (managerUsers && managerUsers.length > 0) {
+          const managerNotifications = managerUsers.map((manager) => ({
+            user_id: manager.id,
+            title: "Request Ready for IT Head/Admin Review",
+            message: `Request ${requestNumber} has completed IT office-use processing and is ready for final review.`,
+            type: "info" as const,
+            category: "approval" as const,
+            reference_type: config.relatedType,
+            reference_id: requisitionId,
+            is_read: false,
+          }))
+
+          const { error: managerNotifyError } = await supabaseAdmin
+            .from("notifications")
+            .insert(managerNotifications)
+
+          if (managerNotifyError) {
+            console.error("[v0] Error creating manager notifications:", managerNotifyError)
+          }
+        }
+
+        const { error: requesterNotifyError } = await supabaseAdmin.from("notifications").insert({
+          recipient_id: requisition.requested_by_id || null,
+          recipient_type: "staff",
+          title: "Your Request Completed IT Office Use",
+          message: `Your request ${requestNumber} has completed IT office-use checks and is now awaiting IT Head/Admin review.`,
+          type: "it_form_update",
+          related_id: requisitionId,
+          related_type: config.relatedType,
+          read: false,
+        })
+
+        if (requesterNotifyError) {
+          console.error("[v0] Error creating requester notification:", requesterNotifyError)
+        }
+      } catch (notificationError) {
+        console.error("[v0] Non-blocking notification error in office-use processing:", notificationError)
       }
-
-      // Notify requester
-      await supabaseAdmin.from("notifications").insert({
-        recipient_id: requisition.requested_by || requisition.staff_name,
-        recipient_type: "staff",
-        title: "Your Request Completed IT Office Use",
-        message: `Your request ${requisition[config.numberField]} has completed IT office-use checks and is now awaiting IT Head/Admin review.`,
-        type: "it_form_update",
-        related_id: requisitionId,
-        related_type: config.relatedType,
-        read: false,
-      }).catch(err => console.error("[v0] Error creating notification:", err))
     }
 
     return NextResponse.json({
@@ -168,7 +194,7 @@ export async function POST(request: NextRequest) {
   } catch (error) {
     console.error("[v0] API Error in service desk processing:", error)
     return NextResponse.json(
-      { error: "Internal server error" },
+      { error: error instanceof Error ? error.message : "Internal server error" },
       { status: 500 }
     )
   }
