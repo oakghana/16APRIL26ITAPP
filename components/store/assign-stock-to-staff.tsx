@@ -44,6 +44,7 @@ import {
   Mouse,
   HardDrive,
   Edit,
+  Trash2,
   ChevronDown,
   X,
 } from "lucide-react"
@@ -338,13 +339,14 @@ export function AssignStockToStaff() {
   const handleStaffSelect = (staffId: string) => {
     const staff = staffList.find(s => s.id === staffId)
     if (staff) {
+      const staffName = staff.name || staff.email || "Unknown Staff"
       setAssignmentForm(prev => ({
         ...prev,
-        assigned_to_name: staff.name,
+        assigned_to_name: staffName,
         assigned_to_email: staff.email || "",
         department: staff.department || prev.department,
       }))
-      setSelectedStaffName(staff.name)
+      setSelectedStaffName(staffName)
       setStaffSearch("")
       setStaffDropdownOpen(false)
     }
@@ -519,11 +521,13 @@ export function AssignStockToStaff() {
     }
   }
 
+  const normalizedSearchTerm = searchTerm.toLowerCase()
   const filteredStockItems = filterByCategory(
-    stockItems.filter((item) =>
-      item.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
-      item.sku?.toLowerCase().includes(searchTerm.toLowerCase())
-    ),
+    stockItems.filter((item) => {
+      const itemName = (item.name || "").toLowerCase()
+      const itemSku = (item.sku || "").toLowerCase()
+      return itemName.includes(normalizedSearchTerm) || itemSku.includes(normalizedSearchTerm)
+    }),
     categoryFilter
   )
 
@@ -1275,8 +1279,8 @@ export function AssignStockToStaff() {
                             No users available. Use "Add New User" to create one.
                           </div>
                         ) : (() => {
-                          const filtered = staffList.filter(s =>
-                            s.name.toLowerCase().includes(staffSearch.toLowerCase())
+                          const filtered = staffList.filter((s) =>
+                            (s.name || "").toLowerCase().includes(staffSearch.toLowerCase())
                           )
                           return filtered.length === 0 ? (
                             <div className="p-4 text-sm text-muted-foreground text-center">
@@ -1290,7 +1294,7 @@ export function AssignStockToStaff() {
                                 onClick={() => handleStaffSelect(staff.id)}
                                 className="w-full flex items-center justify-between px-3 py-2 text-sm text-left hover:bg-accent hover:text-accent-foreground focus:bg-accent focus:text-accent-foreground outline-none"
                               >
-                                <span>{staff.name}</span>
+                                <span>{staff.name || staff.email || "Unknown Staff"}</span>
                                 {staff.is_active === false ? (
                                   <Badge variant="secondary" className="text-xs ml-2">Inactive</Badge>
                                 ) : (
@@ -1453,9 +1457,9 @@ export function AssignStockToStaff() {
               {/* Hardware Notice */}
               {["Computers", "Printers", "Monitors", "Peripherals", "Hardware", "Network Equipment", "Accessories"].some(
                 cat => selectedItem.category?.toLowerCase().includes(cat.toLowerCase()) ||
-                       selectedItem.name.toLowerCase().includes("laptop") ||
-                       selectedItem.name.toLowerCase().includes("desktop") ||
-                       selectedItem.name.toLowerCase().includes("printer")
+                       (selectedItem.name || "").toLowerCase().includes("laptop") ||
+                       (selectedItem.name || "").toLowerCase().includes("desktop") ||
+                       (selectedItem.name || "").toLowerCase().includes("printer")
               ) && (
                 <div className="p-3 bg-emerald-50 text-emerald-900 rounded-lg text-sm border border-emerald-200">
                   <p className="font-medium">Hardware Item Detected</p>
