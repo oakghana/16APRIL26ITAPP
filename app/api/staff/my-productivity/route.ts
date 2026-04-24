@@ -210,15 +210,21 @@ export async function GET(request: NextRequest) {
     // Calculate volume bonus
     const volumeBonus = Math.min(30, totalCompletedUnits * 0.5)
 
-    // Activity bonus rewards real operational work captured in app flows
+    // Activity bonus rewards real operational work captured in app flows.
+    // Store issuances get higher weight (1.5) since that is the store head's primary work.
     const activityBonus = Math.min(
-      25,
-      storeIssuances * 1.2 + serviceDeskDispatches * 1.0 + officeUseProcesses * 1.0,
+      30,
+      storeIssuances * 1.5 + serviceDeskDispatches * 1.0 + officeUseProcesses * 1.0,
     )
-    
+
+    // Ticket volume bonus: every IT ticket assigned counts, even if still open.
+    // Rewards staff who handle a high volume of requests.
+    const totalTicketCount = (ticketTasks || []).length
+    const ticketVolumeBonus = Math.min(20, totalTicketCount * 0.4)
+
     // Calculate productivity score with volume weighting
     const baseScore = completionRate * 0.4 + onTimeRate * 0.25 + speedBonus * 0.75
-    const productivityScore = Math.round(baseScore + volumeBonus + activityBonus)
+    const productivityScore = Math.round(baseScore + volumeBonus + activityBonus + ticketVolumeBonus)
 
     // Determine grading
     let grading: "Excellent" | "Good" | "Average" | "Below Average" | "Poor"
@@ -228,11 +234,11 @@ export async function GET(request: NextRequest) {
     else if (productivityScore >= 35) grading = "Below Average"
     else grading = "Poor"
 
-    // Get total IT staff count
+    // Get total IT staff count — include all roles measured by the productivity engine
     const { data: allStaff } = await supabase
       .from("profiles")
       .select("id")
-      .in("role", ["it_staff", "it_head", "regional_it_head"])
+      .in("role", ["it_staff", "it_head", "regional_it_head", "it_store_head", "service_desk_head"])
 
     const totalStaff = allStaff?.length || 0
 
@@ -255,10 +261,12 @@ export async function GET(request: NextRequest) {
       speedBonus,
       volumeBonus,
       activityBonus: Math.round(activityBonus * 10) / 10,
+      ticketVolumeBonus: Math.round(ticketVolumeBonus * 10) / 10,
       activityActions,
       storeIssuances,
       serviceDeskDispatches,
       officeUseProcesses,
+      totalTicketCount,
       grading,
       rank,
       totalStaff,

@@ -25,6 +25,7 @@ interface ProductivityMetrics {
   storeIssuances: number
   serviceDeskDispatches: number
   officeUseProcesses: number
+  ticketVolumeBonus: number
   lastStoreIssuanceAt: string | null
   rank: number
   grading: "Excellent" | "Good" | "Average" | "Below Average" | "Poor"
@@ -311,15 +312,20 @@ export async function GET(request: NextRequest) {
       // Workload bonus (up to 35 points) — higher ceiling so high-volume resolvers are differentiated
       const workloadBonus = Math.min(35, Math.sqrt(totalCompletedUnits) * 3)
 
-      // Activity bonus rewards actual in-app operational work for heads
+      // Activity bonus rewards actual in-app operational work for heads.
+      // Store issuances get higher weight (1.5) since that is the store head's primary work.
       const activityBonus = Math.min(
-        25,
-        storeIssuances * 1.2 + serviceDeskDispatches * 1.0 + officeUseProcesses * 1.0,
+        30,
+        storeIssuances * 1.5 + serviceDeskDispatches * 1.0 + officeUseProcesses * 1.0,
       )
 
-      // Final score: completion + on-time + speed + workload throughput
+      // Ticket volume bonus: every IT ticket assigned earns points, even if still open.
+      // Rewards staff who handle a high volume of service requests.
+      const ticketVolumeBonus = Math.min(20, totalTicketTasks * 0.4)
+
+      // Final score: completion + on-time + speed + workload throughput + activity + ticket volume
       const productivityScore = Math.round(
-        completionRate * 0.4 + onTimeRate * 0.22 + speedBonus * 0.65 + workloadBonus + activityBonus
+        completionRate * 0.4 + onTimeRate * 0.22 + speedBonus * 0.65 + workloadBonus + activityBonus + ticketVolumeBonus
       )
 
       const sortedIssuances = [...myStoreAssignments]
@@ -357,6 +363,7 @@ export async function GET(request: NextRequest) {
         serviceDeskDispatches,
         officeUseProcesses,
         lastStoreIssuanceAt,
+        ticketVolumeBonus: Math.round(ticketVolumeBonus * 10) / 10,
         rank: 0,
         grading,
       } as ProductivityMetrics
