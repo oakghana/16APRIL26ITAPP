@@ -90,6 +90,9 @@ export async function POST(request: NextRequest) {
     if (Object.prototype.hasOwnProperty.call(reqData, "it_manager_approved_by")) {
       updateData.it_manager_approved_by = approvedBy
     }
+    if (Object.prototype.hasOwnProperty.call(reqData, "it_manager_approved_by_name")) {
+      updateData.it_manager_approved_by_name = approvedBy
+    }
     if (Object.prototype.hasOwnProperty.call(reqData, "it_manager_approved_at")) {
       updateData.it_manager_approved_at = nowIso
     }
@@ -101,11 +104,17 @@ export async function POST(request: NextRequest) {
     if (Object.prototype.hasOwnProperty.call(reqData, "it_head_approved_by")) {
       updateData.it_head_approved_by = approvedBy
     }
+    if (Object.prototype.hasOwnProperty.call(reqData, "it_head_approved_by_name")) {
+      updateData.it_head_approved_by_name = approvedBy
+    }
     if (Object.prototype.hasOwnProperty.call(reqData, "it_head_approved_at")) {
       updateData.it_head_approved_at = nowIso
     }
     if (Object.prototype.hasOwnProperty.call(reqData, "admin_approved_by") && userRole === "admin") {
       updateData.admin_approved_by = approvedBy
+    }
+    if (Object.prototype.hasOwnProperty.call(reqData, "admin_approved_by_name") && userRole === "admin") {
+      updateData.admin_approved_by_name = approvedBy
     }
     if (Object.prototype.hasOwnProperty.call(reqData, "admin_approved_at") && userRole === "admin") {
       updateData.admin_approved_at = nowIso
@@ -163,6 +172,23 @@ export async function POST(request: NextRequest) {
       if (!updateError) break
 
       const message = String(updateError.message || "")
+      const missingColumnMatch = message.match(/Could not find the '([^']+)' column/i)
+      const missingColumn = missingColumnMatch?.[1]
+
+      if (missingColumn) {
+        if (missingColumn === "approval_timeline" && updateData.approval_timeline) {
+          updateData.approval_chain = updateData.approval_timeline
+        }
+
+        if (missingColumn === "approval_chain" && updateData.approval_chain) {
+          delete updateData.approval_chain
+          continue
+        }
+
+        delete updateData[missingColumn]
+        continue
+      }
+
       if (updateError.code === "22P02" && /invalid input syntax for type uuid/i.test(message)) {
         const uuidByFields = ["it_manager_approved_by", "it_head_approved_by", "admin_approved_by"]
         let changed = false
@@ -178,7 +204,7 @@ export async function POST(request: NextRequest) {
     }
 
     if (updateError) {
-      return NextResponse.json({ error: "Failed to update request" }, { status: 500 })
+      return NextResponse.json({ error: updateError.message || "Failed to update request" }, { status: 500 })
     }
 
     try {

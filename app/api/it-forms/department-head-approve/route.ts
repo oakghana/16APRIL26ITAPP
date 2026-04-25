@@ -30,6 +30,12 @@ function isUuidLike(value?: string | null) {
   return /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(value)
 }
 
+function getRequisitionHodStatusCandidates(action: "approve" | "reject") {
+  return action === "approve"
+    ? ["pending_it_office_use", "pending_service_desk", "approved_by_department_head"]
+    : ["rejected_department_head", "rejected"]
+}
+
 export async function POST(request: NextRequest) {
   try {
     const supabaseAdmin = createClient(
@@ -98,13 +104,13 @@ export async function POST(request: NextRequest) {
 
     const now = new Date().toISOString()
     const approvedByUuid = isUuidLike(approvedById) ? approvedById : null
+    const requisitionStatusCandidates = formType === "requisition" ? getRequisitionHodStatusCandidates(action as "approve" | "reject") : []
+    let requisitionStatusIndex = 0
     const updateData: any = {
       updated_at: now,
       status:
         formType === "requisition"
-          ? action === "approve"
-            ? "pending_it_office_use"
-            : "rejected_department_head"
+          ? requisitionStatusCandidates[requisitionStatusIndex]
           : action === "approve"
             ? "hod_approved"
             : "rejected",
@@ -114,6 +120,7 @@ export async function POST(request: NextRequest) {
       updateData.department_head_notes = notes
       updateData.department_head_approved = action === "approve"
       updateData.department_head_approved_by = approvedBy
+      updateData.department_head_approved_by_name = approvedBy
       updateData.department_head_approved_at = now
       if (action === "approve" && hodSignature) {
         updateData.department_head_signature = hodSignature
@@ -206,6 +213,14 @@ export async function POST(request: NextRequest) {
           }
         }
         if (changed) continue
+      }
+
+      if (/check constraint/i.test(message) && /status/i.test(message) && formType === "requisition") {
+        requisitionStatusIndex += 1
+        if (requisitionStatusCandidates[requisitionStatusIndex]) {
+          updateData.status = requisitionStatusCandidates[requisitionStatusIndex]
+          continue
+        }
       }
       break
     }

@@ -65,6 +65,7 @@ export async function POST(request: NextRequest) {
     if (actingAsAdmin) {
       updateData.admin_approved = action === "approve"
       updateData.admin_approved_by = approvedBy
+      updateData.admin_approved_by_name = approvedBy
       updateData.admin_approved_at = now
       if (action === "approve" && approverSignature) {
         updateData.admin_signature = approverSignature
@@ -74,6 +75,7 @@ export async function POST(request: NextRequest) {
       updateData.it_head_notes = notes
       updateData.it_head_approved = action === "approve"
       updateData.it_head_approved_by = approvedBy
+      updateData.it_head_approved_by_name = approvedBy
       updateData.it_head_approved_at = now
       if (action === "approve" && approverSignature) {
         updateData.it_head_signature = approverSignature
@@ -112,6 +114,23 @@ export async function POST(request: NextRequest) {
       if (!updateError) break
 
       const message = String(updateError.message || "")
+      const missingColumnMatch = message.match(/Could not find the '([^']+)' column/i)
+      const missingColumn = missingColumnMatch?.[1]
+
+      if (missingColumn) {
+        if (missingColumn === "approval_timeline" && updateData.approval_timeline) {
+          updateData.approval_chain = updateData.approval_timeline
+        }
+
+        if (missingColumn === "approval_chain" && updateData.approval_chain) {
+          delete updateData.approval_chain
+          continue
+        }
+
+        delete updateData[missingColumn]
+        continue
+      }
+
       if (updateError.code === "22P02" && /invalid input syntax for type uuid/i.test(message)) {
         const uuidByFields = ["it_head_approved_by", "admin_approved_by"]
         let changed = false

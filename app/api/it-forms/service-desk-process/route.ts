@@ -29,6 +29,11 @@ const supabaseAdmin = createClient(
   (process.env.SUPABASE_SERVICE_ROLE_KEY ?? "placeholder-build-key")
 )
 
+function isUuidLike(value?: string | null) {
+  if (!value) return false
+  return /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(value)
+}
+
 export async function POST(request: NextRequest) {
   try {
     const { requisitionId, action, processedBy, processedById, processedByLocation, notes, formType = "requisition" } = await request.json()
@@ -64,6 +69,8 @@ export async function POST(request: NextRequest) {
       )
     }
 
+    const processedByUuid = isUuidLike(processedById) ? processedById : null
+
     // Update the requisition
     const nowIso = new Date().toISOString()
     const updateData: any = {
@@ -74,8 +81,13 @@ export async function POST(request: NextRequest) {
       updateData.service_desk_notes = notes
       updateData.service_desk_processed_by = processedBy
       updateData.service_desk_processed_at = nowIso
+      updateData.service_desk_approved_by = processedBy
+      updateData.service_desk_approved_by_name = processedBy
+      updateData.service_desk_approved_at = nowIso
+      updateData.service_desk_approval_comments = notes
     } else {
       updateData.confirmed_by = processedBy
+      updateData.confirmed_by_name = processedBy
       updateData.confirmed_date = nowIso.split("T")[0]
       updateData.other_comments = [
         requisition.other_comments,
@@ -117,17 +129,57 @@ export async function POST(request: NextRequest) {
       updateData.approval_timeline = approvalChain
     }
 
-    const { data: updated, error: updateError } = await supabaseAdmin
-      .from(config.table)
-      .update(updateData)
-      .eq("id", requisitionId)
-      .select()
-      .single()
+    let updated: any = null
+    let updateError: any = null
+    for (let attempt = 0; attempt < 6; attempt++) {
+      const result = await supabaseAdmin
+        .from(config.table)
+        .update(updateData)
+        .eq("id", requisitionId)
+        .select()
+        .single()
+
+      updated = result.data
+      updateError = result.error
+      if (!updateError) break
+
+      const message = String(updateError.message || "")
+      const missingColumnMatch = message.match(/Could not find the '([^']+)' column/i)
+      const missingColumn = missingColumnMatch?.[1]
+
+      if (missingColumn) {
+        if (missingColumn === "approval_timeline" && updateData.approval_timeline) {
+          updateData.approval_chain = updateData.approval_timeline
+        }
+
+        if (missingColumn === "approval_chain" && updateData.approval_chain) {
+          delete updateData.approval_chain
+          continue
+        }
+
+        delete updateData[missingColumn]
+        continue
+      }
+
+      if (updateError.code === "22P02" && /invalid input syntax for type uuid/i.test(message)) {
+        const uuidByFields = ["service_desk_approved_by", "service_desk_processed_by", "confirmed_by"]
+        let changed = false
+        for (const field of uuidByFields) {
+          if (Object.prototype.hasOwnProperty.call(updateData, field)) {
+            updateData[field] = processedByUuid
+            changed = true
+          }
+        }
+        if (changed) continue
+      }
+
+      break
+    }
 
     if (updateError) {
       console.error("[v0] Error updating requisition:", updateError)
       return NextResponse.json(
-        { error: "Failed to update requisition" },
+        { error: updateError.message || "Failed to update requisition" },
         { status: 500 }
       )
     }
