@@ -8,7 +8,7 @@
 
    Creating an optimized production build ...
 [baseline-browser-mapping] The data in this module is over two months old.  To ensure accurate Baseline data, please update: `npm i baseline-browser-mapping@latest -D`
- Γ£ô Compiled successfully in 89s
+ Γ£ô Compiled successfully in 58s
    Skipping validation of types
    Collecting page data using 11 workers ...
 [baseline-browser-mapping] The data in this module is over two months old.  To ensure accurate Baseline data, please update: `npm i baseline-browser-mapping@latest -D`
@@ -22,7 +22,7 @@
 [baseline-browser-mapping] The data in this module is over two months old.  To ensure accurate Baseline data, please update: `npm i baseline-browser-mapping@latest -D`
 [baseline-browser-mapping] The data in this module is over two months old.  To ensure accurate Baseline data, please update: `npm i baseline-browser-mapping@latest -D`
 [baseline-browser-mapping] The data in this module is over two months old.  To ensure accurate Baseline data, please update: `npm i baseline-browser-mapping@latest -D`
-   Generating static pages using 11 workers (0/218) ...
+   Generating static pages using 11 workers (0/231) ...
 [baseline-browser-mapping] The data in this module is over two months old.  To ensure accurate Baseline data, please update: `npm i baseline-browser-mapping@latest -D`
 [baseline-browser-mapping] The data in this module is over two months old.  To ensure accurate Baseline data, please update: `npm i baseline-browser-mapping@latest -D`
 [baseline-browser-mapping] The data in this module is over two months old.  To ensure accurate Baseline data, please update: `npm i baseline-browser-mapping@latest -D`
@@ -32,10 +32,11 @@
 [baseline-browser-mapping] The data in this module is over two months old.  To ensure accurate Baseline data, please update: `npm i baseline-browser-mapping@latest -D`
 [baseline-browser-mapping] The data in this module is over two months old.  To ensure accurate Baseline data, please update: `npm i baseline-browser-mapping@latest -D`
 [baseline-browser-mapping] The data in this module is over two months old.  To ensure accurate Baseline data, please update: `npm i baseline-browser-mapping@latest -D`
-   Generating static pages using 11 workers (54/218) 
-   Generating static pages using 11 workers (108/218) 
-   Generating static pages using 11 workers (163/218) 
- Γ£ô Generating static pages using 11 workers (218/218) in 7.3s
+[baseline-browser-mapping] The data in this module is over two months old.  To ensure accurate Baseline data, please update: `npm i baseline-browser-mapping@latest -D`
+   Generating static pages using 11 workers (57/231) 
+   Generating static pages using 11 workers (115/231) 
+   Generating static pages using 11 workers (173/231) 
+ Γ£ô Generating static pages using 11 workers (231/231) in 11.5s
    Finalizing page optimization ...
 
 Route (app)
@@ -43,6 +44,7 @@ Route (app)
 Γö£ Γùï /_not-found
 Γö£ Γùï /admin/reset-password-debug
 Γö£ ╞Æ /api/admin/approve-user
+Γö£ ╞Æ /api/admin/auto-link-all-department-staff
 Γö£ ╞Æ /api/admin/auto-link-department-staff
 Γö£ ╞Æ /api/admin/backup-database
 Γö£ ╞Æ /api/admin/create-user
@@ -88,6 +90,7 @@ Route (app)
 Γö£ ╞Æ /api/debug/verify-joseph-hash
 Γö£ ╞Æ /api/devices
 Γö£ ╞Æ /api/devices/assign-to-staff
+Γö£ ╞Æ /api/devices/associate-toner
 Γö£ ╞Æ /api/devices/bulk-import
 Γö£ ╞Æ /api/devices/by-location
 Γö£ ╞Æ /api/devices/delete
@@ -96,11 +99,13 @@ Route (app)
 Γö£ ╞Æ /api/devices/location-summary
 Γö£ ╞Æ /api/devices/reallocate-locations
 Γö£ ╞Æ /api/devices/summary-report
+Γö£ ╞Æ /api/devices/toner-intelligence
 Γö£ ╞Æ /api/devices/under-repair
 Γö£ ╞Æ /api/devices/update-device
 Γö£ ╞Æ /api/devices/user-allocation-summary
 Γö£ ╞Æ /api/devices/validate-location
 Γö£ ╞Æ /api/investigate-vr
+Γö£ ╞Æ /api/it-forms/admin-clear
 Γö£ ╞Æ /api/it-forms/approve
 Γö£ ╞Æ /api/it-forms/department-head-approve
 Γö£ ╞Æ /api/it-forms/department-head-requisitions
@@ -108,10 +113,14 @@ Route (app)
 Γö£ ╞Æ /api/it-forms/issue
 Γö£ ╞Æ /api/it-forms/it-head-approve
 Γö£ ╞Æ /api/it-forms/maintenance-repairs
+Γö£ ╞Æ /api/it-forms/manager-approve
 Γö£ ╞Æ /api/it-forms/my-requisitions
 Γö£ ╞Æ /api/it-forms/new-gadget
+Γö£ ╞Æ /api/it-forms/office-use-edit
 Γö£ ╞Æ /api/it-forms/requisitions
 Γö£ ╞Æ /api/it-forms/service-desk-process
+Γö£ ╞Æ /api/it-forms/signature-lookup
+Γö£ ╞Æ /api/it-forms/signature-profile
 Γö£ ╞Æ /api/it-forms/store-issue
 Γö£ ╞Æ /api/knowledge-base
 Γö£ ╞Æ /api/locations
@@ -169,6 +178,7 @@ Route (app)
 Γö£ ╞Æ /api/store/assignments
 Γö£ ╞Æ /api/store/auto-approve-requisition
 Γö£ ╞Æ /api/store/categories
+Γö£ ╞Æ /api/store/delete-assignment
 Γö£ ╞Æ /api/store/delete-item
 Γö£ ╞Æ /api/store/delete-requisition
 Γö£ ╞Æ /api/store/delete-transaction
@@ -179,6 +189,7 @@ Route (app)
 Γö£ ╞Æ /api/store/item-history
 Γö£ ╞Æ /api/store/items
 Γö£ ╞Æ /api/store/merge-items
+Γö£ ╞Æ /api/store/my-involved-requests
 Γö£ ╞Æ /api/store/regional-requisitions
 Γö£ ╞Æ /api/store/requisitions
 Γö£ ╞Æ /api/store/stock-additions
@@ -186,12 +197,14 @@ Route (app)
 Γö£ ╞Æ /api/store/stock-items
 Γö£ ╞Æ /api/store/stock-transfer-requests
 Γö£ ╞Æ /api/store/summary-report
+Γö£ ╞Æ /api/store/sync-approved-it-requisitions
 Γö£ ╞Æ /api/store/transactions
 Γö£ ╞Æ /api/store/transfer-central-stores
 Γö£ ╞Æ /api/store/transfer-item
 Γö£ ╞Æ /api/store/update-assignment
 Γö£ ╞Æ /api/store/update-item
 Γö£ ╞Æ /api/store/update-requisition
+Γö£ ╞Æ /api/upload-attachment
 Γö£ ╞Æ /api/users
 Γö£ ╞Æ /api/users/create
 Γö£ ╞Æ /api/users/list
@@ -227,6 +240,7 @@ Route (app)
 Γö£ Γùï /dashboard/it-reports
 Γö£ Γùï /dashboard/it-staff-status
 Γö£ Γùï /dashboard/lookup-data
+Γö£ Γùï /dashboard/my-requests
 Γö£ Γùï /dashboard/notifications
 Γö£ Γùï /dashboard/regional-needs-analysis
 Γö£ Γùï /dashboard/regional-store-requisitions

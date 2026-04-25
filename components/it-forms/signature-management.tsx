@@ -28,8 +28,11 @@ export function SignatureManagementPanel() {
   const [draftSignature, setDraftSignature] = useState<string | null>(null)
 
   const canManage = ["admin", "department_head", "it_head", "regional_it_head"].includes(user?.role || "")
-  const roleLabel =
-    user?.role === "department_head"
+  const isITManager = user?.role === "department_head" && user?.department?.toLowerCase().includes("it")
+  
+  const roleLabel = isITManager
+    ? "IT Manager"
+    : user?.role === "department_head"
       ? "Department Head"
       : user?.role === "regional_it_head"
         ? "Regional IT Head"
@@ -45,7 +48,11 @@ export function SignatureManagementPanel() {
 
     setLoading(true)
     try {
-      const params = new URLSearchParams({ userId: user.id, role: user.role })
+      const params = new URLSearchParams({ 
+        userId: user.id, 
+        role: user.role,
+        ...(user?.department && { department: user.department })
+      })
       const response = await fetch(`/api/it-forms/signature-profile?${params.toString()}`)
       const data = await response.json()
       if (!response.ok) throw new Error(data.error || "Failed to load stored signature")
@@ -80,6 +87,7 @@ export function SignatureManagementPanel() {
           userId: user.id,
           role: user.role,
           signatureDataUrl: draftSignature,
+          ...(user?.department && { department: user.department })
         }),
       })
 
@@ -89,7 +97,7 @@ export function SignatureManagementPanel() {
       setStoredProfile(data.profile)
       toast({
         title: "Signature saved",
-        description: "Your signature has been updated and will be used in approvals.",
+        description: `Your ${roleLabel} signature has been updated and will be used in approvals.`,
       })
     } catch (error: any) {
       toast({
@@ -107,7 +115,7 @@ export function SignatureManagementPanel() {
       <Card>
         <CardHeader>
           <CardTitle>Signature Management</CardTitle>
-          <CardDescription>This section is available to Department Heads, IT Heads, and Admin only.</CardDescription>
+          <CardDescription>This section is available to Department Heads (HOD/IT Manager), Regional IT Heads, IT Heads, and Admin only.</CardDescription>
         </CardHeader>
       </Card>
     )

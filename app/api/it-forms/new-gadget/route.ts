@@ -38,6 +38,7 @@ export async function POST(request: NextRequest) {
       confirmedBy,
       confirmedDate,
       submittedByRole,
+      submittedByEmail, // Email of the person who initiated the request
     } = body
 
     console.log("[new-gadget] Creating new gadget request:", {
@@ -64,6 +65,10 @@ export async function POST(request: NextRequest) {
       recommended: canEditOfficialSections ? (recommended === "yes" ? true : recommended === "no" ? false : null) : null,
       confirmed_by: canEditOfficialSections ? confirmedBy || null : null,
       confirmed_date: canEditOfficialSections ? confirmedDate || null : null,
+      // Initiator tracking - who submitted this form
+      created_by: staffName,
+      created_by_role: submittedByRole,
+      created_by_email: submittedByEmail,
       status: "pending_hod",
       created_at: new Date().toISOString(),
       updated_at: new Date().toISOString(),

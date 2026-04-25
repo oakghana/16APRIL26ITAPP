@@ -7,13 +7,20 @@ const supabaseAdmin = createClient(
 )
 
 function isAllowedRole(role: string | null) {
-  return role === "admin" || role === "department_head" || role === "it_head" || role === "regional_it_head"
+  return (
+    role === "admin" ||
+    role === "department_head" ||
+    role === "it_head" ||
+    role === "regional_it_head" ||
+    role === "it_manager" // IT Manager (typically department_head of IT department)
+  )
 }
 
 export async function GET(request: NextRequest) {
   try {
     const userId = request.nextUrl.searchParams.get("userId")
     const role = request.nextUrl.searchParams.get("role")
+    const department = request.nextUrl.searchParams.get("department")
 
     if (!userId || !role) {
       return NextResponse.json({ error: "userId and role are required" }, { status: 400 })
@@ -23,11 +30,17 @@ export async function GET(request: NextRequest) {
       return NextResponse.json({ error: "Forbidden" }, { status: 403 })
     }
 
+    // For department_head, check if they're IT Manager (IT department head)
+    let queryRole = role
+    if (role === "department_head" && department && department.toLowerCase().includes("it")) {
+      queryRole = "it_manager"
+    }
+
     const { data, error } = await supabaseAdmin
       .from("it_form_signature_profiles")
       .select("*")
       .eq("user_id", userId)
-      .eq("role", role)
+      .eq("role", queryRole)
       .single()
 
     if (error && error.code !== "PGRST116") {
@@ -42,7 +55,7 @@ export async function GET(request: NextRequest) {
 
 export async function PUT(request: NextRequest) {
   try {
-    const { userId, role, signatureDataUrl } = await request.json()
+    const { userId, role, signatureDataUrl, department } = await request.json()
 
     if (!userId || !role || !signatureDataUrl) {
       return NextResponse.json({ error: "Missing required fields" }, { status: 400 })
@@ -52,6 +65,12 @@ export async function PUT(request: NextRequest) {
       return NextResponse.json({ error: "Forbidden" }, { status: 403 })
     }
 
+    // For department_head, check if they're IT Manager (IT department head)
+    let storageRole = role
+    if (role === "department_head" && department && department.toLowerCase().includes("it")) {
+      storageRole = "it_manager"
+    }
+
     const now = new Date().toISOString()
 
     const { data, error } = await supabaseAdmin
@@ -59,7 +78,7 @@ export async function PUT(request: NextRequest) {
       .upsert(
         {
           user_id: userId,
-          role,
+          role: storageRole,
           signature_data_url: signatureDataUrl,
           updated_at: now,
         },
