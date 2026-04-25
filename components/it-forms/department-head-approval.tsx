@@ -1,6 +1,6 @@
 "use client"
 
-import { useState, useEffect } from "react"
+import { useState, useEffect, useCallback } from "react"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
 import { Badge } from "@/components/ui/badge"
@@ -101,34 +101,7 @@ export function DepartmentHeadApprovalModule() {
     }
   }
 
-  useEffect(() => {
-    fetchRequisitions()
-  }, [user?.role, user?.department])
-
-  useEffect(() => {
-    filterRequisitions()
-    setCurrentPage(1)
-  }, [searchQuery, requisitions, filterTab, sortOrder])
-
-  const getRequestNumber = (req: ITFormRequest) => req.requisition_number || req.request_number || req.id
-  const getRequester = (req: ITFormRequest) => req.requested_by || req.staff_name || "Unknown requester"
-  const getDepartment = (req: ITFormRequest) => req.department || req.department_name || "Unknown department"
-  const getSummary = (req: ITFormRequest) => req.items_required || req.complaints_from_users || "No details provided"
-  const getPurpose = (req: ITFormRequest) => req.purpose || req.other_comments || "N/A"
-  const getSubmittedDate = (req: ITFormRequest) => req.request_date || req.created_at
-  const getTypeLabel = (req: ITFormRequest) =>
-    req.formType === "maintenance"
-      ? "Maintenance"
-      : req.formType === "new-gadget"
-        ? "New Gadget"
-        : "Requisition"
-
-  const isRejected = (req: ITFormRequest) => req.status.includes("rejected") || req.department_head_approved === false
-  const isApproved = (req: ITFormRequest) =>
-    req.department_head_approved === true ||
-    ["hod_approved", "pending_manager", "recommended", "not_recommended", "gadget_issued", "sent_for_repair", "repaired", "confirmed_working", "pending_it_office_use", "pending_service_desk", "pending_it_head", "pending_admin", "pending_store", "approved", "issued", "completed"].includes(req.status)
-
-  const fetchRequisitions = async () => {
+  const fetchRequisitions = useCallback(async () => {
     try {
       setLoading(true)
 
@@ -173,7 +146,34 @@ export function DepartmentHeadApprovalModule() {
     } finally {
       setLoading(false)
     }
-  }
+  }, [isDepartmentHead, scopedDepartment, toast])
+
+  useEffect(() => {
+    fetchRequisitions()
+  }, [fetchRequisitions])
+
+  useEffect(() => {
+    filterRequisitions()
+    setCurrentPage(1)
+  }, [searchQuery, requisitions, filterTab, sortOrder])
+
+  const getRequestNumber = (req: ITFormRequest) => req.requisition_number || req.request_number || req.id
+  const getRequester = (req: ITFormRequest) => req.requested_by || req.staff_name || "Unknown requester"
+  const getDepartment = (req: ITFormRequest) => req.department || req.department_name || "Unknown department"
+  const getSummary = (req: ITFormRequest) => req.items_required || req.complaints_from_users || "No details provided"
+  const getPurpose = (req: ITFormRequest) => req.purpose || req.other_comments || "N/A"
+  const getSubmittedDate = (req: ITFormRequest) => req.request_date || req.created_at
+  const getTypeLabel = (req: ITFormRequest) =>
+    req.formType === "maintenance"
+      ? "Maintenance"
+      : req.formType === "new-gadget"
+        ? "New Gadget"
+        : "Requisition"
+
+  const isRejected = (req: ITFormRequest) => req.status.includes("rejected") || req.department_head_approved === false
+  const isApproved = (req: ITFormRequest) =>
+    req.department_head_approved === true ||
+    ["hod_approved", "pending_manager", "recommended", "not_recommended", "gadget_issued", "sent_for_repair", "repaired", "confirmed_working", "pending_it_office_use", "pending_service_desk", "pending_it_head", "pending_admin", "pending_store", "approved", "issued", "completed"].includes(req.status)
 
   const filterRequisitions = () => {
     let filtered = requisitions

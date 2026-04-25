@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from "next/server"
 import { createClient } from "@supabase/supabase-js"
+import { normalizeDepartmentName } from "@/lib/department-options"
 
 type FormType = "requisition" | "new-gadget" | "maintenance"
 
@@ -50,6 +51,10 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: "Digital signature is required for approval" }, { status: 400 })
     }
 
+    if (!approvedById || !isUuidLike(approvedById)) {
+      return NextResponse.json({ error: "Approver identity is required" }, { status: 400 })
+    }
+
     const config = FORM_CONFIG[formType as FormType]
     if (!config) {
       return NextResponse.json({ error: "Unsupported form type" }, { status: 400 })
@@ -64,6 +69,31 @@ export async function POST(request: NextRequest) {
     if (fetchError || !requisition) {
       console.error("[v0] Error fetching requisition:", fetchError)
       return NextResponse.json({ error: "Request not found" }, { status: 404 })
+    }
+
+    const { data: approverProfile, error: profileError } = await supabaseAdmin
+      .from("profiles")
+      .select("role, department")
+      .eq("id", approvedById)
+      .single()
+
+    if (profileError || !approverProfile) {
+      return NextResponse.json({ error: "Approver profile not found" }, { status: 403 })
+    }
+
+    const approverRole = String(approverProfile.role || "").toLowerCase()
+    const approverDepartment = normalizeDepartmentName(approverProfile.department)
+    const requestDepartment = normalizeDepartmentName(requisition.department || requisition.department_name)
+
+    const isAdmin = approverRole === "admin"
+    const isDepartmentHead = approverRole === "department_head"
+
+    if (!isAdmin && !isDepartmentHead) {
+      return NextResponse.json({ error: "Only Admin or Department Head can approve" }, { status: 403 })
+    }
+
+    if (isDepartmentHead && (!requestDepartment || !approverDepartment || approverDepartment !== requestDepartment)) {
+      return NextResponse.json({ error: "You can only approve requests from your department" }, { status: 403 })
     }
 
     const now = new Date().toISOString()
@@ -146,17 +176,22 @@ export async function POST(request: NextRequest) {
 
       const message = String(updateError.message || "")
       if (updateError.code === "22P02" && /invalid input syntax for type uuid/i.test(message)) {
-        if (Object.prototype.hasOwnProperty.call(updateData, "department_head_approved_by")) {
-          updateData.department_head_approved_by = approvedByUuid
-          continue
+        const uuidByFields = ["department_head_approved_by", "departmental_head_name", "sectional_head_name"]
+        let changed = false
+        for (const field of uuidByFields) {
+          if (Object.prototype.hasOwnProperty.call(updateData, field)) {
+            updateData[field] = approvedByUuid
+            changed = true
+          }
         }
+        if (changed) continue
       }
       break
     }
 
     if (updateError) {
       console.error("[v0] Error updating requisition:", updateError)
-      return NextResponse.json({ error: "Failed to update request" }, { status: 500 })
+      return NextResponse.json({ error: updateError.message || "Failed to update request" }, { status: 500 })
     }
 
     const requestNumber = requisition[config.numberField]
