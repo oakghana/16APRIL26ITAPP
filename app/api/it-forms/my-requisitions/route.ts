@@ -18,20 +18,61 @@ export async function GET(request: NextRequest) {
       )
     }
 
-    // Fetch requisitions for the current user
-    const { data: requisitions, error } = await supabaseAdmin
-      .from("it_equipment_requisitions")
-      .select()
-      .eq("requested_by_id", userId)
-      .order("created_at", { ascending: false })
+    // Fetch by requested_by_id (UUID match) OR by email columns as fallback
+    // when the account's requestedById was not a valid UUID at submission time.
+    const [byId, byEmail] = await Promise.all([
+      supabaseAdmin
+        .from("it_equipment_requisitions")
+        .select("*")
+        .eq("requested_by_id", userId)
+        .order("created_at", { ascending: false }),
+      supabaseAdmin
+        .from("it_equipment_requisitions")
+        .select("*")
+        .or(`requested_by_email.eq.${userId},created_by_email.eq.${userId}`)
+        .order("created_at", { ascending: false }),
+    ])
 
-    if (error) {
-      console.error("[v0] Error fetching requisitions:", error)
+    // Also try resolving the userId to an email via profiles for the email fallback
+    const { data: profile } = await supabaseAdmin
+      .from("profiles")
+      .select("email, username")
+      .eq("id", userId)
+      .maybeSingle()
+
+    let byProfileEmail: any[] = []
+    if (profile?.email) {
+      const { data } = await supabaseAdmin
+        .from("it_equipment_requisitions")
+        .select("*")
+        .or(`requested_by_email.eq.${profile.email},created_by_email.eq.${profile.email}`)
+        .order("created_at", { ascending: false })
+      byProfileEmail = data || []
+    }
+
+    if (byId.error && byEmail.error) {
+      console.error("[my-requisitions] Error fetching requisitions:", byId.error)
       return NextResponse.json(
         { error: "Failed to fetch requisitions" },
         { status: 500 }
       )
     }
+
+    // Merge all results, deduplicate by id
+    const seen = new Set<string>()
+    const requisitions: any[] = []
+    for (const row of [...(byId.data || []), ...(byEmail.data || []), ...byProfileEmail]) {
+      if (!seen.has(row.id)) {
+        seen.add(row.id)
+        requisitions.push({
+          ...row,
+          requisition_number: row.requisition_number || row.reg_no || null,
+          department: row.department || row.department_name || null,
+        })
+      }
+    }
+    // Sort merged results newest first
+    requisitions.sort((a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime())
 
     return NextResponse.json({
       success: true,
