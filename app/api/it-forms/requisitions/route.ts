@@ -53,7 +53,7 @@ export async function POST(request: NextRequest) {
       requested_by: requestedBy,
       requested_by_id: requestedById || null,
       requested_by_email: requestedByEmail || null,
-      department: department,
+      department_name: department,
       request_date: requestDate || now,
       status: "pending_department_head",
       approval_timeline: [
@@ -125,7 +125,7 @@ export async function GET(request: NextRequest) {
     }
 
     if (department && department !== "all") {
-      query = query.eq("department", department)
+      query = query.eq("department_name", department)
     }
 
     if (requestedBy) {
@@ -143,7 +143,10 @@ export async function GET(request: NextRequest) {
       return NextResponse.json({ error: error.message }, { status: 500 })
     }
 
-    let requisitions = data || []
+    let requisitions = (data || []).map((r: any) => ({
+      ...r,
+      department: r.department || r.department_name || null,
+    }))
 
     if (officeUseLocation && requisitions.length > 0) {
       const requesterIds = [...new Set(requisitions.map((r: any) => r.requested_by_id).filter(Boolean))]
