@@ -93,7 +93,7 @@ export async function POST(request: NextRequest) {
         updateData.status = "pending_manager"
       }
     } else if (action === "hold") {
-      updateData.status = "hold_it_office_use"
+      updateData.status = formType === "requisition" ? "hold_it_office_use" : "hod_approved"
     }
 
     // Only write approval_timeline when that column exists on the underlying table.

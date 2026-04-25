@@ -142,8 +142,8 @@ export function ITServiceDeskProcessingPanel() {
 
       const pendingStatusesByType: Record<FormType, string[]> = {
         requisition: ["pending_it_office_use", "pending_service_desk"],
-        "new-gadget": ["pending_it_office_use", "hod_approved"],
-        maintenance: ["pending_it_office_use", "hod_approved"],
+        "new-gadget": ["hod_approved"],
+        maintenance: ["hod_approved"],
       }
 
       const officeUseQueue = combined.filter((req) => {
@@ -208,7 +208,7 @@ export function ITServiceDeskProcessingPanel() {
       if (req.formType === "requisition") {
         return req.status === "pending_it_office_use" || req.status === "pending_service_desk"
       }
-      return req.status === "pending_it_office_use" || req.status === "hod_approved"
+      return req.status === "hod_approved"
     }
 
     const isProcessed = (req: ITRequisition) => !isPendingOfficeUse(req)
@@ -258,7 +258,7 @@ export function ITServiceDeskProcessingPanel() {
     const hasLegacyHodApproval = Boolean(req.department_head_approved_by)
     const hasNonRequisitionHodApproval = Boolean(req.departmental_head_name || req.sectional_head_name)
       || req.status === "hod_approved"
-      || ["pending_it_office_use", "pending_service_desk", "pending_manager", "recommended", "not_recommended", "manager_confirmed", "sent_for_repair", "repaired", "confirmed_working"].includes(req.status)
+    || ["pending_service_desk", "pending_manager", "recommended", "not_recommended", "manager_confirmed", "sent_for_repair", "repaired", "confirmed_working"].includes(req.status)
 
     const hodCompleted = req.formType === "requisition" ? hasLegacyHodApproval : hasNonRequisitionHodApproval
 
@@ -278,7 +278,7 @@ export function ITServiceDeskProcessingPanel() {
         {
           stage: "IT Office Use",
           role: "IT Staff",
-          status: req.status === "pending_it_office_use" || req.status === "hod_approved" ? "pending" : "completed",
+          status: req.status === "hod_approved" ? "pending" : "completed",
           approver: req.confirmed_by,
           timestamp: req.confirmed_date,
           notes: req.other_comments,
@@ -389,9 +389,9 @@ export function ITServiceDeskProcessingPanel() {
   const getPendingCount = () =>
     requisitions.filter((r) => {
       if (r.formType === "requisition") return r.status === "pending_it_office_use" || r.status === "pending_service_desk"
-      return r.status === "pending_it_office_use" || r.status === "hod_approved"
+      return r.status === "hod_approved"
     }).length
-  const getProcessedCount = () => requisitions.filter((r) => !((r.formType === "requisition" ? (r.status === "pending_it_office_use" || r.status === "pending_service_desk") : (r.status === "pending_it_office_use" || r.status === "hod_approved")))).length
+  const getProcessedCount = () => requisitions.filter((r) => !((r.formType === "requisition" ? (r.status === "pending_it_office_use" || r.status === "pending_service_desk") : r.status === "hod_approved"))).length
 
   // Can the current user still edit their notes on a completed form?
   const NEXT_STAGE_ACTED: Record<string, string[]> = {

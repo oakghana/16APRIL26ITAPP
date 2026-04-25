@@ -81,7 +81,11 @@ export async function POST(request: NextRequest) {
       updateData.status = action === "approve" ? "pending_admin" : "rejected_it_head"
     }
 
-    const approvalChain = requisition.approval_timeline || requisition.approval_chain || []
+    const approvalChain = Array.isArray(requisition.approval_timeline)
+      ? [...requisition.approval_timeline]
+      : Array.isArray(requisition.approval_chain)
+        ? [...requisition.approval_chain]
+        : []
     approvalChain.push({
       approver: approvedBy,
       role: actingAsAdmin ? "admin" : "it_head",
@@ -123,11 +127,11 @@ export async function POST(request: NextRequest) {
     }
 
     if (updateError) {
-      return NextResponse.json({ error: "Failed to update request" }, { status: 500 })
+      return NextResponse.json({ error: updateError.message || "Failed to update request" }, { status: 500 })
     }
 
     // Notify relevant parties
-    await supabaseAdmin.from("notifications").insert({
+    const { error: notificationError } = await supabaseAdmin.from("notifications").insert({
       recipient_id: action === "approve" ? "admin" : requisition.requested_by,
       recipient_type: action === "approve" ? "admin" : "staff",
       title: `IT Head ${action === "approve" ? "Approved" : "Rejected"} Requisition`,
@@ -136,7 +140,11 @@ export async function POST(request: NextRequest) {
       related_id: requisitionId,
       related_type: "it_equipment_requisition",
       read: false,
-    }).catch(err => console.error("[v0] Notification error:", err))
+    })
+
+    if (notificationError) {
+      console.error("[v0] Notification error:", notificationError)
+    }
 
     return NextResponse.json({ success: true, requisition: updated })
   } catch (error) {
