@@ -134,6 +134,58 @@ function normalizeReportNotes(value?: string | null) {
   return dedupedLines.join("\n")
 }
 
+interface ActorNote {
+  actor: string
+  note: string
+  timestamp?: string
+}
+
+function parseActorNotes(value?: string | null): ActorNote[] {
+  if (!value) return []
+
+  const actorPatterns: Array<{ pattern: RegExp; actor: string }> = [
+    { pattern: /^HOD\s+(?:approval|rejection|approved|rejected)\s+note:\s*/i, actor: "Department Head (HOD)" },
+    { pattern: /^IT\s+Office\s+Use\s+(?:completed|hold)\s+note:\s*/i, actor: "IT Office Use" },
+    { pattern: /^IT\s+Manager\s+(?:approved|rejected)\s+note:\s*/i, actor: "IT Manager" },
+    { pattern: /^IT\s+Head\s+(?:approved|rejected)\s+note:\s*/i, actor: "IT Head" },
+    { pattern: /^Admin\s+(?:approved|rejected)\s+note:\s*/i, actor: "Admin" },
+    { pattern: /^Service\s+Desk\s+(?:processed|hold)\s+note:\s*/i, actor: "Service Desk" },
+  ]
+
+  const seen = new Set<string>()
+  const results: ActorNote[] = []
+
+  for (const line of value.replace(/\r\n?/g, "\n").split("\n")) {
+    const trimmed = line.trim()
+    if (!trimmed) continue
+    const key = trimmed.toLowerCase()
+    if (seen.has(key)) continue
+    seen.add(key)
+
+    let matched = false
+    for (const { pattern, actor } of actorPatterns) {
+      if (pattern.test(trimmed)) {
+        let noteBody = trimmed.replace(pattern, "")
+        // Extract trailing timestamp like (by NAME on ISO_DATE)
+        const byMatch = noteBody.match(/\s*\(by\s+(.+?)\s+on\s+([^)]+)\)\s*$/i)
+        let timestamp: string | undefined
+        if (byMatch) {
+          noteBody = noteBody.slice(0, noteBody.length - byMatch[0].length).trim()
+          timestamp = byMatch[2]
+        }
+        results.push({ actor, note: noteBody || "—", timestamp })
+        matched = true
+        break
+      }
+    }
+    if (!matched && trimmed) {
+      results.push({ actor: "Note", note: trimmed })
+    }
+  }
+
+  return results
+}
+
 async function enrichITFormSignatures(data: ITFormPDFData): Promise<ITFormPDFData> {
   if (data.hodSignature && data.managerSignature) return data
 
@@ -565,10 +617,11 @@ function buildPrintSections(data: ITFormPDFData) {
     ["Department Head Date", data.hodDate],
     ["IT Manager / IT Head", data.managerName],
     ["Manager Date", data.managerDate],
-    ["Additional Notes", normalizeReportNotes(data.extraNotes || data.purpose)],
   ]
 
-  return { commonRows, detailRows, approvalsRows }
+  const actorNotes = parseActorNotes(data.extraNotes || data.purpose)
+
+  return { commonRows, detailRows, approvalsRows, actorNotes }
 }
 
 export function openITFormPrintView(data: ITFormPDFData) {
@@ -587,7 +640,7 @@ export function openITFormPrintView(data: ITFormPDFData) {
           ? "New IT Gadget Request"
           : "IT Equipment Requisition"
 
-    const { commonRows, detailRows, approvalsRows } = buildPrintSections(enrichedData)
+    const { commonRows, detailRows, approvalsRows, actorNotes } = buildPrintSections(enrichedData)
     const logoUrl = `${window.location.origin}${LOGO_PATH}`
     const hodSignatureImg = enrichedData.hodSignature
       ? `<img src="${escapeHtml(enrichedData.hodSignature)}" alt="HOD Signature" class="sig-img" />`
@@ -599,6 +652,20 @@ export function openITFormPrintView(data: ITFormPDFData) {
       rows
         .map(([label, value]) => `<tr><th>${escapeHtml(label)}</th><td>${escapeHtml(value) || "-"}</td></tr>`)
         .join("")
+
+    const renderActorNotes = (notes: ActorNote[]) => {
+      if (!notes.length) return `<tr><th>Notes</th><td>—</td></tr>`
+      return notes.map(({ actor, note, timestamp }) =>
+        `<tr>
+          <th>${escapeHtml(actor)}</th>
+          <td>${escapeHtml(note)}${
+            timestamp
+              ? `<span style="display:block;font-size:11px;color:#64748b;margin-top:2px">${escapeHtml(new Date(timestamp).toLocaleString())}</span>`
+              : ""
+          }</td>
+        </tr>`
+      ).join("")
+    }
 
   printWindow.document.write(`
     <html>
@@ -667,6 +734,11 @@ export function openITFormPrintView(data: ITFormPDFData) {
             <section class="section">
               <h2>Approval and Sign-off</h2>
               <table>${renderRows(approvalsRows)}</table>
+            </section>
+
+            <section class="section">
+              <h2>Approval Notes</h2>
+              <table>${renderActorNotes(actorNotes)}</table>
             </section>
 
             <section class="section">
