@@ -291,6 +291,11 @@ export function ITServiceDeskProcessingPanel() {
       ]
     }
 
+    const adminStageCompleted =
+      Boolean(req.admin_approved) ||
+      Boolean(req.it_head_approved) ||
+      ["pending_store", "approved", "issued", "completed"].includes(req.status)
+
     return [
       {
         stage: "Department Head Review",
@@ -316,7 +321,7 @@ export function ITServiceDeskProcessingPanel() {
       {
         stage: "Admin Approval",
         role: "Admin",
-        status: req.admin_approved ? "completed" : "pending",
+        status: adminStageCompleted ? "completed" : "pending",
       },
       {
         stage: "Store Head Issuance",

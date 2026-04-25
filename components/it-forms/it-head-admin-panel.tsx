@@ -280,6 +280,11 @@ export function ITHeadAdminPanel() {
       ]
     }
 
+    const adminStageCompleted =
+      Boolean(req.admin_approved) ||
+      Boolean(req.it_head_approved) ||
+      ["pending_store", "approved", "issued", "completed"].includes(req.status)
+
     return [
       {
         stage: "Department Head Review",
@@ -308,10 +313,10 @@ export function ITHeadAdminPanel() {
       {
         stage: "Admin Approval",
         role: "Admin",
-        status: req.admin_approved ? "completed" : req.status === "rejected_admin" ? "rejected" : "pending",
-        approver: req.admin_approved_by,
-        timestamp: req.admin_approved_at,
-        signatureDataUrl: req.admin_signature,
+        status: adminStageCompleted ? "completed" : req.status === "rejected_admin" ? "rejected" : "pending",
+        approver: req.admin_approved_by || (adminStageCompleted ? (req.it_head_approved_by || "Auto-completed") : undefined),
+        timestamp: req.admin_approved_at || req.it_head_approved_at,
+        signatureDataUrl: req.admin_signature || req.it_head_signature,
       },
       {
         stage: "Store Head Issuance",
@@ -372,13 +377,15 @@ export function ITHeadAdminPanel() {
         ? "/api/it-forms/it-head-approve"
         : "/api/it-forms/manager-approve"
 
+      const requisitionApproverRole = selectedRequisition.status === "pending_admin" ? "admin" : "it_head"
+
       const payload = selectedRequisition.formType === "requisition"
         ? {
             requisitionId: selectedRequisition.id,
             action: approvalAction,
             approvedBy: user?.full_name || "Unknown",
             approvedById: user?.id,
-            approverRole: user?.role || "it_head",
+        approverRole: requisitionApproverRole,
             notes: approvalNotes,
             approverSignature: approvalAction === "approve" ? approverSignature : undefined,
             userRole: user?.role,

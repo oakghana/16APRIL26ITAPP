@@ -24,9 +24,27 @@ function isAuthorizedForRole(approverRole: string | undefined, userRole: string,
   return false
 }
 
+function normalizeRole(value?: string | null) {
+  return (value || "").trim().toLowerCase().replace(/\s+/g, "_")
+}
+
+function normalizeApproverRole(value?: string | null) {
+  const role = normalizeRole(value)
+  if (role === "admin") return "admin"
+  if (role === "it_head") return "it_head"
+  if (role === "it_manager" || role === "regional_it_head" || role === "department_head") {
+    return "it_head"
+  }
+  return "it_head"
+}
+
 export async function POST(request: NextRequest) {
   try {
     const { requisitionId, action, approvedBy, approvedById, approverRole, notes, approverSignature, userRole, userDepartment } = await request.json()
+
+    const normalizedApproverRole = normalizeApproverRole(approverRole)
+    const normalizedUserRole = normalizeRole(userRole)
+    const normalizedUserDepartment = (userDepartment || "").trim().toLowerCase()
 
     if (!requisitionId || !action || !approvedBy) {
       return NextResponse.json({ error: "Missing required fields" }, { status: 400 })
@@ -36,7 +54,7 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: "Invalid action" }, { status: 400 })
     }
 
-    if (!isAuthorizedForRole(approverRole, userRole, userDepartment)) {
+    if (!isAuthorizedForRole(normalizedApproverRole, normalizedUserRole, normalizedUserDepartment)) {
       return NextResponse.json({ error: "Unauthorized to approve in this role" }, { status: 403 })
     }
 
@@ -54,8 +72,9 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: "Not found" }, { status: 404 })
     }
 
-    const actingAsAdmin = approverRole === "admin"
+    const actingAsAdmin = normalizedApproverRole === "admin"
     const approvedByUuid = isUuidLike(approvedById) ? approvedById : null
+    const approverIdValue = approvedByUuid || approvedBy
     const now = new Date().toISOString()
 
     const updateData: any = {
@@ -64,7 +83,7 @@ export async function POST(request: NextRequest) {
 
     if (actingAsAdmin) {
       updateData.admin_approved = action === "approve"
-      updateData.admin_approved_by = approvedBy
+      updateData.admin_approved_by = approverIdValue
       updateData.admin_approved_by_name = approvedBy
       updateData.admin_approved_at = now
       if (action === "approve" && approverSignature) {
@@ -74,13 +93,25 @@ export async function POST(request: NextRequest) {
     } else {
       updateData.it_head_notes = notes
       updateData.it_head_approved = action === "approve"
-      updateData.it_head_approved_by = approvedBy
+      updateData.it_head_approved_by = approverIdValue
       updateData.it_head_approved_by_name = approvedBy
       updateData.it_head_approved_at = now
       if (action === "approve" && approverSignature) {
         updateData.it_head_signature = approverSignature
       }
-      updateData.status = action === "approve" ? "pending_admin" : "rejected_it_head"
+      if (action === "approve") {
+        // Business rule: IT Head/Manager approval is final for this stage; no extra admin approval gate.
+        updateData.admin_approved = true
+        updateData.admin_approved_by = approverIdValue
+        updateData.admin_approved_by_name = approvedBy
+        updateData.admin_approved_at = now
+        if (approverSignature) {
+          updateData.admin_signature = approverSignature
+        }
+        updateData.status = "pending_store"
+      } else {
+        updateData.status = "rejected_it_head"
+      }
     }
 
     const approvalChain = Array.isArray(requisition.approval_timeline)

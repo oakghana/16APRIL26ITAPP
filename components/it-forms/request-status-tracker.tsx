@@ -283,6 +283,11 @@ export function RequestStatusTracker({
       ]
     }
 
+    const adminStageCompleted =
+      Boolean(req.admin_approved) ||
+      Boolean(req.it_head_approved) ||
+      ["pending_store", "approved", "issued", "completed"].includes(req.status)
+
     return [
       {
         stage: "Department Head Review",
@@ -311,10 +316,10 @@ export function RequestStatusTracker({
       {
         stage: "Admin Approval",
         role: "Admin",
-        status: req.admin_approved ? "completed" : "pending",
-        approver: req.admin_approved_by,
-        timestamp: req.admin_approved_at,
-        signatureDataUrl: req.admin_signature,
+        status: adminStageCompleted ? "completed" : "pending",
+        approver: req.admin_approved_by || (adminStageCompleted ? (req.it_head_approved_by || "Auto-completed") : undefined),
+        timestamp: req.admin_approved_at || req.it_head_approved_at,
+        signatureDataUrl: req.admin_signature || req.it_head_signature,
       },
       {
         stage: "Store Head Issuance",
@@ -362,7 +367,6 @@ export function RequestStatusTracker({
     if (req.department_head_approved === false) return "Your request was rejected"
     if (!req.service_desk_approved) return "Awaiting IT office-use completion by IT staff"
     if (!req.it_head_approved) return "Awaiting IT Head review"
-    if (!req.admin_approved) return "Awaiting Admin approval"
     if (!req.store_head_approved) return "Ready for store issuance"
     return "Request completed"
   }
