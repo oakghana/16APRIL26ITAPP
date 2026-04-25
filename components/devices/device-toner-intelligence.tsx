@@ -9,7 +9,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog"
-import { Loader2, Printer, Copy, AlertTriangle, CheckCircle2, Droplets, Search, Link2, Download } from "lucide-react"
+import { Loader2, Printer, Copy, AlertTriangle, CheckCircle2, Droplets, Search, Link2, Download, BarChart3 } from "lucide-react"
 import { useAuth } from "@/lib/auth-context"
 import { DataPagination } from "@/components/ui/data-pagination"
 import { useToast } from "@/hooks/use-toast"
@@ -80,6 +80,21 @@ type TonerResponse = {
   }
   locations: LocationGroup[]
   tonerCatalog: TonerCatalogItem[]
+}
+
+type SimilarMappingSuggestion = {
+  sourceDeviceId: string
+  sourceLabel: string
+  tonerType: string
+  tonerModel: string
+  score: number
+}
+
+function normalizeToken(value: string | null | undefined): string {
+  return String(value || "")
+    .toLowerCase()
+    .replace(/[^a-z0-9]+/g, "")
+    .trim()
 }
 
 function signalBadge(signal: TonerSignal) {
@@ -253,6 +268,117 @@ export function DeviceTonerIntelligence() {
     })
   }, [visibleLocations, searchTerm])
 
+  const executiveSummary = useMemo(() => {
+    const allVisibleDevices = visibleLocations.flatMap((loc) => [...loc.printers, ...loc.photocopiers])
+
+    const uniquePrinterModels = new Set(
+      allVisibleDevices
+        .map((d) => `${d.brand} ${d.model}`.trim())
+        .filter(Boolean)
+    )
+
+    const uniqueTonerTypes = new Set(
+      allVisibleDevices
+        .map((d) => (d.tonerType || "").trim())
+        .filter((v) => v && v.toLowerCase() !== "not set")
+    )
+
+    const tonerTypesByLocation = visibleLocations.map((loc) => {
+      const locDevices = [...loc.printers, ...loc.photocopiers]
+      const printerTypeCounts: Record<string, number> = {}
+
+      locDevices.forEach((d) => {
+        const modelKey = `${d.brand} ${d.model}`.trim() || "Unknown"
+        printerTypeCounts[modelKey] = (printerTypeCounts[modelKey] || 0) + 1
+      })
+
+      const deviceTonerTypes = Array.from(
+        new Set(
+          locDevices
+            .map((d) => (d.tonerType || "").trim())
+            .filter((v) => v && v.toLowerCase() !== "not set")
+        )
+      )
+
+      const tonerBreakdown = deviceTonerTypes
+        .map((tonerType) => {
+          const tonerToken = normalizeToken(tonerType)
+          const matchingCatalog = tonerCatalog.filter((item) => {
+            const blob = normalizeToken(`${item.name} ${item.category}`)
+            return blob.includes(tonerToken) || tonerToken.includes(blob)
+          })
+
+          const locationQty = matchingCatalog
+            .filter((item) => item.location === loc.location)
+            .reduce((sum, item) => sum + item.quantity, 0)
+
+          const globalQty = matchingCatalog.reduce((sum, item) => sum + item.quantity, 0)
+          const printersUsing = locDevices.filter((d) => normalizeToken(d.tonerType) === tonerToken).length
+
+          return {
+            tonerType,
+            locationQty,
+            globalQty,
+            printersUsing,
+          }
+        })
+        .sort((a, b) => a.tonerType.localeCompare(b.tonerType))
+
+      const printerTypes = Object.entries(printerTypeCounts)
+        .map(([model, count]) => ({ model, count }))
+        .sort((a, b) => b.count - a.count)
+
+      return {
+        location: loc.location,
+        totalDevices: loc.totalDevices,
+        totalPrinters: loc.printers.length,
+        totalPhotocopiers: loc.photocopiers.length,
+        needsNow: loc.needsNow,
+        lowStock: loc.lowStock,
+        printerTypes,
+        tonerBreakdown,
+      }
+    })
+
+    return {
+      totalLocations: visibleLocations.length,
+      totalDevices: allVisibleDevices.length,
+      totalPrinters: allVisibleDevices.filter((d) => d.deviceType.toLowerCase() === "printer").length,
+      totalPhotocopiers: allVisibleDevices.filter((d) => d.deviceType.toLowerCase() === "photocopier").length,
+      uniquePrinterModels: uniquePrinterModels.size,
+      uniqueTonerTypes: uniqueTonerTypes.size,
+      tonerTypesByLocation,
+    }
+  }, [visibleLocations, tonerCatalog])
+
+  const executiveCharts = useMemo(() => {
+    const topLocations = executiveSummary.tonerTypesByLocation
+      .map((loc) => ({
+        location: loc.location,
+        printers: loc.totalPrinters,
+        photocopiers: loc.totalPhotocopiers,
+        total: loc.totalPrinters + loc.totalPhotocopiers,
+      }))
+      .sort((a, b) => b.total - a.total)
+      .slice(0, 8)
+
+    const tonerQtyMap = new Map<string, number>()
+    tonerCatalog.forEach((item) => {
+      const key = (item.name || "Unknown").trim() || "Unknown"
+      tonerQtyMap.set(key, (tonerQtyMap.get(key) || 0) + Number(item.quantity || 0))
+    })
+
+    const topToners = Array.from(tonerQtyMap.entries())
+      .map(([name, qty]) => ({ name, qty }))
+      .sort((a, b) => b.qty - a.qty)
+      .slice(0, 10)
+
+    const maxLocationTotal = Math.max(...topLocations.map((x) => x.total), 1)
+    const maxTonerQty = Math.max(...topToners.map((x) => x.qty), 1)
+
+    return { topLocations, topToners, maxLocationTotal, maxTonerQty }
+  }, [executiveSummary.tonerTypesByLocation, tonerCatalog])
+
   const totalDevices = visibleDevicesAll.length
   const totalPages = Math.max(1, Math.ceil(totalDevices / pageSize))
   const safePage = Math.min(page, totalPages)
@@ -281,6 +407,48 @@ export function DeviceTonerIntelligence() {
     if (!q) return scoped
     return scoped.filter((item) => (`${item.name} ${item.category} ${item.location}`).toLowerCase().includes(q))
   }, [tonerCatalog, associateDevice, associateSearch])
+
+  const similarMappingSuggestions = useMemo<SimilarMappingSuggestion[]>(() => {
+    if (!associateDevice) return []
+
+    const allDevices = locations.flatMap((loc) => [...loc.printers, ...loc.photocopiers])
+
+    const candidates = allDevices
+      .filter((d) => d.id !== associateDevice.id)
+      .filter((d) => d.hasAssociatedToners || (d.tonerType && d.tonerType.toLowerCase() !== "not set"))
+      .map((d) => {
+        let score = 0
+
+        if ((d.brand || "").toLowerCase() === (associateDevice.brand || "").toLowerCase()) score += 3
+        if ((d.model || "").toLowerCase() === (associateDevice.model || "").toLowerCase()) score += 4
+        if ((d.deviceType || "").toLowerCase() === (associateDevice.deviceType || "").toLowerCase()) score += 1
+        if ((d.location || "").toLowerCase() === (associateDevice.location || "").toLowerCase()) score += 1
+
+        const targetModel = normalizeToken(associateDevice.model)
+        const candModel = normalizeToken(d.model)
+        if (targetModel && candModel && (targetModel.includes(candModel) || candModel.includes(targetModel))) {
+          score += 2
+        }
+
+        return {
+          sourceDeviceId: d.id,
+          sourceLabel: `${d.brand} ${d.model} (${d.location})`,
+          tonerType: d.tonerType || "",
+          tonerModel: d.tonerModel || "",
+          score,
+        }
+      })
+      .filter((x) => x.score > 0 && x.tonerType && x.tonerType.toLowerCase() !== "not set")
+      .sort((a, b) => b.score - a.score)
+
+    const dedup = new Map<string, SimilarMappingSuggestion>()
+    candidates.forEach((c) => {
+      const key = `${normalizeToken(c.tonerType)}|${normalizeToken(c.tonerModel)}`
+      if (!dedup.has(key)) dedup.set(key, c)
+    })
+
+    return Array.from(dedup.values()).slice(0, 5)
+  }, [associateDevice, locations])
 
   const handleSaveAssociation = async () => {
     if (!associateDevice || !user) return
@@ -390,6 +558,73 @@ export function DeviceTonerIntelligence() {
     const a = document.createElement("a")
     a.href = url
     a.download = `printer-photocopier-toner-breakdown-${new Date().toISOString().split("T")[0]}.csv`
+    a.click()
+    URL.revokeObjectURL(url)
+  }
+
+  const exportExecutiveSummaryCsv = () => {
+    const rows: string[][] = []
+    rows.push(["Executive Summary", ""])
+    rows.push(["Generated At", new Date().toLocaleString()])
+    rows.push(["Locations", String(executiveSummary.totalLocations)])
+    rows.push(["Devices", String(executiveSummary.totalDevices)])
+    rows.push(["Printers", String(executiveSummary.totalPrinters)])
+    rows.push(["Photocopiers", String(executiveSummary.totalPhotocopiers)])
+    rows.push(["Unique Printer Models", String(executiveSummary.uniquePrinterModels)])
+    rows.push(["Unique Toner Types", String(executiveSummary.uniqueTonerTypes)])
+    rows.push([])
+
+    rows.push(["By Location", "", "", "", ""])
+    rows.push(["Location", "Total Devices", "Printers", "Photocopiers", "Low/Urgent"])
+    executiveSummary.tonerTypesByLocation.forEach((loc) => {
+      rows.push([
+        loc.location,
+        String(loc.totalDevices),
+        String(loc.totalPrinters),
+        String(loc.totalPhotocopiers),
+        `${loc.lowStock}/${loc.needsNow}`,
+      ])
+    })
+    rows.push([])
+
+    rows.push(["Location", "Printer Model", "Count", "Toner Type", "Qty in Location", "Qty in All Locations", "Printers Using"])
+    executiveSummary.tonerTypesByLocation.forEach((loc) => {
+      if (loc.printerTypes.length === 0 && loc.tonerBreakdown.length === 0) {
+        rows.push([loc.location, "", "0", "", "0", "0", "0"])
+        return
+      }
+
+      const maxLen = Math.max(loc.printerTypes.length, loc.tonerBreakdown.length)
+      for (let i = 0; i < maxLen; i++) {
+        const p = loc.printerTypes[i]
+        const t = loc.tonerBreakdown[i]
+        rows.push([
+          i === 0 ? loc.location : "",
+          p?.model || "",
+          p ? String(p.count) : "",
+          t?.tonerType || "",
+          t ? String(t.locationQty) : "",
+          t ? String(t.globalQty) : "",
+          t ? String(t.printersUsing) : "",
+        ])
+      }
+    })
+
+    const csv = rows
+      .map((row) => row.map((cell) => {
+        const value = String(cell ?? "")
+        if (value.includes(",") || value.includes('"') || value.includes("\n")) {
+          return `"${value.replace(/"/g, '""')}"`
+        }
+        return value
+      }).join(","))
+      .join("\n")
+
+    const blob = new Blob([csv], { type: "text/csv;charset=utf-8;" })
+    const url = URL.createObjectURL(blob)
+    const a = document.createElement("a")
+    a.href = url
+    a.download = `printer-toner-executive-summary-${new Date().toISOString().split("T")[0]}.csv`
     a.click()
     URL.revokeObjectURL(url)
   }
@@ -510,6 +745,7 @@ export function DeviceTonerIntelligence() {
         <TabsList>
           <TabsTrigger value="devices">Devices</TabsTrigger>
           <TabsTrigger value="location-groups">Location Breakdown</TabsTrigger>
+          <TabsTrigger value="executive-summary">Executive Summary</TabsTrigger>
         </TabsList>
 
         <TabsContent value="devices" className="space-y-3">
@@ -594,6 +830,167 @@ export function DeviceTonerIntelligence() {
             </Card>
           ))}
         </TabsContent>
+
+        <TabsContent value="executive-summary" className="space-y-3">
+          <Card>
+            <CardHeader>
+              <div className="flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
+                <div>
+                  <CardTitle>Executive Summary and Metrics</CardTitle>
+                  <CardDescription>
+                    Printer types, toner types, and toner quantities across all locations with location-level breakdown.
+                  </CardDescription>
+                </div>
+                <Button onClick={exportExecutiveSummaryCsv} variant="outline" className="gap-2">
+                  <Download className="h-4 w-4" />
+                  Export Executive CSV
+                </Button>
+              </div>
+            </CardHeader>
+            <CardContent>
+              <div className="grid grid-cols-2 gap-3 md:grid-cols-6">
+                <div className="rounded-md border p-3">
+                  <p className="text-xs text-muted-foreground">Locations</p>
+                  <p className="text-2xl font-bold">{executiveSummary.totalLocations}</p>
+                </div>
+                <div className="rounded-md border p-3">
+                  <p className="text-xs text-muted-foreground">Devices</p>
+                  <p className="text-2xl font-bold">{executiveSummary.totalDevices}</p>
+                </div>
+                <div className="rounded-md border p-3">
+                  <p className="text-xs text-muted-foreground">Printers</p>
+                  <p className="text-2xl font-bold">{executiveSummary.totalPrinters}</p>
+                </div>
+                <div className="rounded-md border p-3">
+                  <p className="text-xs text-muted-foreground">Photocopiers</p>
+                  <p className="text-2xl font-bold">{executiveSummary.totalPhotocopiers}</p>
+                </div>
+                <div className="rounded-md border p-3">
+                  <p className="text-xs text-muted-foreground">Printer Models</p>
+                  <p className="text-2xl font-bold">{executiveSummary.uniquePrinterModels}</p>
+                </div>
+                <div className="rounded-md border p-3">
+                  <p className="text-xs text-muted-foreground">Toner Types</p>
+                  <p className="text-2xl font-bold">{executiveSummary.uniqueTonerTypes}</p>
+                </div>
+              </div>
+            </CardContent>
+          </Card>
+
+          <Card>
+            <CardHeader>
+              <CardTitle className="flex items-center gap-2 text-base">
+                <BarChart3 className="h-4 w-4 text-sky-600" />
+                Visual Metrics Snapshot
+              </CardTitle>
+              <CardDescription>
+                Quick view of top locations by printer volume and top toner types by total stock quantity.
+              </CardDescription>
+            </CardHeader>
+            <CardContent>
+              <div className="grid grid-cols-1 gap-4 lg:grid-cols-2">
+                <div className="rounded-md border p-3">
+                  <p className="mb-3 font-medium">Top Locations by Printer/Copier Count</p>
+                  <div className="space-y-2">
+                    {executiveCharts.topLocations.length === 0 ? (
+                      <p className="text-sm text-muted-foreground">No location data.</p>
+                    ) : (
+                      executiveCharts.topLocations.map((item) => {
+                        const width = Math.max(8, Math.round((item.total / executiveCharts.maxLocationTotal) * 100))
+                        return (
+                          <div key={`loc-chart-${item.location}`}>
+                            <div className="mb-1 flex items-center justify-between text-xs">
+                              <span className="truncate pr-2">{item.location}</span>
+                              <span className="font-medium">{item.total}</span>
+                            </div>
+                            <div className="h-2 w-full rounded bg-muted">
+                              <div className="h-2 rounded bg-sky-600" style={{ width: `${width}%` }} />
+                            </div>
+                          </div>
+                        )
+                      })
+                    )}
+                  </div>
+                </div>
+
+                <div className="rounded-md border p-3">
+                  <p className="mb-3 font-medium">Top Toner Types by Quantity (All Locations)</p>
+                  <div className="space-y-2">
+                    {executiveCharts.topToners.length === 0 ? (
+                      <p className="text-sm text-muted-foreground">No toner inventory data.</p>
+                    ) : (
+                      executiveCharts.topToners.map((item) => {
+                        const width = Math.max(8, Math.round((item.qty / executiveCharts.maxTonerQty) * 100))
+                        return (
+                          <div key={`toner-chart-${item.name}`}>
+                            <div className="mb-1 flex items-center justify-between text-xs">
+                              <span className="truncate pr-2">{item.name}</span>
+                              <span className="font-medium">{item.qty}</span>
+                            </div>
+                            <div className="h-2 w-full rounded bg-muted">
+                              <div className="h-2 rounded bg-emerald-600" style={{ width: `${width}%` }} />
+                            </div>
+                          </div>
+                        )
+                      })
+                    )}
+                  </div>
+                </div>
+              </div>
+            </CardContent>
+          </Card>
+
+          {executiveSummary.tonerTypesByLocation.map((loc) => (
+            <Card key={`exec-${loc.location}`}>
+              <CardHeader>
+                <CardTitle className="text-lg">{loc.location}</CardTitle>
+                <CardDescription>
+                  {loc.totalDevices} devices | {loc.totalPrinters} printers | {loc.totalPhotocopiers} photocopiers | {loc.needsNow} urgent | {loc.lowStock} low stock
+                </CardDescription>
+              </CardHeader>
+              <CardContent className="space-y-4">
+                <div className="grid grid-cols-1 gap-4 lg:grid-cols-2">
+                  <div className="rounded-md border p-3">
+                    <p className="mb-2 font-medium">Printer Type Breakdown</p>
+                    {loc.printerTypes.length === 0 ? (
+                      <p className="text-sm text-muted-foreground">No printer/photocopier types found.</p>
+                    ) : (
+                      <div className="space-y-2">
+                        {loc.printerTypes.map((item) => (
+                          <div key={`${loc.location}-${item.model}`} className="flex items-center justify-between rounded-md bg-muted/40 px-2 py-1 text-sm">
+                            <span className="truncate pr-2">{item.model}</span>
+                            <Badge variant="secondary">{item.count}</Badge>
+                          </div>
+                        ))}
+                      </div>
+                    )}
+                  </div>
+
+                  <div className="rounded-md border p-3">
+                    <p className="mb-2 font-medium">Toner Breakdown</p>
+                    {loc.tonerBreakdown.length === 0 ? (
+                      <p className="text-sm text-muted-foreground">No toner type mapped in this location.</p>
+                    ) : (
+                      <div className="space-y-2">
+                        {loc.tonerBreakdown.map((t) => (
+                          <div key={`${loc.location}-${t.tonerType}`} className="rounded-md bg-muted/40 p-2 text-sm">
+                            <div className="flex items-center justify-between gap-2">
+                              <span className="font-medium truncate">{t.tonerType}</span>
+                              <Badge variant="outline">{t.printersUsing} printer(s)</Badge>
+                            </div>
+                            <p className="mt-1 text-xs text-muted-foreground">
+                              Qty in {loc.location}: {t.locationQty} | Qty in all locations: {t.globalQty}
+                            </p>
+                          </div>
+                        ))}
+                      </div>
+                    )}
+                  </div>
+                </div>
+              </CardContent>
+            </Card>
+          ))}
+        </TabsContent>
       </Tabs>
 
       <Dialog open={associateOpen} onOpenChange={setAssociateOpen}>
@@ -632,6 +1029,38 @@ export function DeviceTonerIntelligence() {
                   </SelectContent>
                 </Select>
               </div>
+
+              {associateDevice && !associateDevice.hasAssociatedToners && (
+                <div className="space-y-2">
+                  <Label>Suggested from similar printers/copiers</Label>
+                  {similarMappingSuggestions.length === 0 ? (
+                    <p className="text-xs text-muted-foreground">
+                      No close device mapping found yet. Use catalog search or manual toner type.
+                    </p>
+                  ) : (
+                    <div className="space-y-2">
+                      {similarMappingSuggestions.map((s) => (
+                        <button
+                          key={`${s.sourceDeviceId}-${s.tonerType}-${s.tonerModel}`}
+                          type="button"
+                          onClick={() => {
+                            setSelectedCatalogName("")
+                            setManualTonerType(s.tonerType)
+                            setManualTonerModel(s.tonerModel)
+                          }}
+                          className="w-full rounded-md border bg-muted/40 px-3 py-2 text-left text-sm hover:bg-muted"
+                        >
+                          <div className="flex items-center justify-between gap-2">
+                            <span className="font-medium truncate">{s.tonerType}{s.tonerModel ? ` • ${s.tonerModel}` : ""}</span>
+                            <Badge variant="outline">match {s.score}</Badge>
+                          </div>
+                          <p className="mt-1 text-xs text-muted-foreground truncate">From: {s.sourceLabel}</p>
+                        </button>
+                      ))}
+                    </div>
+                  )}
+                </div>
+              )}
 
               <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
                 <div className="space-y-2">
