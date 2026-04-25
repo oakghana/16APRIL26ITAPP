@@ -94,6 +94,15 @@ export function DepartmentHeadDashboard() {
     confirmPassword: "",
   })
 
+  // IT Form approval state
+  const [itFormRequests, setItFormRequests] = useState<any[]>([])
+  const [itFormLoading, setItFormLoading] = useState(false)
+  const [itFormProcessing, setItFormProcessing] = useState<string | null>(null)
+  const [showItFormDialog, setShowItFormDialog] = useState(false)
+  const [selectedItForm, setSelectedItForm] = useState<any | null>(null)
+  const [itFormAction, setItFormAction] = useState<"approve" | "reject" | null>(null)
+  const [itFormNotes, setItFormNotes] = useState("")
+
   const { data: dashboardStats } = useSWR("/api/dashboard/badge-counts", fetcher)
   const { data: requisitionsData } = useSWR(
     "/api/it-forms/department-head-requisitions",
@@ -107,6 +116,7 @@ export function DepartmentHeadDashboard() {
     fetchStockItems()
     fetchDepartmentDevices()
     fetchServiceDeskRequests()
+    fetchItFormRequests()
   }, [user?.id])
 
   useEffect(() => {
@@ -189,6 +199,61 @@ export function DepartmentHeadDashboard() {
       }
     } catch (error) {
       console.error("[v0] Error fetching service desk requests:", error)
+    }
+  }
+
+  const fetchItFormRequests = async () => {
+    if (!user?.id || !user?.department) return
+    try {
+      setItFormLoading(true)
+      const res = await fetch(
+        `/api/it-forms/dept-head-pending?userId=${encodeURIComponent(user.id)}&department=${encodeURIComponent(user.department)}`
+      )
+      const data = await res.json()
+      if (data.success) setItFormRequests(data.requests || [])
+    } catch (e) {
+      console.error("[dept-head] IT form fetch error:", e)
+    } finally {
+      setItFormLoading(false)
+    }
+  }
+
+  const handleItFormAction = async () => {
+    if (!selectedItForm || !itFormAction || !user?.id) return
+    const action = itFormAction === "approve" ? "dept_head_approve" : "dept_head_reject"
+    if (itFormAction === "reject" && !itFormNotes.trim()) {
+      toast({ title: "Notes required", description: "Please provide a reason for rejection.", variant: "destructive" })
+      return
+    }
+    setItFormProcessing(selectedItForm.id)
+    try {
+      const res = await fetch("/api/it-forms/dept-head-pending", {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          formType: selectedItForm._formType,
+          requestId: selectedItForm.id,
+          action,
+          actorId: user.id,
+          actorName: user.full_name,
+          actorRole: "department_head",
+          notes: itFormNotes.trim() || undefined,
+        }),
+      })
+      const data = await res.json()
+      if (!res.ok) throw new Error(data.error || "Action failed")
+      toast({
+        title: itFormAction === "approve" ? "Request Approved" : "Request Rejected",
+        description: `${selectedItForm.request_number} has been ${itFormAction === "approve" ? "approved and sent to IT Manager" : "rejected"}.`,
+      })
+      setShowItFormDialog(false)
+      setSelectedItForm(null)
+      setItFormNotes("")
+      fetchItFormRequests()
+    } catch (e: any) {
+      toast({ title: "Error", description: e.message, variant: "destructive" })
+    } finally {
+      setItFormProcessing(null)
     }
   }
 
@@ -344,6 +409,12 @@ export function DepartmentHeadDashboard() {
             <TabsTrigger value="requests" className="text-muted-foreground data-[state=active]:bg-background data-[state=active]:text-foreground">
               Service Desk Requests
             </TabsTrigger>
+            <TabsTrigger value="it-forms" className="text-muted-foreground data-[state=active]:bg-background data-[state=active]:text-foreground flex items-center gap-2">
+              IT Form Approvals
+              {itFormRequests.length > 0 && (
+                <Badge className="bg-amber-600 text-white text-xs">{itFormRequests.length}</Badge>
+              )}
+            </TabsTrigger>
             <TabsTrigger value="settings" className="text-muted-foreground data-[state=active]:bg-background data-[state=active]:text-foreground">
               Account Settings
             </TabsTrigger>
@@ -478,6 +549,87 @@ export function DepartmentHeadDashboard() {
                     <p className="text-muted-foreground text-sm max-w-sm mx-auto">
                       Staff members need to be linked to you by an administrator. Contact your IT admin to link your staff members to your department head account.
                     </p>
+                  </div>
+                )}
+              </CardContent>
+            </Card>
+          </TabsContent>
+
+          {/* IT Form Approvals Tab */}
+          <TabsContent value="it-forms" className="space-y-4">
+            <Card className="border bg-card shadow-sm">
+              <CardHeader>
+                <CardTitle className="text-foreground flex items-center gap-2">
+                  <FileText className="h-5 w-5 text-amber-400" />
+                  Pending IT Form Requests
+                </CardTitle>
+                <CardDescription className="text-muted-foreground">
+                  Onboarding, Software Access, and Asset Transfer requests from your department awaiting your approval.
+                </CardDescription>
+              </CardHeader>
+              <CardContent>
+                {itFormLoading ? (
+                  <div className="flex items-center justify-center py-10">
+                    <Loader2 className="h-6 w-6 animate-spin text-muted-foreground" />
+                  </div>
+                ) : itFormRequests.length === 0 ? (
+                  <div className="text-center py-10 text-muted-foreground">
+                    <CheckCircle2 className="h-10 w-10 mx-auto mb-3 opacity-40" />
+                    <p>No pending IT form requests.</p>
+                  </div>
+                ) : (
+                  <div className="space-y-3">
+                    {itFormRequests.map((req: any) => (
+                      <div key={req.id} className="p-4 rounded-lg bg-muted/40 border border-border flex items-start justify-between gap-4">
+                        <div className="flex-1 min-w-0">
+                          <div className="flex items-center gap-2 mb-1">
+                            <span className="font-semibold text-foreground">{req.request_number}</span>
+                            <Badge className="bg-amber-500/20 text-amber-600 text-xs">{req._formLabel}</Badge>
+                          </div>
+                          <p className="text-sm text-muted-foreground">
+                            Submitted by <strong>{req.staff_name}</strong>
+                            {req.new_staff_name && ` — Onboarding: ${req.new_staff_name}`}
+                            {req.software_name && ` — ${req.software_name}`}
+                            {req.asset_type && ` — ${req.asset_type}: ${req.asset_description}`}
+                          </p>
+                          <p className="text-xs text-muted-foreground mt-1">
+                            {new Date(req.created_at).toLocaleString()}
+                          </p>
+                        </div>
+                        <div className="flex items-center gap-2 shrink-0">
+                          <Button
+                            size="sm"
+                            variant="outline"
+                            className="border-green-600 text-green-600 hover:bg-green-50"
+                            disabled={itFormProcessing === req.id}
+                            onClick={() => {
+                              setSelectedItForm(req)
+                              setItFormAction("approve")
+                              setItFormNotes("")
+                              setShowItFormDialog(true)
+                            }}
+                          >
+                            {itFormProcessing === req.id ? <Loader2 className="h-3 w-3 animate-spin" /> : <CheckCircle2 className="h-3 w-3 mr-1" />}
+                            Approve
+                          </Button>
+                          <Button
+                            size="sm"
+                            variant="outline"
+                            className="border-red-600 text-red-600 hover:bg-red-50"
+                            disabled={itFormProcessing === req.id}
+                            onClick={() => {
+                              setSelectedItForm(req)
+                              setItFormAction("reject")
+                              setItFormNotes("")
+                              setShowItFormDialog(true)
+                            }}
+                          >
+                            <AlertCircle className="h-3 w-3 mr-1" />
+                            Reject
+                          </Button>
+                        </div>
+                      </div>
+                    ))}
                   </div>
                 )}
               </CardContent>
@@ -743,6 +895,53 @@ export function DepartmentHeadDashboard() {
                 </>
               ) : (
                 "Change Password"
+              )}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* IT Form Approve/Reject Dialog */}
+      <Dialog open={showItFormDialog} onOpenChange={setShowItFormDialog}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>
+              {itFormAction === "approve" ? "Approve IT Request" : "Reject IT Request"}
+            </DialogTitle>
+            <DialogDescription>
+              {selectedItForm?.request_number} — {selectedItForm?._formLabel}
+              {" · "}Submitted by {selectedItForm?.staff_name}
+            </DialogDescription>
+          </DialogHeader>
+          <div className="space-y-4 py-2">
+            <div className="space-y-2">
+              <Label htmlFor="itFormNotes">
+                {itFormAction === "reject" ? "Reason for Rejection *" : "Notes (optional)"}
+              </Label>
+              <Textarea
+                id="itFormNotes"
+                placeholder={itFormAction === "reject" ? "Enter rejection reason..." : "Add any notes..."}
+                value={itFormNotes}
+                onChange={(e) => setItFormNotes(e.target.value)}
+                rows={3}
+              />
+            </div>
+          </div>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setShowItFormDialog(false)}>
+              Cancel
+            </Button>
+            <Button
+              onClick={handleItFormAction}
+              disabled={!!itFormProcessing}
+              className={itFormAction === "approve" ? "bg-green-600 hover:bg-green-700 text-white" : "bg-red-600 hover:bg-red-700 text-white"}
+            >
+              {itFormProcessing ? (
+                <><Loader2 className="h-4 w-4 mr-2 animate-spin" />Processing...</>
+              ) : itFormAction === "approve" ? (
+                "Confirm Approval"
+              ) : (
+                "Confirm Rejection"
               )}
             </Button>
           </DialogFooter>

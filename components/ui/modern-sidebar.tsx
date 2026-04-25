@@ -215,6 +215,13 @@ export function ModernSidebar({ isOpen, setIsOpen, className, onCollapseChange }
               { name: "IT Forms Hub", href: "/dashboard/it-forms/approvals", icon: ClipboardList },
             ],
           },
+          {
+            name: "System",
+            icon: Settings,
+            items: [
+              { name: "System Settings", href: "/dashboard/system-settings", icon: Settings },
+            ],
+          },
         ],
       }
     }
@@ -442,6 +449,13 @@ export function ModernSidebar({ isOpen, setIsOpen, className, onCollapseChange }
               { name: "Maintenance & Repairs", href: "/dashboard/it-forms/maintenance-repairs", icon: Wrench },
               { name: "New Gadget Request", href: "/dashboard/it-forms/new-gadget", icon: Laptop },
               { name: "Approvals", href: "/dashboard/it-forms/approvals", icon: ClipboardList },
+            ],
+          },
+          {
+            name: "System",
+            icon: Settings,
+            items: [
+              { name: "System Settings", href: "/dashboard/system-settings", icon: Settings },
             ],
           },
         ],

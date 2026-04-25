@@ -184,6 +184,77 @@ export function generateAssignmentEmailHTML(data: {
   `
 }
 
+// ---------------------------------------------------------------------------
+// IT Form notification emails
+// ---------------------------------------------------------------------------
+
+export function generateITFormDeptHeadRequestHTML(data: {
+  deptHeadName: string
+  requesterName: string
+  requestNumber: string
+  formTitle: string
+  summary: string
+  dashboardUrl: string
+}) {
+  return `<!DOCTYPE html>
+<html><head><meta charset="utf-8"></head>
+<body style="margin:0;padding:0;font-family:Arial,sans-serif;background:#f3f4f6;">
+<table role="presentation" style="width:100%;border-collapse:collapse;">
+<tr><td align="center" style="padding:40px 0;">
+<table role="presentation" style="width:600px;background:#fff;border-radius:8px;box-shadow:0 2px 4px rgba(0,0,0,.1);">
+<tr><td style="padding:30px;background:linear-gradient(135deg,#667eea 0%,#764ba2 100%);border-radius:8px 8px 0 0;">
+  <h1 style="margin:0;color:#fff;font-size:22px;">IT Request Awaiting Your Approval</h1>
+</td></tr>
+<tr><td style="padding:30px;">
+  <p style="color:#374151;">Hello <strong>${data.deptHeadName}</strong>,</p>
+  <p style="color:#374151;">A staff member in your department has submitted an IT request that requires your approval before it proceeds to the IT Team.</p>
+  <table style="width:100%;background:#f9fafb;border-radius:6px;padding:16px;margin:16px 0;">
+    <tr><td style="color:#6b7280;font-size:13px;width:140px;">Request Number:</td><td style="font-weight:bold;color:#111827;">${data.requestNumber}</td></tr>
+    <tr><td style="color:#6b7280;font-size:13px;">Type:</td><td style="color:#111827;">${data.formTitle}</td></tr>
+    <tr><td style="color:#6b7280;font-size:13px;">Submitted by:</td><td style="color:#111827;">${data.requesterName}</td></tr>
+    <tr><td style="color:#6b7280;font-size:13px;vertical-align:top;">Summary:</td><td style="color:#111827;">${data.summary}</td></tr>
+  </table>
+  <p style="color:#374151;">Please log in to approve or reject this request:</p>
+  <a href="${data.dashboardUrl}" style="display:inline-block;padding:12px 24px;background:#667eea;color:#fff;text-decoration:none;border-radius:6px;font-weight:bold;">Review Request</a>
+  <p style="color:#9ca3af;font-size:12px;margin-top:24px;">QCC IT Management System — automated notification, do not reply.</p>
+</td></tr>
+</table></td></tr></table>
+</body></html>`
+}
+
+export function generateITFormCompletionHTML(data: {
+  requesterName: string
+  requestNumber: string
+  formTitle: string
+  summary: string
+  workNotes: string
+  dashboardUrl: string
+}) {
+  return `<!DOCTYPE html>
+<html><head><meta charset="utf-8"></head>
+<body style="margin:0;padding:0;font-family:Arial,sans-serif;background:#f3f4f6;">
+<table role="presentation" style="width:100%;border-collapse:collapse;">
+<tr><td align="center" style="padding:40px 0;">
+<table role="presentation" style="width:600px;background:#fff;border-radius:8px;box-shadow:0 2px 4px rgba(0,0,0,.1);">
+<tr><td style="padding:30px;background:linear-gradient(135deg,#10b981 0%,#059669 100%);border-radius:8px 8px 0 0;">
+  <h1 style="margin:0;color:#fff;font-size:22px;">✅ Your IT Request Has Been Completed</h1>
+</td></tr>
+<tr><td style="padding:30px;">
+  <p style="color:#374151;">Hello <strong>${data.requesterName}</strong>,</p>
+  <p style="color:#374151;">Great news! Your IT request has been completed by the IT Team.</p>
+  <table style="width:100%;background:#f9fafb;border-radius:6px;padding:16px;margin:16px 0;">
+    <tr><td style="color:#6b7280;font-size:13px;width:140px;">Request Number:</td><td style="font-weight:bold;color:#111827;">${data.requestNumber}</td></tr>
+    <tr><td style="color:#6b7280;font-size:13px;">Type:</td><td style="color:#111827;">${data.formTitle}</td></tr>
+    <tr><td style="color:#6b7280;font-size:13px;vertical-align:top;">Your Request:</td><td style="color:#111827;">${data.summary}</td></tr>
+    <tr><td style="color:#6b7280;font-size:13px;vertical-align:top;">Work Done:</td><td style="color:#111827;">${data.workNotes}</td></tr>
+  </table>
+  <a href="${data.dashboardUrl}" style="display:inline-block;padding:12px 24px;background:#10b981;color:#fff;text-decoration:none;border-radius:6px;font-weight:bold;">View Request</a>
+  <p style="color:#9ca3af;font-size:12px;margin-top:24px;">QCC IT Management System — automated notification, do not reply.</p>
+</td></tr>
+</table></td></tr></table>
+</body></html>`
+}
+
 /**
  * Generate plain text version of assignment email
  */

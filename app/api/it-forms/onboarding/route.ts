@@ -1,6 +1,8 @@
 import { NextRequest, NextResponse } from "next/server"
 import { createClient } from "@supabase/supabase-js"
 import { normalizeDepartmentName } from "@/lib/department-options"
+import { sendItFormEmail } from "@/lib/it-form-email"
+import { generateITFormDeptHeadRequestHTML, generateITFormCompletionHTML } from "@/lib/email-service"
 
 const supabaseAdmin = createClient(
   process.env.NEXT_PUBLIC_SUPABASE_URL || "",
@@ -60,7 +62,7 @@ export async function POST(req: NextRequest) {
       new_staff_location: newStaffLocation,
       start_date: startDate,
       special_requirements: specialRequirements || null,
-      status: "pending_manager",
+      status: "pending_dept_head",
       approval_timeline: [{ action: "submitted", role: "requester", actor: staffName, timestamp: now }],
       created_by: staffName,
       created_by_role: submittedByRole || null,
@@ -70,6 +72,29 @@ export async function POST(req: NextRequest) {
     }]).select().single()
 
     if (error) return NextResponse.json({ error: error.message }, { status: 500 })
+    // Notify the department head
+    void (async () => {
+      try {
+        const dept = normalizeDepartmentName(departmentName) || departmentName
+        const { data: dh } = await supabaseAdmin
+          .from("profiles")
+          .select("full_name,email")
+          .eq("role", "department_head")
+          .ilike("department", dept)
+          .single()
+        if (dh?.email) {
+          const html = generateITFormDeptHeadRequestHTML({
+            deptHeadName: dh.full_name || "Department Head",
+            requesterName: staffName,
+            requestNumber,
+            formTitle: "New User Onboarding Request",
+            summary: `Onboard ${newStaffName} in ${newStaffDepartment} — starting ${startDate}`,
+            dashboardUrl: `${process.env.NEXT_PUBLIC_APP_URL || "https://it.qccghana.com"}/dashboard/it-forms/onboarding/${data.id}`,
+          })
+          await sendItFormEmail({ to: dh.email, subject: `[Action Required] Onboarding Request ${requestNumber}`, html })
+        }
+      } catch {}
+    })()
     return NextResponse.json({ success: true, request: data, requestNumber })
   } catch (e: any) {
     return NextResponse.json({ error: e.message }, { status: 500 })
@@ -138,7 +163,30 @@ export async function PATCH(req: NextRequest) {
       }),
     }
 
-    if (action === "manager_assign") {
+    if (action === "dept_head_approve") {
+      if ((role || "").toLowerCase() !== "department_head") return NextResponse.json({ error: "Only department heads may approve" }, { status: 403 })
+      if (record.status !== "pending_dept_head") return NextResponse.json({ error: "Not awaiting dept head approval" }, { status: 409 })
+      Object.assign(updateData, {
+        status: "pending_manager",
+        dept_head_id: isUuid(actorId) ? actorId : null,
+        dept_head_name: actorName || actorProfile?.full_name || null,
+        dept_head_email: actorProfile?.email || null,
+        dept_head_approved_at: now,
+        dept_head_notes: notes || null,
+        dept_head_signature: managerSignature || null,
+      })
+    } else if (action === "dept_head_reject") {
+      if ((role || "").toLowerCase() !== "department_head") return NextResponse.json({ error: "Only department heads may reject" }, { status: 403 })
+      if (record.status !== "pending_dept_head") return NextResponse.json({ error: "Not awaiting dept head approval" }, { status: 409 })
+      Object.assign(updateData, {
+        status: "rejected",
+        dept_head_id: isUuid(actorId) ? actorId : null,
+        dept_head_name: actorName || actorProfile?.full_name || null,
+        dept_head_email: actorProfile?.email || null,
+        dept_head_approved_at: now,
+        dept_head_notes: notes || null,
+      })
+    } else if (action === "manager_assign") {
       if (!canManageAsIT(role, dept)) return NextResponse.json({ error: "Unauthorized" }, { status: 403 })
       if (!["pending_manager","reopened"].includes(record.status)) return NextResponse.json({ error: "Not pending" }, { status: 409 })
       if (!assignToName) return NextResponse.json({ error: "Select assignee" }, { status: 400 })
@@ -180,6 +228,22 @@ export async function PATCH(req: NextRequest) {
 
     const { data: updated, error: updateErr } = await supabaseAdmin.from(TABLE).update(updateData).eq("id", requestId).select().single()
     if (updateErr) return NextResponse.json({ error: updateErr.message }, { status: 500 })
+
+    // Send completion email to requester
+    if (action === "assignee_complete" && record.requested_by_email) {
+      void sendItFormEmail({
+        to: record.requested_by_email,
+        subject: `Your Onboarding Request ${record.request_number} is Complete`,
+        html: generateITFormCompletionHTML({
+          requesterName: record.staff_name || "Requester",
+          requestNumber: record.request_number,
+          formTitle: "New User Onboarding",
+          summary: `Onboard ${record.new_staff_name} in ${record.new_staff_department}`,
+          workNotes: notes || "Work completed.",
+          dashboardUrl: `${process.env.NEXT_PUBLIC_APP_URL || "https://it.qccghana.com"}/dashboard/it-forms/onboarding/${requestId}`,
+        }),
+      })
+    }
     return NextResponse.json({ success: true, request: updated })
   } catch (e: any) {
     return NextResponse.json({ error: e.message }, { status: 500 })

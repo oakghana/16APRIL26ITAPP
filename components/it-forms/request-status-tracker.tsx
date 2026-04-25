@@ -371,6 +371,7 @@ export function RequestStatusTracker({
 
   const buildApprovalStages = (req: ITRequisition): any[] => {
     if (["password-reset", "account-unlock", "software-access"].includes(formType)) {
+      const deptHeadDone = ["dept_head_approved", "pending_manager", "assigned", "in_progress", "awaiting_user_confirmation", "completed"].includes(req.status)
       const assignedOrBeyond = ["assigned", "in_progress", "awaiting_user_confirmation", "completed"].includes(req.status)
       const startedOrBeyond = ["in_progress", "awaiting_user_confirmation", "completed"].includes(req.status)
       const awaitingOrDone = ["awaiting_user_confirmation", "completed"].includes(req.status)
@@ -382,7 +383,7 @@ export function RequestStatusTracker({
             ? "IT Staff Unlock Execution"
             : "IT Staff Password Reset"
 
-      return [
+      const stages: any[] = [
         {
           stage: "Request Submitted",
           role: "Requester",
@@ -390,6 +391,22 @@ export function RequestStatusTracker({
           approver: req.staff_name || req.requested_by,
           timestamp: req.created_at,
         },
+      ]
+
+      // Software access requires dept head approval
+      if (formType === "software-access") {
+        const dhRejected = req.status === "rejected" && !!(req as any).dept_head_approved_at
+        stages.push({
+          stage: "Department Head Approval",
+          role: "Department Head",
+          status: dhRejected ? "rejected" : deptHeadDone ? "completed" : req.status === "pending_dept_head" ? "pending" : "pending",
+          approver: (req as any).dept_head_name || undefined,
+          timestamp: (req as any).dept_head_approved_at || undefined,
+          notes: (req as any).dept_head_notes || undefined,
+        })
+      }
+
+      stages.push(
         {
           stage: "IT Manager Approval & Assignment",
           role: "IT Manager",
@@ -414,15 +431,19 @@ export function RequestStatusTracker({
           approver: req.user_confirmed ? (req.staff_name || req.requested_by) : undefined,
           timestamp: req.user_confirmed_at || undefined,
         },
-      ]
+      )
+      return stages
     }
 
     if (["onboarding", "offboarding", "asset-transfer"].includes(formType)) {
+      const deptHeadDone = ["dept_head_approved", "pending_manager", "assigned", "in_progress", "completed"].includes(req.status)
+      const deptHeadRejected = req.status === "rejected" && !!(req as any).dept_head_approved_at
       const assignedOrBeyond = ["assigned", "in_progress", "completed"].includes(req.status)
       const startedOrBeyond = ["in_progress", "completed"].includes(req.status)
       const rejected = req.status === "rejected"
+      const needsDeptHead = ["onboarding", "asset-transfer"].includes(formType)
 
-      return [
+      const stages: any[] = [
         {
           stage: "Request Submitted",
           role: "Requester",
@@ -430,6 +451,20 @@ export function RequestStatusTracker({
           approver: req.staff_name || req.requested_by,
           timestamp: req.created_at,
         },
+      ]
+
+      if (needsDeptHead) {
+        stages.push({
+          stage: "Department Head Approval",
+          role: "Department Head",
+          status: deptHeadRejected ? "rejected" : deptHeadDone ? "completed" : req.status === "pending_dept_head" ? "pending" : "pending",
+          approver: (req as any).dept_head_name || undefined,
+          timestamp: (req as any).dept_head_approved_at || undefined,
+          notes: (req as any).dept_head_notes || undefined,
+        })
+      }
+
+      stages.push(
         {
           stage: "IT Manager Approval & Assignment",
           role: "IT Manager",
@@ -447,7 +482,8 @@ export function RequestStatusTracker({
           timestamp: req.work_completed_at || req.updated_at,
           notes: req.work_notes || undefined,
         },
-      ]
+      )
+      return stages
     }
 
     if (formType !== "requisition") {
