@@ -12,26 +12,44 @@ function isUuidLike(value?: string | null) {
   return /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(value)
 }
 
-async function generateNextSequentialNumber() {
-  // Query both reg_no and requisition_number to find the true highest sequence,
-  // since the DB unique constraint is on reg_no and either column may hold the sequence.
-  const { data } = await supabaseAdmin
-    .from("it_equipment_requisitions")
-    .select("requisition_number, reg_no")
-    .order("created_at", { ascending: false })
-    .limit(50)
+async function generateNextSequentialNumber(attempt = 0): Promise<string> {
+  // Try two queries: one for reg_no (the unique-constrained column) and one for requisition_number.
+  // Run them independently so a missing column in one doesn't break the other.
+  const [regNoResult, reqNumResult] = await Promise.allSettled([
+    supabaseAdmin
+      .from("it_equipment_requisitions")
+      .select("reg_no")
+      .not("reg_no", "is", null)
+      .order("created_at", { ascending: false })
+      .limit(100),
+    supabaseAdmin
+      .from("it_equipment_requisitions")
+      .select("requisition_number")
+      .not("requisition_number", "is", null)
+      .order("created_at", { ascending: false })
+      .limit(100),
+  ])
 
   let maxSeq = 0
-  for (const row of data || []) {
-    for (const val of [row.requisition_number, row.reg_no]) {
-      if (typeof val === "string") {
-        const parts = val.split("-")
-        const n = Number(parts[parts.length - 1])
-        if (!isNaN(n) && n > maxSeq) maxSeq = n
-      }
+  const allValues: string[] = []
+
+  if (regNoResult.status === "fulfilled" && regNoResult.value.data) {
+    allValues.push(...regNoResult.value.data.map((r: any) => r.reg_no).filter(Boolean))
+  }
+  if (reqNumResult.status === "fulfilled" && reqNumResult.value.data) {
+    allValues.push(...reqNumResult.value.data.map((r: any) => r.requisition_number).filter(Boolean))
+  }
+
+  for (const val of allValues) {
+    if (typeof val === "string") {
+      const parts = val.split("-")
+      const n = Number(parts[parts.length - 1])
+      if (!isNaN(n) && n > maxSeq) maxSeq = n
     }
   }
-  return `IT-REQ-${String(maxSeq + 1).padStart(4, "0")}`
+
+  // Add the retry attempt offset to guarantee uniqueness under concurrent submissions.
+  return `IT-REQ-${String(maxSeq + 1 + attempt).padStart(4, "0")}`
 }
 
 export async function POST(request: NextRequest) {
@@ -113,7 +131,7 @@ export async function POST(request: NextRequest) {
       if (!missingColumn) {
         // Duplicate reg_no/requisition_number — regenerate a fresh number and retry.
         if (insertError.code === "23505" && /reg_no|requisition_number/i.test(message)) {
-          const newNumber = await generateNextSequentialNumber()
+          const newNumber = await generateNextSequentialNumber(attempt)
           insertData.reg_no = newNumber
           insertData.requisition_number = newNumber
           continue
