@@ -1,6 +1,6 @@
 "use client"
 
-import React, { useEffect, useMemo, useState } from "react"
+import React, { useEffect, useMemo, useRef, useState } from "react"
 import Link from "next/link"
 import { usePathname, useRouter } from "next/navigation"
 
@@ -48,7 +48,9 @@ import {
   Target,
   Laptop,
   Wifi,
+  BellRing,
 } from "lucide-react"
+import { toast } from "@/hooks/use-toast"
 import { EditProfileDialog } from "@/components/profile/edit-profile-dialog"
 
 interface NavigationItem {
@@ -82,6 +84,7 @@ export function ModernSidebar({ isOpen, setIsOpen, className, onCollapseChange }
   const [isMounted, setIsMounted] = useState(false)
   const [expandedGroups, setExpandedGroups] = useState<string[]>([])
   const [editProfileOpen, setEditProfileOpen] = useState(false)
+  const prevItWorkQueue = useRef<number>(-1)
 
   useEffect(() => {
     setIsMounted(true)
@@ -92,6 +95,22 @@ export function ModernSidebar({ isOpen, setIsOpen, className, onCollapseChange }
       onCollapseChange(isCollapsed)
     }
   }, [isCollapsed, onCollapseChange])
+
+  // Toast notification when IT work queue increases
+  useEffect(() => {
+    const isItWorker = user?.role === 'it_staff' || user?.role === 'it_head' || user?.role === 'regional_it_head'
+    if (!isItWorker || !isMounted) return
+    const current = counts.itWorkQueue ?? 0
+    const prev = prevItWorkQueue.current
+    if (prev >= 0 && current > prev) {
+      toast({
+        title: "New IT Work Assigned",
+        description: `You have ${current} item${current !== 1 ? 's' : ''} in your IT work queue requiring attention.`,
+        duration: 8000,
+      })
+    }
+    prevItWorkQueue.current = current
+  }, [counts.itWorkQueue, isMounted, user?.role])
 
   const roleColors = user?.role ? getRoleColorScheme(user.role) : null
 
@@ -207,7 +226,13 @@ export function ModernSidebar({ isOpen, setIsOpen, className, onCollapseChange }
             name: "Assigned Tasks",
             href: "/dashboard/assigned-tasks",
             icon: ClipboardList,
-            badge: counts.assignedTasks > 0 ? counts.assignedTasks : undefined,
+            badge: counts.itWorkQueue > 0 ? counts.itWorkQueue : counts.assignedTasks > 0 ? counts.assignedTasks : undefined,
+          },
+          {
+            name: "IT Work Queue",
+            href: "/dashboard/it-forms/approvals",
+            icon: BellRing,
+            badge: counts.itFormsQueue > 0 ? counts.itFormsQueue : undefined,
           },
           {
             name: "Repairs",
@@ -243,6 +268,7 @@ export function ModernSidebar({ isOpen, setIsOpen, className, onCollapseChange }
           {
             name: "IT Forms",
             icon: FileText,
+            badge: counts.itFormsQueue > 0 ? counts.itFormsQueue : undefined,
             items: [
               { name: "Equipment Requisition", href: "/dashboard/it-forms/equipment-requisition", icon: Laptop },
               { name: "Maintenance & Repairs", href: "/dashboard/it-forms/maintenance-repairs", icon: Wrench },
@@ -410,6 +436,7 @@ export function ModernSidebar({ isOpen, setIsOpen, className, onCollapseChange }
           {
             name: "IT Forms",
             icon: FileText,
+            badge: counts.itFormsQueue > 0 ? counts.itFormsQueue : undefined,
             items: [
               { name: "Equipment Requisition", href: "/dashboard/it-forms/equipment-requisition", icon: Laptop },
               { name: "Maintenance & Repairs", href: "/dashboard/it-forms/maintenance-repairs", icon: Wrench },
@@ -430,11 +457,18 @@ export function ModernSidebar({ isOpen, setIsOpen, className, onCollapseChange }
             href: "/dashboard/my-requests",
             icon: FileText,
           },
+          {
+            name: "IT Work Queue",
+            href: "/dashboard/it-forms/approvals",
+            icon: BellRing,
+            badge: counts.itFormsQueue > 0 ? counts.itFormsQueue : undefined,
+          },
         ],
         groups: [
           {
             name: "IT Forms",
             icon: FileText,
+            badge: counts.itFormsQueue > 0 ? counts.itFormsQueue : undefined,
             items: [
               { name: "Equipment Requisition", href: "/dashboard/it-forms/equipment-requisition", icon: Laptop },
               { name: "Maintenance & Repairs", href: "/dashboard/it-forms/maintenance-repairs", icon: Wrench },

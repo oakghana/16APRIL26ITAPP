@@ -6,6 +6,8 @@ import { canSeeAllLocations } from "@/lib/location-filter"
 
 export interface BadgeCounts {
   assignedTasks: number
+  itFormsQueue: number
+  itWorkQueue: number
   serviceDeskTickets: number
   repairs: number
   storeRequisitions: number
@@ -23,6 +25,8 @@ export interface BadgeCounts {
 
 const DEFAULT_COUNTS: BadgeCounts = {
   assignedTasks: 0,
+  itFormsQueue: 0,
+  itWorkQueue: 0,
   serviceDeskTickets: 0,
   repairs: 0,
   storeRequisitions: 0,
@@ -82,6 +86,8 @@ export function useBadgeCounts(user: User | null) {
           location: location,
           canSeeAll: String(canSeeAll),
           userId: user.id || "",
+          userEmail: user.email || "",
+          userName: user.full_name || user.name || user.username || "",
           userRole: user.role || "",
           region: user.region || "",
           district: user.district || "",
@@ -100,6 +106,8 @@ export function useBadgeCounts(user: User | null) {
         // Map API response to BadgeCounts interface
         const newCounts: BadgeCounts = {
           assignedTasks: data.assignedTasks ?? 0,
+          itFormsQueue: data.itFormsQueue ?? 0,
+          itWorkQueue: data.itWorkQueue ?? 0,
           serviceDeskTickets: data.serviceDeskTickets ?? 0,
           repairs: data.repairs ?? 0,
           storeRequisitions: data.storeRequisitions ?? 0,

@@ -21,12 +21,39 @@ function matchesStatus(itemStatus: string | null | undefined, statusList: string
   return statusList.some((s) => s.toLowerCase() === normalized)
 }
 
+function normalizeIdentity(value: string | null | undefined): string {
+  return String(value || "").trim().toLowerCase()
+}
+
+function isAssignedToUser(
+  record: { assigned_to_id?: string | null; assigned_to?: string | null; assigned_to_name?: string | null; assigned_to_email?: string | null },
+  userId: string,
+  userEmail: string,
+  userName: string,
+) {
+  const userIdNorm = normalizeIdentity(userId)
+  const emailNorm = normalizeIdentity(userEmail)
+  const nameNorm = normalizeIdentity(userName)
+
+  if (userIdNorm && normalizeIdentity(record.assigned_to_id) === userIdNorm) return true
+
+  const assignees = [
+    normalizeIdentity(record.assigned_to),
+    normalizeIdentity(record.assigned_to_name),
+    normalizeIdentity(record.assigned_to_email),
+  ].filter(Boolean)
+
+  return assignees.some((v) => v === emailNorm || v === nameNorm)
+}
+
 export async function GET(request: NextRequest) {
   try {
     const { searchParams } = new URL(request.url)
     const location = searchParams.get("location") || ""
     const canSeeAll = searchParams.get("canSeeAll") === "true"
     const userId = searchParams.get("userId") || ""
+    const userEmail = searchParams.get("userEmail") || ""
+    const userName = searchParams.get("userName") || ""
     const userRole = searchParams.get("userRole") || ""
 
     console.log("[v0] API Badge Counts - location:", location, "canSeeAll:", canSeeAll, "role:", userRole)
@@ -42,6 +69,8 @@ export async function GET(request: NextRequest) {
       itStaffStatus: 0,
       pendingUserApprovals: 0,
       assignedTasks: 0,
+      itFormsQueue: 0,
+      itWorkQueue: 0,
       readyForPickup: 0,
       notifications: 0,
       userAccounts: 0,
@@ -246,6 +275,71 @@ export async function GET(request: NextRequest) {
       }
     } catch (e) {
       console.error("[v0] Error fetching devices under repair:", e)
+    }
+
+    // 16. IT forms + service desk queue for IT workers (identity-linked via id/email/name)
+    if (userId) {
+      const normalizedRole = userRole.toLowerCase()
+      const isITWorker =
+        ["it_staff", "regional_it_head", "it_head", "admin"].includes(normalizedRole) ||
+        normalizedRole.startsWith("service_desk")
+
+      if (isITWorker) {
+        try {
+          const { data: queueTickets, error: queueTicketErr } = await supabaseAdmin
+            .from("service_tickets")
+            .select("id, status, assigned_to, assigned_to_name, assigned_to_email")
+
+          if (!queueTicketErr && queueTickets) {
+            const activeStatuses = ["assigned", "in_progress", "on_hold", "awaiting_confirmation", "new", "open"]
+            const mine = queueTickets.filter((ticket) => {
+              return (
+                matchesStatus(ticket.status, activeStatuses) &&
+                isAssignedToUser(ticket, userId, userEmail, userName)
+              )
+            })
+            counts.itWorkQueue += mine.length
+          }
+        } catch (e) {
+          console.error("[v0] Error fetching IT worker service desk queue:", e)
+        }
+
+        const formQueues = [
+          { table: "password_reset_requests", statuses: ["assigned", "in_progress", "awaiting_user_confirmation", "reopened"] },
+          { table: "account_unlock_requests", statuses: ["assigned", "in_progress", "awaiting_user_confirmation", "reopened"] },
+          { table: "software_access_requests", statuses: ["assigned", "in_progress", "awaiting_user_confirmation", "reopened"] },
+          { table: "onboarding_requests", statuses: ["assigned", "in_progress"] },
+          { table: "offboarding_requests", statuses: ["assigned", "in_progress"] },
+          { table: "asset_transfer_requests", statuses: ["assigned", "in_progress"] },
+        ]
+
+        for (const formQueue of formQueues) {
+          try {
+            const { data, error } = await supabaseAdmin
+              .from(formQueue.table)
+              .select("id, status, assigned_to_id, assigned_to")
+
+            if (!error && data) {
+              const mine = data.filter((row) => {
+                return (
+                  matchesStatus(row.status, formQueue.statuses) &&
+                  isAssignedToUser(row, userId, userEmail, userName)
+                )
+              })
+              counts.itFormsQueue += mine.length
+            }
+          } catch (e) {
+            console.error(`[v0] Error fetching IT forms queue for ${formQueue.table}:`, e)
+          }
+        }
+
+        counts.itWorkQueue += counts.itFormsQueue
+
+        // Keep legacy assignedTasks useful for IT staff navigation badges
+        if (normalizedRole === "it_staff") {
+          counts.assignedTasks = counts.itWorkQueue
+        }
+      }
     }
 
     console.log("[v0] Badge counts result:", counts)
