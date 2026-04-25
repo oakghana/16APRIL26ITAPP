@@ -76,36 +76,63 @@ export async function POST(request: NextRequest) {
     const approvedByUuid = isUuidLike(approvedById) ? approvedById : null
     const approverIdValue = approvedByUuid || approvedBy
     const now = new Date().toISOString()
+    const hasColumn = (column: string) => Object.prototype.hasOwnProperty.call(requisition, column)
 
     const updateData: any = {
       updated_at: now,
     }
 
     if (actingAsAdmin) {
-      updateData.admin_approved = action === "approve"
-      updateData.admin_approved_by = approverIdValue
-      updateData.admin_approved_by_name = approvedBy
-      updateData.admin_approved_at = now
-      if (action === "approve" && approverSignature) {
+      if (hasColumn("admin_approved")) {
+        updateData.admin_approved = action === "approve"
+      }
+      if (hasColumn("admin_approved_by")) {
+        updateData.admin_approved_by = approverIdValue
+      }
+      if (hasColumn("admin_approved_by_name")) {
+        updateData.admin_approved_by_name = approvedBy
+      }
+      if (hasColumn("admin_approved_at")) {
+        updateData.admin_approved_at = now
+      }
+      if (action === "approve" && approverSignature && hasColumn("admin_signature")) {
         updateData.admin_signature = approverSignature
       }
       updateData.status = action === "approve" ? "pending_store" : "rejected_admin"
     } else {
-      updateData.it_head_notes = notes
-      updateData.it_head_approved = action === "approve"
-      updateData.it_head_approved_by = approverIdValue
-      updateData.it_head_approved_by_name = approvedBy
-      updateData.it_head_approved_at = now
-      if (action === "approve" && approverSignature) {
+      if (hasColumn("it_head_notes")) {
+        updateData.it_head_notes = notes
+      }
+      if (hasColumn("it_head_approved")) {
+        updateData.it_head_approved = action === "approve"
+      }
+      if (hasColumn("it_head_approved_by")) {
+        updateData.it_head_approved_by = approverIdValue
+      }
+      if (hasColumn("it_head_approved_by_name")) {
+        updateData.it_head_approved_by_name = approvedBy
+      }
+      if (hasColumn("it_head_approved_at")) {
+        updateData.it_head_approved_at = now
+      }
+      if (action === "approve" && approverSignature && hasColumn("it_head_signature")) {
         updateData.it_head_signature = approverSignature
       }
       if (action === "approve") {
         // Business rule: IT Head/Manager approval is final for this stage; no extra admin approval gate.
-        updateData.admin_approved = true
-        updateData.admin_approved_by = approverIdValue
-        updateData.admin_approved_by_name = approvedBy
-        updateData.admin_approved_at = now
-        if (approverSignature) {
+        if (hasColumn("admin_approved")) {
+          updateData.admin_approved = true
+        }
+        if (hasColumn("admin_approved_by")) {
+          updateData.admin_approved_by = approverIdValue
+        }
+        if (hasColumn("admin_approved_by_name")) {
+          updateData.admin_approved_by_name = approvedBy
+        }
+        if (hasColumn("admin_approved_at")) {
+          updateData.admin_approved_at = now
+        }
+        if (approverSignature && hasColumn("admin_signature")) {
           updateData.admin_signature = approverSignature
         }
         updateData.status = "pending_store"
@@ -128,7 +155,9 @@ export async function POST(request: NextRequest) {
       signature: action === "approve" ? !!approverSignature : undefined,
       signatureDataUrl: action === "approve" ? approverSignature : undefined,
     })
-    updateData.approval_timeline = approvalChain
+    if (hasColumn("approval_timeline") || hasColumn("approval_chain")) {
+      updateData.approval_timeline = approvalChain
+    }
 
     let updated: any = null
     let updateError: any = null
@@ -185,7 +214,7 @@ export async function POST(request: NextRequest) {
       recipient_id: action === "approve" ? "admin" : requisition.requested_by,
       recipient_type: action === "approve" ? "admin" : "staff",
       title: `IT Head ${action === "approve" ? "Approved" : "Rejected"} Requisition`,
-      message: `Requisition ${requisition.requisition_number} was ${action === "approve" ? "approved and forwarded to Admin" : "rejected"}`,
+      message: `Requisition ${requisition.requisition_number} was ${action === "approve" ? "approved and forwarded to Store" : "rejected"}`,
       type: "it_form_update",
       related_id: requisitionId,
       related_type: "it_equipment_requisition",
