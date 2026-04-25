@@ -29,6 +29,7 @@ export async function PUT(request: NextRequest) {
       .single()
 
     if (fetchError || !current) {
+      console.error("Device fetch error:", fetchError)
       return NextResponse.json({ error: "Device not found" }, { status: 404 })
     }
 
@@ -40,14 +41,26 @@ export async function PUT(request: NextRequest) {
         updated_at: new Date().toISOString(),
       })
       .eq("id", deviceId)
-      .select("id, toner_type, toner_model")
-      .single()
 
     if (error) {
-      return NextResponse.json({ error: error.message }, { status: 500 })
+      console.error("Update error:", error)
+      return NextResponse.json({ error: error.message || "Failed to update device" }, { status: 500 })
     }
 
-    const { error: auditError } = await supabaseAdmin.from("audit_logs").insert({
+    // Fetch the updated record to return
+    const { data: updated, error: fetchUpdatedError } = await supabaseAdmin
+      .from("devices")
+      .select("id, toner_type, toner_model")
+      .eq("id", deviceId)
+      .single()
+
+    if (fetchUpdatedError || !updated) {
+      console.error("Fetch updated error:", fetchUpdatedError)
+      return NextResponse.json({ error: "Device updated but could not verify" }, { status: 500 })
+    }
+
+    // Audit log (non-critical, don't fail if it errors)
+    await supabaseAdmin.from("audit_logs").insert({
       username: userId || "unknown",
       action: "DEVICE_TONER_ASSOCIATED",
       resource: `devices/${deviceId}`,
@@ -55,10 +68,11 @@ export async function PUT(request: NextRequest) {
       severity: "medium",
       ip_address: request.headers.get("x-forwarded-for") || "unknown",
       user_agent: request.headers.get("user-agent") || "unknown",
-    })
+    }).catch((err) => console.error("Audit log error:", err))
 
-    return NextResponse.json({ success: true, device: data })
+    return NextResponse.json({ success: true, device: updated })
   } catch (error: any) {
+    console.error("Associate toner error:", error)
     return NextResponse.json({ error: error.message || "Internal server error" }, { status: 500 })
   }
 }

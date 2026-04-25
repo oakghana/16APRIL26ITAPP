@@ -9,7 +9,8 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog"
-import { Loader2, Printer, Copy, AlertTriangle, CheckCircle2, Droplets, Search, Link2, Download, BarChart3 } from "lucide-react"
+import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table"
+import { Loader2, Printer, Copy, AlertTriangle, CheckCircle2, Droplets, Search, Link2, Download, BarChart3, ChevronDown, ChevronRight, Filter } from "lucide-react"
 import { useAuth } from "@/lib/auth-context"
 import { DataPagination } from "@/components/ui/data-pagination"
 import { useToast } from "@/hooks/use-toast"
@@ -223,6 +224,11 @@ export function DeviceTonerIntelligence() {
   const [manualTonerType, setManualTonerType] = useState("")
   const [manualTonerModel, setManualTonerModel] = useState("")
   const [savingAssociation, setSavingAssociation] = useState(false)
+  const [execSearch, setExecSearch] = useState("")
+  const [execStatusFilter, setExecStatusFilter] = useState<"all" | "urgent" | "low" | "ok">("all")
+  const [execSortField, setExecSortField] = useState<"location" | "devices" | "urgent" | "toners">("location")
+  const [execSortDir, setExecSortDir] = useState<"asc" | "desc">("asc")
+  const [execExpandedLocation, setExecExpandedLocation] = useState<string | null>(null)
 
   const locations = data?.locations || []
   const tonerCatalog = data?.tonerCatalog || []
@@ -379,6 +385,40 @@ export function DeviceTonerIntelligence() {
     return { topLocations, topToners, maxLocationTotal, maxTonerQty }
   }, [executiveSummary.tonerTypesByLocation, tonerCatalog])
 
+  const filteredExecData = useMemo(() => {
+    let rows = executiveSummary.tonerTypesByLocation
+
+    if (execSearch.trim()) {
+      const q = execSearch.trim().toLowerCase()
+      rows = rows.filter(
+        (loc) =>
+          loc.location.toLowerCase().includes(q) ||
+          loc.printerTypes.some((p) => p.model.toLowerCase().includes(q)) ||
+          loc.tonerBreakdown.some((t) => t.tonerType.toLowerCase().includes(q))
+      )
+    }
+
+    if (execStatusFilter === "urgent") rows = rows.filter((loc) => loc.needsNow > 0)
+    else if (execStatusFilter === "low") rows = rows.filter((loc) => loc.lowStock > 0)
+    else if (execStatusFilter === "ok") rows = rows.filter((loc) => loc.needsNow === 0 && loc.lowStock === 0)
+
+    rows = [...rows].sort((a, b) => {
+      let cmp = 0
+      if (execSortField === "location") cmp = a.location.localeCompare(b.location)
+      else if (execSortField === "devices") cmp = a.totalDevices - b.totalDevices
+      else if (execSortField === "urgent") cmp = a.needsNow - b.needsNow
+      else if (execSortField === "toners") cmp = a.tonerBreakdown.length - b.tonerBreakdown.length
+      return execSortDir === "asc" ? cmp : -cmp
+    })
+
+    return rows
+  }, [executiveSummary.tonerTypesByLocation, execSearch, execStatusFilter, execSortField, execSortDir])
+
+  const toggleExecSort = (field: typeof execSortField) => {
+    if (execSortField === field) setExecSortDir((d) => (d === "asc" ? "desc" : "asc"))
+    else { setExecSortField(field); setExecSortDir("asc") }
+  }
+
   const totalDevices = visibleDevicesAll.length
   const totalPages = Math.max(1, Math.ceil(totalDevices / pageSize))
   const safePage = Math.min(page, totalPages)
@@ -479,9 +519,18 @@ export function DeviceTonerIntelligence() {
         }),
       })
 
-      const result = await response.json()
+      let result: any
+      const contentType = response.headers.get("content-type")
+      
+      if (contentType?.includes("application/json")) {
+        result = await response.json()
+      } else {
+        const text = await response.text()
+        result = { error: text || "Invalid response from server" }
+      }
+
       if (!response.ok) {
-        throw new Error(result.error || "Failed to associate toner")
+        throw new Error(result.error || `HTTP ${response.status}`)
       }
 
       toast({
@@ -491,9 +540,10 @@ export function DeviceTonerIntelligence() {
       setAssociateOpen(false)
       await loadData()
     } catch (e: any) {
+      const errorMsg = e instanceof TypeError ? "Network error - check your connection" : (e.message || "Unable to save toner association")
       toast({
         title: "Association failed",
-        description: e.message || "Unable to save toner association",
+        description: errorMsg,
         variant: "destructive",
       })
     } finally {
@@ -831,80 +881,69 @@ export function DeviceTonerIntelligence() {
           ))}
         </TabsContent>
 
-        <TabsContent value="executive-summary" className="space-y-3">
+        <TabsContent value="executive-summary" className="space-y-4">
+          {/* ── KPI Header ─────────────────────────────────────────── */}
           <Card>
             <CardHeader>
-              <div className="flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
+              <div className="flex flex-col gap-3 md:flex-row md:items-start md:justify-between">
                 <div>
-                  <CardTitle>Executive Summary and Metrics</CardTitle>
+                  <CardTitle>Printer &amp; Toner Executive Report</CardTitle>
                   <CardDescription>
-                    Printer types, toner types, and toner quantities across all locations with location-level breakdown.
+                    Toner types, quantities, and device distribution across all locations — searchable and filterable.
                   </CardDescription>
                 </div>
-                <Button onClick={exportExecutiveSummaryCsv} variant="outline" className="gap-2">
+                <Button onClick={exportExecutiveSummaryCsv} variant="outline" size="sm" className="gap-2 shrink-0">
                   <Download className="h-4 w-4" />
-                  Export Executive CSV
+                  Export CSV
                 </Button>
               </div>
             </CardHeader>
             <CardContent>
-              <div className="grid grid-cols-2 gap-3 md:grid-cols-6">
-                <div className="rounded-md border p-3">
-                  <p className="text-xs text-muted-foreground">Locations</p>
-                  <p className="text-2xl font-bold">{executiveSummary.totalLocations}</p>
-                </div>
-                <div className="rounded-md border p-3">
-                  <p className="text-xs text-muted-foreground">Devices</p>
-                  <p className="text-2xl font-bold">{executiveSummary.totalDevices}</p>
-                </div>
-                <div className="rounded-md border p-3">
-                  <p className="text-xs text-muted-foreground">Printers</p>
-                  <p className="text-2xl font-bold">{executiveSummary.totalPrinters}</p>
-                </div>
-                <div className="rounded-md border p-3">
-                  <p className="text-xs text-muted-foreground">Photocopiers</p>
-                  <p className="text-2xl font-bold">{executiveSummary.totalPhotocopiers}</p>
-                </div>
-                <div className="rounded-md border p-3">
-                  <p className="text-xs text-muted-foreground">Printer Models</p>
-                  <p className="text-2xl font-bold">{executiveSummary.uniquePrinterModels}</p>
-                </div>
-                <div className="rounded-md border p-3">
-                  <p className="text-xs text-muted-foreground">Toner Types</p>
-                  <p className="text-2xl font-bold">{executiveSummary.uniqueTonerTypes}</p>
-                </div>
+              <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 md:grid-cols-6">
+                {[
+                  { label: "Locations", value: executiveSummary.totalLocations, color: "text-sky-600" },
+                  { label: "Devices", value: executiveSummary.totalDevices, color: "text-slate-700" },
+                  { label: "Printers", value: executiveSummary.totalPrinters, color: "text-blue-600" },
+                  { label: "Photocopiers", value: executiveSummary.totalPhotocopiers, color: "text-violet-600" },
+                  { label: "Printer Models", value: executiveSummary.uniquePrinterModels, color: "text-amber-600" },
+                  { label: "Toner Types", value: executiveSummary.uniqueTonerTypes, color: "text-emerald-600" },
+                ].map((kpi) => (
+                  <div key={kpi.label} className="rounded-lg border bg-muted/30 p-3 text-center">
+                    <p className="text-xs font-medium text-muted-foreground uppercase tracking-wide">{kpi.label}</p>
+                    <p className={`text-3xl font-bold mt-1 ${kpi.color}`}>{kpi.value}</p>
+                  </div>
+                ))}
               </div>
             </CardContent>
           </Card>
 
+          {/* ── Visual Charts ──────────────────────────────────────── */}
           <Card>
-            <CardHeader>
+            <CardHeader className="pb-2">
               <CardTitle className="flex items-center gap-2 text-base">
                 <BarChart3 className="h-4 w-4 text-sky-600" />
                 Visual Metrics Snapshot
               </CardTitle>
-              <CardDescription>
-                Quick view of top locations by printer volume and top toner types by total stock quantity.
-              </CardDescription>
+              <CardDescription>Top locations by printer/copier count and top toner types by total stock quantity.</CardDescription>
             </CardHeader>
             <CardContent>
               <div className="grid grid-cols-1 gap-4 lg:grid-cols-2">
-                <div className="rounded-md border p-3">
-                  <p className="mb-3 font-medium">Top Locations by Printer/Copier Count</p>
+                <div className="rounded-lg border p-4">
+                  <p className="mb-3 text-sm font-semibold text-muted-foreground uppercase tracking-wide">Top Locations by Printer/Copier Count</p>
                   <div className="space-y-2">
                     {executiveCharts.topLocations.length === 0 ? (
                       <p className="text-sm text-muted-foreground">No location data.</p>
                     ) : (
                       executiveCharts.topLocations.map((item) => {
-                        const width = Math.max(8, Math.round((item.total / executiveCharts.maxLocationTotal) * 100))
+                        const width = Math.max(6, Math.round((item.total / executiveCharts.maxLocationTotal) * 100))
                         return (
                           <div key={`loc-chart-${item.location}`}>
                             <div className="mb-1 flex items-center justify-between text-xs">
-                              <span className="truncate pr-2">{item.location}</span>
-                              <span className="font-medium">{item.total}</span>
+                              <span className="truncate pr-2 font-medium">{item.location}</span>
+                              <span className="font-bold tabular-nums">{item.total}</span>
                             </div>
-                            <div className="h-2 w-full rounded bg-muted">
-                              <div className="h-2 rounded bg-sky-600" style={{ width: `${width}%` }} />
+                            <div className="h-2.5 w-full rounded-full bg-muted">
+                              <div className="h-2.5 rounded-full bg-sky-500" style={{ width: `${width}%` }} />
                             </div>
                           </div>
                         )
@@ -912,23 +951,22 @@ export function DeviceTonerIntelligence() {
                     )}
                   </div>
                 </div>
-
-                <div className="rounded-md border p-3">
-                  <p className="mb-3 font-medium">Top Toner Types by Quantity (All Locations)</p>
+                <div className="rounded-lg border p-4">
+                  <p className="mb-3 text-sm font-semibold text-muted-foreground uppercase tracking-wide">Top Toner Types by Total Quantity</p>
                   <div className="space-y-2">
                     {executiveCharts.topToners.length === 0 ? (
                       <p className="text-sm text-muted-foreground">No toner inventory data.</p>
                     ) : (
                       executiveCharts.topToners.map((item) => {
-                        const width = Math.max(8, Math.round((item.qty / executiveCharts.maxTonerQty) * 100))
+                        const width = Math.max(6, Math.round((item.qty / executiveCharts.maxTonerQty) * 100))
                         return (
                           <div key={`toner-chart-${item.name}`}>
                             <div className="mb-1 flex items-center justify-between text-xs">
-                              <span className="truncate pr-2">{item.name}</span>
-                              <span className="font-medium">{item.qty}</span>
+                              <span className="truncate pr-2 font-medium">{item.name}</span>
+                              <span className="font-bold tabular-nums">{item.qty}</span>
                             </div>
-                            <div className="h-2 w-full rounded bg-muted">
-                              <div className="h-2 rounded bg-emerald-600" style={{ width: `${width}%` }} />
+                            <div className="h-2.5 w-full rounded-full bg-muted">
+                              <div className="h-2.5 rounded-full bg-emerald-500" style={{ width: `${width}%` }} />
                             </div>
                           </div>
                         )
@@ -940,56 +978,291 @@ export function DeviceTonerIntelligence() {
             </CardContent>
           </Card>
 
-          {executiveSummary.tonerTypesByLocation.map((loc) => (
-            <Card key={`exec-${loc.location}`}>
-              <CardHeader>
-                <CardTitle className="text-lg">{loc.location}</CardTitle>
-                <CardDescription>
-                  {loc.totalDevices} devices | {loc.totalPrinters} printers | {loc.totalPhotocopiers} photocopiers | {loc.needsNow} urgent | {loc.lowStock} low stock
-                </CardDescription>
-              </CardHeader>
-              <CardContent className="space-y-4">
-                <div className="grid grid-cols-1 gap-4 lg:grid-cols-2">
-                  <div className="rounded-md border p-3">
-                    <p className="mb-2 font-medium">Printer Type Breakdown</p>
-                    {loc.printerTypes.length === 0 ? (
-                      <p className="text-sm text-muted-foreground">No printer/photocopier types found.</p>
-                    ) : (
-                      <div className="space-y-2">
-                        {loc.printerTypes.map((item) => (
-                          <div key={`${loc.location}-${item.model}`} className="flex items-center justify-between rounded-md bg-muted/40 px-2 py-1 text-sm">
-                            <span className="truncate pr-2">{item.model}</span>
-                            <Badge variant="secondary">{item.count}</Badge>
-                          </div>
-                        ))}
-                      </div>
-                    )}
-                  </div>
-
-                  <div className="rounded-md border p-3">
-                    <p className="mb-2 font-medium">Toner Breakdown</p>
-                    {loc.tonerBreakdown.length === 0 ? (
-                      <p className="text-sm text-muted-foreground">No toner type mapped in this location.</p>
-                    ) : (
-                      <div className="space-y-2">
-                        {loc.tonerBreakdown.map((t) => (
-                          <div key={`${loc.location}-${t.tonerType}`} className="rounded-md bg-muted/40 p-2 text-sm">
-                            <div className="flex items-center justify-between gap-2">
-                              <span className="font-medium truncate">{t.tonerType}</span>
-                              <Badge variant="outline">{t.printersUsing} printer(s)</Badge>
-                            </div>
-                            <p className="mt-1 text-xs text-muted-foreground">
-                              Qty in {loc.location}: {t.locationQty} | Qty in all locations: {t.globalQty}
-                            </p>
-                          </div>
-                        ))}
-                      </div>
-                    )}
-                  </div>
+          {/* ── Search & Filter Bar ────────────────────────────────── */}
+          <Card>
+            <CardHeader className="pb-3">
+              <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+                <div>
+                  <CardTitle className="text-base">Location &amp; Toner Inventory Table</CardTitle>
+                  <CardDescription>All locations with device counts, toner types, and stock status.</CardDescription>
                 </div>
-              </CardContent>
-            </Card>
-          ))}
+                <div className="text-xs text-muted-foreground">
+                  Showing {filteredExecData.length} of {executiveSummary.tonerTypesByLocation.length} locations
+                </div>
+              </div>
+              <div className="flex flex-col gap-2 pt-1 sm:flex-row">
+                <div className="relative flex-1">
+                  <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
+                  <Input
+                    placeholder="Search location, printer model, toner type…"
+                    value={execSearch}
+                    onChange={(e) => setExecSearch(e.target.value)}
+                    className="pl-9 h-9"
+                  />
+                </div>
+                <Select value={execStatusFilter} onValueChange={(v) => setExecStatusFilter(v as typeof execStatusFilter)}>
+                  <SelectTrigger className="w-full sm:w-44 h-9">
+                    <Filter className="h-3.5 w-3.5 mr-1.5 text-muted-foreground" />
+                    <SelectValue placeholder="Filter by status" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="all">All Locations</SelectItem>
+                    <SelectItem value="urgent">Urgent Only</SelectItem>
+                    <SelectItem value="low">Low Stock Only</SelectItem>
+                    <SelectItem value="ok">OK / Sufficient</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
+            </CardHeader>
+            <CardContent className="p-0">
+              {filteredExecData.length === 0 ? (
+                <div className="flex flex-col items-center justify-center py-12 text-center">
+                  <Search className="h-8 w-8 text-muted-foreground/50 mb-2" />
+                  <p className="text-sm font-medium">No locations match your search</p>
+                  <p className="text-xs text-muted-foreground mt-1">Try adjusting your search term or filter.</p>
+                </div>
+              ) : (
+                <div className="overflow-x-auto">
+                  <Table>
+                    <TableHeader>
+                      <TableRow className="bg-muted/50">
+                        <TableHead className="w-8" />
+                        <TableHead
+                          className="cursor-pointer select-none font-semibold hover:text-foreground"
+                          onClick={() => toggleExecSort("location")}
+                        >
+                          Location {execSortField === "location" ? (execSortDir === "asc" ? "↑" : "↓") : ""}
+                        </TableHead>
+                        <TableHead
+                          className="cursor-pointer select-none text-center font-semibold hover:text-foreground"
+                          onClick={() => toggleExecSort("devices")}
+                        >
+                          Devices {execSortField === "devices" ? (execSortDir === "asc" ? "↑" : "↓") : ""}
+                        </TableHead>
+                        <TableHead className="text-center font-semibold">Printers</TableHead>
+                        <TableHead className="text-center font-semibold">Photocopiers</TableHead>
+                        <TableHead
+                          className="cursor-pointer select-none text-center font-semibold hover:text-foreground"
+                          onClick={() => toggleExecSort("toners")}
+                        >
+                          Toner Types {execSortField === "toners" ? (execSortDir === "asc" ? "↑" : "↓") : ""}
+                        </TableHead>
+                        <TableHead
+                          className="cursor-pointer select-none text-center font-semibold hover:text-foreground"
+                          onClick={() => toggleExecSort("urgent")}
+                        >
+                          Urgent {execSortField === "urgent" ? (execSortDir === "asc" ? "↑" : "↓") : ""}
+                        </TableHead>
+                        <TableHead className="text-center font-semibold">Low Stock</TableHead>
+                        <TableHead className="text-center font-semibold">Status</TableHead>
+                      </TableRow>
+                    </TableHeader>
+                    <TableBody>
+                      {filteredExecData.map((loc) => {
+                        const isExpanded = execExpandedLocation === loc.location
+                        const overallStatus = loc.needsNow > 0 ? "urgent" : loc.lowStock > 0 ? "low" : "ok"
+                        return (
+                          <>
+                            <TableRow
+                              key={`exec-row-${loc.location}`}
+                              className="cursor-pointer hover:bg-muted/40"
+                              onClick={() => setExecExpandedLocation(isExpanded ? null : loc.location)}
+                            >
+                              <TableCell className="px-3">
+                                {isExpanded ? (
+                                  <ChevronDown className="h-4 w-4 text-muted-foreground" />
+                                ) : (
+                                  <ChevronRight className="h-4 w-4 text-muted-foreground" />
+                                )}
+                              </TableCell>
+                              <TableCell className="font-medium">{loc.location}</TableCell>
+                              <TableCell className="text-center tabular-nums">{loc.totalDevices}</TableCell>
+                              <TableCell className="text-center tabular-nums">{loc.totalPrinters}</TableCell>
+                              <TableCell className="text-center tabular-nums">{loc.totalPhotocopiers}</TableCell>
+                              <TableCell className="text-center tabular-nums">{loc.tonerBreakdown.length}</TableCell>
+                              <TableCell className="text-center">
+                                {loc.needsNow > 0 ? (
+                                  <span className="font-semibold text-red-600">{loc.needsNow}</span>
+                                ) : (
+                                  <span className="text-muted-foreground">—</span>
+                                )}
+                              </TableCell>
+                              <TableCell className="text-center">
+                                {loc.lowStock > 0 ? (
+                                  <span className="font-semibold text-amber-600">{loc.lowStock}</span>
+                                ) : (
+                                  <span className="text-muted-foreground">—</span>
+                                )}
+                              </TableCell>
+                              <TableCell className="text-center">
+                                {overallStatus === "urgent" && (
+                                  <Badge variant="destructive" className="text-xs">Urgent</Badge>
+                                )}
+                                {overallStatus === "low" && (
+                                  <Badge className="bg-amber-500 text-white text-xs">Low Stock</Badge>
+                                )}
+                                {overallStatus === "ok" && (
+                                  <Badge className="bg-emerald-600 text-white text-xs">OK</Badge>
+                                )}
+                              </TableCell>
+                            </TableRow>
+
+                            {isExpanded && (
+                              <TableRow key={`exec-detail-${loc.location}`} className="bg-muted/20 hover:bg-muted/20">
+                                <TableCell colSpan={9} className="px-4 py-4">
+                                  <div className="grid grid-cols-1 gap-4 lg:grid-cols-2">
+                                    {/* Printer Model Breakdown */}
+                                    <div>
+                                      <p className="mb-2 text-xs font-semibold uppercase tracking-wide text-muted-foreground">Printer Models at This Location</p>
+                                      {loc.printerTypes.length === 0 ? (
+                                        <p className="text-sm text-muted-foreground italic">No printer/copier models found.</p>
+                                      ) : (
+                                        <Table>
+                                          <TableHeader>
+                                            <TableRow className="bg-background">
+                                              <TableHead className="text-xs">Model</TableHead>
+                                              <TableHead className="text-xs text-center">Count</TableHead>
+                                            </TableRow>
+                                          </TableHeader>
+                                          <TableBody>
+                                            {loc.printerTypes.map((pt) => (
+                                              <TableRow key={`${loc.location}-pt-${pt.model}`}>
+                                                <TableCell className="text-sm font-medium py-1.5">{pt.model}</TableCell>
+                                                <TableCell className="text-center py-1.5">
+                                                  <Badge variant="secondary">{pt.count}</Badge>
+                                                </TableCell>
+                                              </TableRow>
+                                            ))}
+                                          </TableBody>
+                                        </Table>
+                                      )}
+                                    </div>
+
+                                    {/* Toner Inventory Breakdown */}
+                                    <div>
+                                      <p className="mb-2 text-xs font-semibold uppercase tracking-wide text-muted-foreground">Toner Inventory at This Location</p>
+                                      {loc.tonerBreakdown.length === 0 ? (
+                                        <p className="text-sm text-muted-foreground italic">No toner types mapped at this location.</p>
+                                      ) : (
+                                        <Table>
+                                          <TableHeader>
+                                            <TableRow className="bg-background">
+                                              <TableHead className="text-xs">Toner Type</TableHead>
+                                              <TableHead className="text-xs text-center">Devices Using</TableHead>
+                                              <TableHead className="text-xs text-center">Qty Here</TableHead>
+                                              <TableHead className="text-xs text-center">Qty Global</TableHead>
+                                            </TableRow>
+                                          </TableHeader>
+                                          <TableBody>
+                                            {loc.tonerBreakdown.map((t) => {
+                                              const tonerStatus = t.locationQty === 0 ? "urgent" : t.locationQty <= 2 ? "low" : "ok"
+                                              return (
+                                                <TableRow key={`${loc.location}-td-${t.tonerType}`}>
+                                                  <TableCell className="text-sm font-medium py-1.5">{t.tonerType}</TableCell>
+                                                  <TableCell className="text-center py-1.5 tabular-nums">{t.printersUsing}</TableCell>
+                                                  <TableCell className="text-center py-1.5">
+                                                    <span className={`font-semibold tabular-nums ${
+                                                      tonerStatus === "urgent" ? "text-red-600" : tonerStatus === "low" ? "text-amber-600" : "text-emerald-700"
+                                                    }`}>{t.locationQty}</span>
+                                                  </TableCell>
+                                                  <TableCell className="text-center py-1.5 tabular-nums text-muted-foreground">{t.globalQty}</TableCell>
+                                                </TableRow>
+                                              )
+                                            })}
+                                          </TableBody>
+                                        </Table>
+                                      )}
+                                    </div>
+                                  </div>
+                                </TableCell>
+                              </TableRow>
+                            )}
+                          </>
+                        )
+                      })}
+                    </TableBody>
+                  </Table>
+                </div>
+              )}
+            </CardContent>
+          </Card>
+
+          {/* ── Full Toner Inventory Cross-Table ───────────────────── */}
+          <Card>
+            <CardHeader className="pb-3">
+              <CardTitle className="text-base">Toner Type Inventory — All Locations</CardTitle>
+              <CardDescription>
+                Every toner type in use across the organisation, showing how many devices use it and stock levels per location and globally.
+              </CardDescription>
+            </CardHeader>
+            <CardContent className="p-0">
+              {(() => {
+                const tonerMap = new Map<string, { devicesUsing: number; locationQty: number; globalQty: number; locations: string[] }>()
+                executiveSummary.tonerTypesByLocation.forEach((loc) => {
+                  loc.tonerBreakdown.forEach((t) => {
+                    const existing = tonerMap.get(t.tonerType) || { devicesUsing: 0, locationQty: 0, globalQty: t.globalQty, locations: [] }
+                    existing.devicesUsing += t.printersUsing
+                    existing.locationQty += t.locationQty
+                    if (!existing.locations.includes(loc.location)) existing.locations.push(loc.location)
+                    tonerMap.set(t.tonerType, existing)
+                  })
+                })
+                const allTonerRows = Array.from(tonerMap.entries())
+                  .map(([tonerType, data]) => ({ tonerType, ...data }))
+                  .sort((a, b) => b.devicesUsing - a.devicesUsing)
+
+                if (allTonerRows.length === 0) {
+                  return (
+                    <div className="flex items-center justify-center py-8 text-sm text-muted-foreground">
+                      No toner types have been mapped yet.
+                    </div>
+                  )
+                }
+
+                return (
+                  <div className="overflow-x-auto">
+                    <Table>
+                      <TableHeader>
+                        <TableRow className="bg-muted/50">
+                          <TableHead className="font-semibold">Toner Type</TableHead>
+                          <TableHead className="text-center font-semibold">Devices Using</TableHead>
+                          <TableHead className="text-center font-semibold">Total Qty (All Locations)</TableHead>
+                          <TableHead className="text-center font-semibold">Locations Stocked</TableHead>
+                          <TableHead className="font-semibold">Locations</TableHead>
+                          <TableHead className="text-center font-semibold">Stock Status</TableHead>
+                        </TableRow>
+                      </TableHeader>
+                      <TableBody>
+                        {allTonerRows.map((row) => {
+                          const stockStatus = row.globalQty === 0 ? "critical" : row.globalQty <= 3 ? "low" : "ok"
+                          return (
+                            <TableRow key={`toner-all-${row.tonerType}`}>
+                              <TableCell className="font-medium">{row.tonerType}</TableCell>
+                              <TableCell className="text-center tabular-nums">{row.devicesUsing}</TableCell>
+                              <TableCell className="text-center">
+                                <span className={`font-semibold tabular-nums ${
+                                  stockStatus === "critical" ? "text-red-600" : stockStatus === "low" ? "text-amber-600" : "text-emerald-700"
+                                }`}>{row.globalQty}</span>
+                              </TableCell>
+                              <TableCell className="text-center tabular-nums">{row.locations.length}</TableCell>
+                              <TableCell className="text-sm text-muted-foreground max-w-xs truncate">
+                                {row.locations.join(" · ")}
+                              </TableCell>
+                              <TableCell className="text-center">
+                                {stockStatus === "critical" && <Badge variant="destructive" className="text-xs">Out of Stock</Badge>}
+                                {stockStatus === "low" && <Badge className="bg-amber-500 text-white text-xs">Low</Badge>}
+                                {stockStatus === "ok" && <Badge className="bg-emerald-600 text-white text-xs">In Stock</Badge>}
+                              </TableCell>
+                            </TableRow>
+                          )
+                        })}
+                      </TableBody>
+                    </Table>
+                  </div>
+                )
+              })()}
+            </CardContent>
+          </Card>
         </TabsContent>
       </Tabs>
 
