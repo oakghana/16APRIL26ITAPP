@@ -31,6 +31,8 @@ export async function POST(request: NextRequest) {
       requestedByEmail,
       department,
       requestDate,
+      submittedByRole,
+      submittedByEmail,
     } = body
 
     console.log("[it-requisitions] Creating new IT equipment requisition:", {
@@ -63,6 +65,9 @@ export async function POST(request: NextRequest) {
           timestamp: now,
         },
       ],
+      created_by: requestedBy || null,
+      created_by_role: submittedByRole || null,
+      created_by_email: submittedByEmail || requestedByEmail || null,
       created_at: now,
       updated_at: now,
     }

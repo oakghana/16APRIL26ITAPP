@@ -41,6 +41,7 @@ export async function POST(request: NextRequest) {
       confirmedDate,
       repairStatus,
       submittedByRole,
+      submittedByEmail,
     } = body
 
     console.log("[maintenance-repairs] Creating new maintenance request:", {
@@ -69,6 +70,9 @@ export async function POST(request: NextRequest) {
       confirmed_by: canEditOfficialSections ? confirmedBy || null : null,
       confirmed_date: canEditOfficialSections ? confirmedDate || null : null,
       gadget_working_status: canEditOfficialSections ? repairStatus || null : null,
+      created_by: staffName || null,
+      created_by_role: submittedByRole || null,
+      created_by_email: submittedByEmail || null,
       status: "pending_hod",
       created_at: new Date().toISOString(),
       updated_at: new Date().toISOString(),

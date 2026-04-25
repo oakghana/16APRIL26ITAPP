@@ -16,6 +16,7 @@ import {
 } from "@/components/ui/dialog"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import { CheckCircle2, XCircle, Eye, AlertCircle, Loader2, BarChart3, Download, PenLine, Printer } from "lucide-react"
+import { FormApprovalChainView } from "./form-approval-chain-view"
 import { useAuth } from "@/lib/auth-context"
 import { useToast } from "@/hooks/use-toast"
 import { ApprovalTracker } from "./approval-tracker"
@@ -66,6 +67,9 @@ interface ITRequisition {
   recommended?: boolean | null
   gadget_working_status?: string
   approval_timeline?: Array<any>
+  created_by?: string
+  created_by_role?: string
+  created_by_email?: string
   created_at: string
 }
 
@@ -611,6 +615,32 @@ export function ITHeadAdminPanel() {
                 <h3 className="font-semibold mb-3">Approval Status</h3>
                 <ApprovalTracker stages={buildApprovalStages(selectedRequisition)} currentStatus={selectedRequisition.status} />
               </div>
+              {selectedRequisition.created_by && (
+                <div>
+                  <h3 className="font-semibold mb-3">Request Initiator</h3>
+                  <FormApprovalChainView
+                    formType={
+                      selectedRequisition.formType === "requisition"
+                        ? "equipment_requisition"
+                        : selectedRequisition.formType === "new-gadget"
+                        ? "new_gadget"
+                        : "maintenance"
+                    }
+                    formNumber={getRequestNumber(selectedRequisition)}
+                    createdBy={selectedRequisition.created_by}
+                    createdByRole={selectedRequisition.created_by_role || "it_staff"}
+                    createdByEmail={selectedRequisition.created_by_email}
+                    createdAt={selectedRequisition.created_at}
+                    approvalChain={buildApprovalStages(selectedRequisition).map((s) => ({
+                      role: s.role,
+                      person: s.approver,
+                      timestamp: s.timestamp,
+                      signature: s.signatureDataUrl,
+                    }))}
+                    status={selectedRequisition.status}
+                  />
+                </div>
+              )}
               <div className="flex flex-wrap gap-2">
                 <Button variant="outline" onClick={() => handleDownload(selectedRequisition)}>
                   <Download className="mr-2 h-4 w-4" />

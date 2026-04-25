@@ -20,6 +20,7 @@ import { CheckCircle2, XCircle, Eye, AlertCircle, Loader2, PenLine } from "lucid
 import { useAuth } from "@/lib/auth-context"
 import { useToast } from "@/hooks/use-toast"
 import { ApprovalTracker } from "./approval-tracker"
+import { FormApprovalChainView } from "./form-approval-chain-view"
 import { formatDisplayDate } from "@/lib/utils"
 import { SignaturePad } from "@/components/ui/signature-pad"
 
@@ -54,6 +55,9 @@ interface ITFormRequest {
   it_head_approved?: boolean
   admin_approved?: boolean
   store_head_approved?: boolean
+  created_by?: string
+  created_by_role?: string
+  created_by_email?: string
   created_at: string
   updated_at: string
 }
@@ -502,6 +506,33 @@ export function DepartmentHeadApprovalModule() {
                 <h3 className="font-semibold mb-3">Approval Status</h3>
                 <ApprovalTracker stages={buildApprovalStages(selectedRequisition)} currentStatus={selectedRequisition.status} />
               </div>
+
+              {selectedRequisition.created_by && (
+                <div>
+                  <h3 className="font-semibold mb-3">Request Initiator</h3>
+                  <FormApprovalChainView
+                    formType={
+                      selectedRequisition.formType === "requisition"
+                        ? "equipment_requisition"
+                        : selectedRequisition.formType === "new-gadget"
+                        ? "new_gadget"
+                        : "maintenance"
+                    }
+                    formNumber={getRequestNumber(selectedRequisition)}
+                    createdBy={selectedRequisition.created_by}
+                    createdByRole={selectedRequisition.created_by_role || "it_staff"}
+                    createdByEmail={selectedRequisition.created_by_email}
+                    createdAt={selectedRequisition.created_at}
+                    approvalChain={buildApprovalStages(selectedRequisition).map((s) => ({
+                      role: s.role,
+                      person: s.approver,
+                      timestamp: s.timestamp,
+                      signature: s.signatureDataUrl,
+                    }))}
+                    status={selectedRequisition.status}
+                  />
+                </div>
+              )}
 
               {selectedRequisition.department_head_signature && (
                 <div>

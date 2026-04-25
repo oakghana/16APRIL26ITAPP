@@ -82,6 +82,7 @@ export function ITEquipmentRequisitionForm({ onSubmit }: { onSubmit: () => void 
         body: JSON.stringify({
           ...formData,
           submittedByRole: user?.role || "",
+          submittedByEmail: user?.email || "",
         }),
       })
 

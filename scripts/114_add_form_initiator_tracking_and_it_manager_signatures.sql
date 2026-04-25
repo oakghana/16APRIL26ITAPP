@@ -52,11 +52,11 @@ INSERT INTO public.it_form_signature_profiles (user_id, role, signature_data_url
 SELECT DISTINCT
   p.id,
   'it_manager' as role,
-  NULL::text as signature_data_url,
+  ''::text as signature_data_url,
   now(),
   now()
 FROM public.profiles p
-WHERE lower(p.role) = 'department_head'
+WHERE lower(p.role::text) = 'department_head'
   AND lower(p.department) LIKE '%it%'
   AND NOT EXISTS (
     SELECT 1 FROM public.it_form_signature_profiles sp
