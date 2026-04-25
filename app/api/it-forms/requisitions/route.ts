@@ -7,16 +7,31 @@ const supabaseAdmin = createClient(
   process.env.SUPABASE_SERVICE_ROLE_KEY || "service-role-key-placeholder"
 )
 
+function isUuidLike(value?: string | null) {
+  if (!value) return false
+  return /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(value)
+}
+
 async function generateNextSequentialNumber() {
+  // Query both reg_no and requisition_number to find the true highest sequence,
+  // since the DB unique constraint is on reg_no and either column may hold the sequence.
   const { data } = await supabaseAdmin
     .from("it_equipment_requisitions")
-    .select("requisition_number")
+    .select("requisition_number, reg_no")
     .order("created_at", { ascending: false })
-    .limit(1)
+    .limit(50)
 
-  const previousNumber = data?.[0]?.requisition_number || "IT-REQ-0000"
-  const lastSequence = Number(previousNumber.split("-").pop() || "0")
-  return `IT-REQ-${String(lastSequence + 1).padStart(4, "0")}`
+  let maxSeq = 0
+  for (const row of data || []) {
+    for (const val of [row.requisition_number, row.reg_no]) {
+      if (typeof val === "string") {
+        const parts = val.split("-")
+        const n = Number(parts[parts.length - 1])
+        if (!isNaN(n) && n > maxSeq) maxSeq = n
+      }
+    }
+  }
+  return `IT-REQ-${String(maxSeq + 1).padStart(4, "0")}`
 }
 
 export async function POST(request: NextRequest) {
@@ -43,18 +58,21 @@ export async function POST(request: NextRequest) {
     const requisitionNumber = await generateNextSequentialNumber()
 
     const now = new Date().toISOString()
-    const insertData = {
+    const insertData: Record<string, any> = {
       requisition_number: requisitionNumber,
+      // reg_no is the NOT NULL alias used in some DB deployments for the requisition number.
+      reg_no: requisitionNumber,
       // Requesters cannot set these fields; they are completed at store issuance.
       item_sn: null,
       supplier_name: null,
       items_required: itemsRequired,
       purpose: purpose,
-      requested_by: requestedBy,
-      requested_by_id: requestedById || null,
+      // Some deployments store requested_by/created_by as UUID; guard all identity fields.
+      requested_by: isUuidLike(requestedById) ? requestedById : null,
+      requested_by_id: isUuidLike(requestedById) ? requestedById : null,
       requested_by_email: requestedByEmail || null,
       department_name: department,
-      request_date: requestDate || now,
+      request_date: requestDate || now.split("T")[0],
       status: "pending_department_head",
       approval_timeline: [
         {
@@ -65,17 +83,98 @@ export async function POST(request: NextRequest) {
           timestamp: now,
         },
       ],
-      created_by: requestedBy || null,
+      // created_by may be UUID-typed in some deployments — only set it if we have a real UUID.
+      created_by: isUuidLike(requestedById) ? requestedById : null,
       created_by_role: submittedByRole || null,
       created_by_email: submittedByEmail || requestedByEmail || null,
       created_at: now,
       updated_at: now,
     }
 
-    const { data, error: insertError } = await supabaseAdmin
-      .from("it_equipment_requisitions")
-      .insert([insertData])
-      .select()
+    let data: any[] | null = null
+    let insertError: any = null
+
+    // Handle deployments where table schema is behind code (missing columns from recent migrations).
+    for (let attempt = 0; attempt < 6; attempt++) {
+      const result = await supabaseAdmin
+        .from("it_equipment_requisitions")
+        .insert([insertData])
+        .select()
+
+      data = result.data
+      insertError = result.error
+
+      if (!insertError) break
+
+      const message = String(insertError.message || "")
+      const missingColumnMatch = message.match(/Could not find the '([^']+)' column/i)
+      const missingColumn = missingColumnMatch?.[1]
+
+      if (!missingColumn) {
+        // Duplicate reg_no/requisition_number — regenerate a fresh number and retry.
+        if (insertError.code === "23505" && /reg_no|requisition_number/i.test(message)) {
+          const newNumber = await generateNextSequentialNumber()
+          insertData.reg_no = newNumber
+          insertData.requisition_number = newNumber
+          continue
+        }
+
+        // Fallback for typed-column mismatches (e.g., requester fields forced to UUID on some deployments).
+        if (insertError.code === "22P02" && /invalid input syntax for type uuid/i.test(message)) {
+          if (insertData.requested_by !== null && insertData.requested_by !== undefined && !isUuidLike(insertData.requested_by)) {
+            insertData.requested_by = isUuidLike(requestedById) ? requestedById : null
+            continue
+          }
+          if (insertData.requested_by_id !== null && insertData.requested_by_id !== undefined && !isUuidLike(insertData.requested_by_id)) {
+            insertData.requested_by_id = null
+            continue
+          }
+          if (insertData.created_by !== null && insertData.created_by !== undefined && !isUuidLike(insertData.created_by)) {
+            insertData.created_by = isUuidLike(requestedById) ? requestedById : null
+            continue
+          }
+
+          // Last-resort compatibility: drop fields that can carry non-UUID requester text in strict schemas.
+          const uuidSensitiveFields = ["requested_by", "requested_by_id", "created_by", "approval_timeline", "approval_chain"]
+          const nextField = uuidSensitiveFields.find((field) => Object.prototype.hasOwnProperty.call(insertData, field))
+          if (nextField) {
+            delete insertData[nextField]
+            continue
+          }
+        }
+        break
+      }
+
+      if (missingColumn === "department_name" && department !== undefined) {
+        insertData.department = department
+      }
+
+      if (missingColumn === "department" && department !== undefined) {
+        insertData.department_name = department
+      }
+
+      // If requisition_number column doesn't exist, fall back to reg_no (and vice versa).
+      if (missingColumn === "requisition_number") {
+        insertData.reg_no = insertData.reg_no || requisitionNumber
+        delete insertData.requisition_number
+        continue
+      }
+      if (missingColumn === "reg_no") {
+        delete insertData.reg_no
+        continue
+      }
+
+      if (missingColumn === "approval_timeline" && insertData.approval_timeline) {
+        insertData.approval_chain = insertData.approval_timeline
+      }
+
+      if (missingColumn === "approval_chain" && insertData.approval_chain) {
+        delete insertData.approval_chain
+      }
+
+      // Remove the missing field and retry.
+      delete insertData[missingColumn]
+    }
 
     if (insertError) {
       console.error("[it-requisitions] Error creating requisition:", insertError)
@@ -87,10 +186,19 @@ export async function POST(request: NextRequest) {
 
     console.log("[it-requisitions] Requisition created successfully:", data)
 
+    const createdRow = data?.[0]
+    const normalizedRow = createdRow
+      ? {
+          ...createdRow,
+          requisition_number: createdRow.requisition_number || createdRow.reg_no || requisitionNumber,
+          department: createdRow.department || createdRow.department_name || null,
+        }
+      : null
+
     return NextResponse.json({
       success: true,
       message: "IT equipment requisition created successfully",
-      requisition: data?.[0],
+      requisition: normalizedRow,
       requisitionNumber
     })
 
@@ -124,14 +232,6 @@ export async function GET(request: NextRequest) {
       query = query.eq("status", status)
     }
 
-    if (department && department !== "all") {
-      query = query.eq("department_name", department)
-    }
-
-    if (requestedBy) {
-      query = query.eq("requested_by", requestedBy)
-    }
-
     if (processedBy) {
       query = query.eq("service_desk_processed_by", processedBy)
     }
@@ -146,7 +246,29 @@ export async function GET(request: NextRequest) {
     let requisitions = (data || []).map((r: any) => ({
       ...r,
       department: r.department || r.department_name || null,
+      // Normalize reg_no → requisition_number for UI compatibility.
+      requisition_number: r.requisition_number || r.reg_no || null,
     }))
+
+    if (department && department !== "all") {
+      const normalizedDepartment = String(department).toLowerCase().trim()
+      requisitions = requisitions.filter((r: any) =>
+        String(r.department || r.department_name || "").toLowerCase().trim() === normalizedDepartment
+      )
+    }
+
+    if (requestedBy) {
+      const normalizedRequestedBy = String(requestedBy).toLowerCase().trim()
+      requisitions = requisitions.filter((r: any) => {
+        const candidates = [
+          r.requested_by,
+          r.requested_by_name,
+          r.requester_name,
+          r.created_by,
+        ]
+        return candidates.some((v: any) => String(v || "").toLowerCase().trim() === normalizedRequestedBy)
+      })
+    }
 
     if (officeUseLocation && requisitions.length > 0) {
       const requesterIds = [...new Set(requisitions.map((r: any) => r.requested_by_id).filter(Boolean))]
