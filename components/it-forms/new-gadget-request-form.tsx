@@ -1,7 +1,7 @@
 "use client"
 
 import type React from "react"
-import { useState } from "react"
+import { useEffect, useState } from "react"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
@@ -11,17 +11,19 @@ import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group"
 import { AlertCircle, Laptop } from "lucide-react"
 import { useAuth } from "@/lib/auth-context"
 import { useToast } from "@/hooks/use-toast"
+import { normalizeDepartmentName } from "@/lib/department-options"
 
 export function NewGadgetRequestForm({ onSubmit }: { onSubmit: () => void }) {
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState("")
   const { user } = useAuth()
   const { toast } = useToast()
+  const userDepartment = normalizeDepartmentName(user?.department)
 
   const [formData, setFormData] = useState({
     // Section A - Requesting Staff Information
     staffName: user?.full_name || "",
-    departmentName: "",
+    departmentName: userDepartment,
     complaintsFromUsers: "",
     requestDate: new Date().toISOString().split("T")[0],
     
@@ -41,17 +43,13 @@ export function NewGadgetRequestForm({ onSubmit }: { onSubmit: () => void }) {
     confirmedDate: "",
   })
 
-  const departments = [
-    "Finance",
-    "Human Resources", 
-    "Operations",
-    "IT",
-    "Marketing",
-    "Sales",
-    "Procurement",
-    "Administration",
-    "Other",
-  ]
+  useEffect(() => {
+    setFormData((prev) => ({
+      ...prev,
+      staffName: user?.full_name || "",
+      departmentName: normalizeDepartmentName(user?.department),
+    }))
+  }, [user?.full_name, user?.department])
 
   const gadgetTypes = [
     "Laptop",
@@ -94,7 +92,7 @@ export function NewGadgetRequestForm({ onSubmit }: { onSubmit: () => void }) {
     }
 
     if (!formData.departmentName) {
-      setError("Please select a department")
+      setError("Your department is not configured. Please contact admin to update your profile department.")
       return
     }
 
@@ -144,7 +142,7 @@ export function NewGadgetRequestForm({ onSubmit }: { onSubmit: () => void }) {
       // Reset form
       setFormData({
         staffName: user?.full_name || "",
-        departmentName: "",
+        departmentName: normalizeDepartmentName(user?.department),
         complaintsFromUsers: "",
         requestDate: new Date().toISOString().split("T")[0],
         makeOfGadget: "",
@@ -223,18 +221,13 @@ export function NewGadgetRequestForm({ onSubmit }: { onSubmit: () => void }) {
 
           <div className="space-y-2">
             <Label htmlFor="departmentName">Department Name *</Label>
-            <Select value={formData.departmentName} onValueChange={(value) => handleSelectChange("departmentName", value)}>
-              <SelectTrigger id="departmentName">
-                <SelectValue placeholder="Select department" />
-              </SelectTrigger>
-              <SelectContent>
-                {departments.map((dept) => (
-                  <SelectItem key={dept} value={dept}>
-                    {dept}
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
+            <Input
+              id="departmentName"
+              name="departmentName"
+              value={formData.departmentName}
+              disabled
+              className="opacity-70"
+            />
           </div>
         </div>
 

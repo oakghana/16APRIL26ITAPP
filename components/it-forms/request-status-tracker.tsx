@@ -123,7 +123,7 @@ export function RequestStatusTracker({
           ? `/api/it-forms/maintenance-repairs?staffName=${encodeURIComponent(user?.full_name || user?.name || "")}`
           : formType === "new-gadget"
             ? `/api/it-forms/new-gadget?staffName=${encodeURIComponent(user?.full_name || user?.name || "")}`
-            : `/api/it-forms/my-requisitions?userId=${user?.id}`
+            : `/api/it-forms/my-requisitions?userId=${encodeURIComponent(user?.id || "")}&userEmail=${encodeURIComponent(user?.email || "")}`
 
       const response = await fetch(endpoint)
       const data = await response.json()

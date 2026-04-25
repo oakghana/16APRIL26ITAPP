@@ -1,21 +1,22 @@
 "use client"
 
 import type React from "react"
-import { useState } from "react"
+import { useEffect, useState } from "react"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { Textarea } from "@/components/ui/textarea"
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { AlertCircle, FileText, ShieldCheck } from "lucide-react"
 import { useAuth } from "@/lib/auth-context"
 import { useToast } from "@/hooks/use-toast"
+import { normalizeDepartmentName } from "@/lib/department-options"
 
 export function ITEquipmentRequisitionForm({ onSubmit }: { onSubmit: () => void }) {
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState("")
   const { user } = useAuth()
   const { toast } = useToast()
+  const userDepartment = normalizeDepartmentName(user?.department)
   const canEditOfficialSections = false
 
   const [formData, setFormData] = useState({
@@ -26,28 +27,22 @@ export function ITEquipmentRequisitionForm({ onSubmit }: { onSubmit: () => void 
     requestedBy: user?.full_name || "",
     requestedById: user?.id || "",
     requestedByEmail: user?.email || "",
-    department: "",
+    department: userDepartment,
     requestDate: new Date().toISOString().split("T")[0],
   })
 
-  const departments = [
-    "Finance",
-    "Human Resources",
-    "Operations",
-    "IT",
-    "Marketing",
-    "Sales",
-    "Procurement",
-    "Administration",
-    "Other",
-  ]
+  useEffect(() => {
+    setFormData((prev) => ({
+      ...prev,
+      requestedBy: user?.full_name || "",
+      requestedById: user?.id || "",
+      requestedByEmail: user?.email || "",
+      department: normalizeDepartmentName(user?.department),
+    }))
+  }, [user?.full_name, user?.id, user?.email, user?.department])
 
   const handleInputChange = (e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement>) => {
     const { name, value } = e.target
-    setFormData((prev) => ({ ...prev, [name]: value }))
-  }
-
-  const handleSelectChange = (name: string, value: string) => {
     setFormData((prev) => ({ ...prev, [name]: value }))
   }
 
@@ -67,7 +62,7 @@ export function ITEquipmentRequisitionForm({ onSubmit }: { onSubmit: () => void 
     }
 
     if (!formData.department) {
-      setError("Please select a department")
+      setError("Your department is not configured. Please contact admin to update your profile department.")
       return
     }
 
@@ -114,7 +109,7 @@ export function ITEquipmentRequisitionForm({ onSubmit }: { onSubmit: () => void 
         requestedBy: user?.full_name || "",
         requestedById: user?.id || "",
         requestedByEmail: user?.email || "",
-        department: "",
+        department: normalizeDepartmentName(user?.department),
         requestDate: new Date().toISOString().split("T")[0],
       })
 
@@ -212,18 +207,13 @@ export function ITEquipmentRequisitionForm({ onSubmit }: { onSubmit: () => void 
 
           <div className="space-y-2">
             <Label htmlFor="department">Department *</Label>
-            <Select value={formData.department} onValueChange={(value) => handleSelectChange("department", value)}>
-              <SelectTrigger id="department">
-                <SelectValue placeholder="Select department" />
-              </SelectTrigger>
-              <SelectContent>
-                {departments.map((dept) => (
-                  <SelectItem key={dept} value={dept}>
-                    {dept}
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
+            <Input
+              id="department"
+              name="department"
+              value={formData.department}
+              disabled
+              className="opacity-70"
+            />
           </div>
         </div>
 

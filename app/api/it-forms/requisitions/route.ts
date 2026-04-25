@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server"
 import { createClient } from "@supabase/supabase-js"
 import { isLocationInSameRegion, normalizeLocation } from "@/lib/location-filter"
+import { normalizeDepartmentName } from "@/lib/department-options"
 
 const supabaseAdmin = createClient(
   process.env.NEXT_PUBLIC_SUPABASE_URL || "https://example.supabase.co",
@@ -68,8 +69,16 @@ export async function POST(request: NextRequest) {
       submittedByEmail,
     } = body
 
+    const normalizedDepartment = normalizeDepartmentName(department)
+    if (!normalizedDepartment) {
+      return NextResponse.json(
+        { error: "Department is not configured for your account. Please contact admin." },
+        { status: 400 }
+      )
+    }
+
     console.log("[it-requisitions] Creating new IT equipment requisition:", {
-      department,
+      department: normalizedDepartment,
       requestedBy,
     })
 
@@ -89,7 +98,7 @@ export async function POST(request: NextRequest) {
       requested_by: isUuidLike(requestedById) ? requestedById : null,
       requested_by_id: isUuidLike(requestedById) ? requestedById : null,
       requested_by_email: requestedByEmail || null,
-      department_name: department,
+      department_name: normalizedDepartment,
       request_date: requestDate || now.split("T")[0],
       status: "pending_department_head",
       approval_timeline: [
@@ -164,11 +173,11 @@ export async function POST(request: NextRequest) {
       }
 
       if (missingColumn === "department_name" && department !== undefined) {
-        insertData.department = department
+        insertData.department = normalizedDepartment
       }
 
       if (missingColumn === "department" && department !== undefined) {
-        insertData.department_name = department
+        insertData.department_name = normalizedDepartment
       }
 
       // If requisition_number column doesn't exist, fall back to reg_no (and vice versa).

@@ -10,6 +10,7 @@ export async function GET(request: NextRequest) {
   try {
     const { searchParams } = new URL(request.url)
     const userId = searchParams.get("userId")
+    const userEmailParam = searchParams.get("userEmail")
 
     if (!userId) {
       return NextResponse.json(
@@ -18,36 +19,27 @@ export async function GET(request: NextRequest) {
       )
     }
 
-    // Fetch by requested_by_id (UUID match) OR by email columns as fallback
-    // when the account's requestedById was not a valid UUID at submission time.
-    const [byId, byEmail] = await Promise.all([
-      supabaseAdmin
-        .from("it_equipment_requisitions")
-        .select("*")
-        .eq("requested_by_id", userId)
-        .order("created_at", { ascending: false }),
-      supabaseAdmin
-        .from("it_equipment_requisitions")
-        .select("*")
-        .or(`requested_by_email.eq.${userId},created_by_email.eq.${userId}`)
-        .order("created_at", { ascending: false }),
-    ])
+    const byId = await supabaseAdmin
+      .from("it_equipment_requisitions")
+      .select("*")
+      .eq("requested_by_id", userId)
+      .order("created_at", { ascending: false })
 
-    // Also try resolving the userId to an email via profiles for the email fallback
     const { data: profile } = await supabaseAdmin
       .from("profiles")
-      .select("email, username")
+      .select("email")
       .eq("id", userId)
       .maybeSingle()
 
-    let byProfileEmail: any[] = []
-    if (profile?.email) {
-      const { data } = await supabaseAdmin
+    const resolvedEmail = String(userEmailParam || profile?.email || "").trim()
+    let byEmail: { data: any[] | null; error: any } = { data: [], error: null }
+
+    if (resolvedEmail) {
+      byEmail = await supabaseAdmin
         .from("it_equipment_requisitions")
         .select("*")
-        .or(`requested_by_email.eq.${profile.email},created_by_email.eq.${profile.email}`)
+        .or(`requested_by_email.eq.${resolvedEmail},created_by_email.eq.${resolvedEmail}`)
         .order("created_at", { ascending: false })
-      byProfileEmail = data || []
     }
 
     if (byId.error && byEmail.error) {
@@ -58,10 +50,9 @@ export async function GET(request: NextRequest) {
       )
     }
 
-    // Merge all results, deduplicate by id
     const seen = new Set<string>()
     const requisitions: any[] = []
-    for (const row of [...(byId.data || []), ...(byEmail.data || []), ...byProfileEmail]) {
+    for (const row of [...(byId.data || []), ...(byEmail.data || [])]) {
       if (!seen.has(row.id)) {
         seen.add(row.id)
         requisitions.push({
@@ -71,12 +62,12 @@ export async function GET(request: NextRequest) {
         })
       }
     }
-    // Sort merged results newest first
+
     requisitions.sort((a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime())
 
     return NextResponse.json({
       success: true,
-      requisitions: requisitions || [],
+      requisitions,
     })
   } catch (error) {
     console.error("[v0] API Error:", error)

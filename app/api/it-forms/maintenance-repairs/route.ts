@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server"
 import { createClient } from "@supabase/supabase-js"
 import { isLocationInSameRegion, normalizeLocation } from "@/lib/location-filter"
+import { normalizeDepartmentName } from "@/lib/department-options"
 
 const supabaseAdmin = createClient(
   process.env.NEXT_PUBLIC_SUPABASE_URL || "https://example.supabase.co",
@@ -44,9 +45,17 @@ export async function POST(request: NextRequest) {
       submittedByEmail,
     } = body
 
+    const normalizedDepartment = normalizeDepartmentName(departmentName)
+    if (!normalizedDepartment) {
+      return NextResponse.json(
+        { error: "Department is not configured for your account. Please contact admin." },
+        { status: 400 }
+      )
+    }
+
     console.log("[maintenance-repairs] Creating new maintenance request:", {
       staffName,
-      departmentName,
+      departmentName: normalizedDepartment,
     })
 
     const requestNumber = await generateNextSequentialNumber()
@@ -55,7 +64,7 @@ export async function POST(request: NextRequest) {
     const insertData = {
       request_number: requestNumber,
       staff_name: staffName,
-      department_name: departmentName,
+      department_name: normalizedDepartment,
       complaints_from_users: complaintsFromUsers,
       request_date: requestDate || new Date().toISOString().split("T")[0],
       diagnosis_items: canEditOfficialSections ? faultItems || [] : [],
