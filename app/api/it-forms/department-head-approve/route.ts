@@ -119,7 +119,11 @@ export async function POST(request: NextRequest) {
         updateData.department_head_signature = hodSignature
       }
 
-      const approvalChain = requisition.approval_timeline || requisition.approval_chain || []
+      const approvalChain = Array.isArray(requisition.approval_timeline)
+        ? [...requisition.approval_timeline]
+        : Array.isArray(requisition.approval_chain)
+          ? [...requisition.approval_chain]
+          : []
       approvalChain.push({
         approver: approvedBy,
         role: "department_head",
@@ -162,7 +166,7 @@ export async function POST(request: NextRequest) {
 
     let updated: any = null
     let updateError: any = null
-    for (let attempt = 0; attempt < 3; attempt++) {
+    for (let attempt = 0; attempt < 6; attempt++) {
       const result = await supabaseAdmin
         .from(config.table)
         .update(updateData)
@@ -175,6 +179,23 @@ export async function POST(request: NextRequest) {
       if (!updateError) break
 
       const message = String(updateError.message || "")
+      const missingColumnMatch = message.match(/Could not find the '([^']+)' column/i)
+      const missingColumn = missingColumnMatch?.[1]
+
+      if (missingColumn) {
+        if (missingColumn === "approval_timeline" && updateData.approval_timeline) {
+          updateData.approval_chain = updateData.approval_timeline
+        }
+
+        if (missingColumn === "approval_chain" && updateData.approval_chain) {
+          delete updateData.approval_chain
+          continue
+        }
+
+        delete updateData[missingColumn]
+        continue
+      }
+
       if (updateError.code === "22P02" && /invalid input syntax for type uuid/i.test(message)) {
         const uuidByFields = ["department_head_approved_by", "departmental_head_name", "sectional_head_name"]
         let changed = false
@@ -294,8 +315,8 @@ export async function POST(request: NextRequest) {
     }
 
     return NextResponse.json({ success: true, requisition: updated })
-  } catch (error) {
+  } catch (error: any) {
     console.error("[v0] API Error in department head approval:", error)
-    return NextResponse.json({ error: "Internal server error" }, { status: 500 })
+    return NextResponse.json({ error: error?.message || "Internal server error" }, { status: 500 })
   }
 }
