@@ -23,6 +23,7 @@ import { ApprovalTracker } from "./approval-tracker"
 import { FormApprovalChainView } from "./form-approval-chain-view"
 import { formatDisplayDate } from "@/lib/utils"
 import { SignaturePad } from "@/components/ui/signature-pad"
+import { normalizeDepartmentName } from "@/lib/department-options"
 
 type FormType = "requisition" | "new-gadget" | "maintenance"
 
@@ -80,6 +81,8 @@ export function DepartmentHeadApprovalModule() {
   const [currentPage, setCurrentPage] = useState(1)
   const { user } = useAuth()
   const { toast } = useToast()
+  const isDepartmentHead = user?.role === "department_head"
+  const scopedDepartment = normalizeDepartmentName(user?.department)
 
   const loadStoredSignature = async () => {
     if (!user?.id || !user?.role) return
@@ -100,7 +103,7 @@ export function DepartmentHeadApprovalModule() {
 
   useEffect(() => {
     fetchRequisitions()
-  }, [])
+  }, [user?.role, user?.department])
 
   useEffect(() => {
     filterRequisitions()
@@ -129,6 +132,16 @@ export function DepartmentHeadApprovalModule() {
     try {
       setLoading(true)
 
+      if (isDepartmentHead && !scopedDepartment) {
+        setRequisitions([])
+        toast({
+          title: "Department not configured",
+          description: "Your profile department is not configured. Contact admin.",
+          variant: "destructive",
+        })
+        return
+      }
+
       const [requisitionRes, gadgetRes, maintenanceRes] = await Promise.all([
         fetch("/api/it-forms/requisitions?status=all"),
         fetch("/api/it-forms/new-gadget?status=all"),
@@ -145,7 +158,11 @@ export function DepartmentHeadApprovalModule() {
         ...(maintenanceData.requests || []).map((req: any) => ({ ...req, formType: "maintenance" as const })),
       ].sort((a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime())
 
-      setRequisitions(combined)
+      const departmentScoped = isDepartmentHead
+        ? combined.filter((req) => normalizeDepartmentName(req.department || req.department_name) === scopedDepartment)
+        : combined
+
+      setRequisitions(departmentScoped)
     } catch (error) {
       console.error("[v0] Error fetching requisitions:", error)
       toast({
