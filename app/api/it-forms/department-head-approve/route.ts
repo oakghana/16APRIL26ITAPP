@@ -24,6 +24,11 @@ const FORM_CONFIG: Record<FormType, { table: string; numberField: string; reques
   },
 }
 
+function isUuidLike(value?: string | null) {
+  if (!value) return false
+  return /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(value)
+}
+
 export async function POST(request: NextRequest) {
   try {
     const supabaseAdmin = createClient(
@@ -31,7 +36,7 @@ export async function POST(request: NextRequest) {
       (process.env.SUPABASE_SERVICE_ROLE_KEY ?? "placeholder-build-key")
     )
 
-    const { requisitionId, action, approvedBy, notes, formType = "requisition", hodSignature } = await request.json()
+    const { requisitionId, action, approvedBy, approvedById, notes, formType = "requisition", hodSignature } = await request.json()
 
     if (!requisitionId || !action || !approvedBy || !notes) {
       return NextResponse.json({ error: "Missing required fields" }, { status: 400 })
@@ -62,6 +67,7 @@ export async function POST(request: NextRequest) {
     }
 
     const now = new Date().toISOString()
+    const approvedByUuid = isUuidLike(approvedById) ? approvedById : null
     const updateData: any = {
       updated_at: now,
       status:
@@ -124,12 +130,29 @@ export async function POST(request: NextRequest) {
         .join("\n")
     }
 
-    const { data: updated, error: updateError } = await supabaseAdmin
-      .from(config.table)
-      .update(updateData)
-      .eq("id", requisitionId)
-      .select()
-      .single()
+    let updated: any = null
+    let updateError: any = null
+    for (let attempt = 0; attempt < 3; attempt++) {
+      const result = await supabaseAdmin
+        .from(config.table)
+        .update(updateData)
+        .eq("id", requisitionId)
+        .select()
+        .single()
+
+      updated = result.data
+      updateError = result.error
+      if (!updateError) break
+
+      const message = String(updateError.message || "")
+      if (updateError.code === "22P02" && /invalid input syntax for type uuid/i.test(message)) {
+        if (Object.prototype.hasOwnProperty.call(updateData, "department_head_approved_by")) {
+          updateData.department_head_approved_by = approvedByUuid
+          continue
+        }
+      }
+      break
+    }
 
     if (updateError) {
       console.error("[v0] Error updating requisition:", updateError)

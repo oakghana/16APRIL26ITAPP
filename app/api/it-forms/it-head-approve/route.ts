@@ -6,6 +6,11 @@ const supabaseAdmin = createClient(
   (process.env.SUPABASE_SERVICE_ROLE_KEY ?? "placeholder-build-key")
 )
 
+function isUuidLike(value?: string | null) {
+  if (!value) return false
+  return /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(value)
+}
+
 function isAuthorizedForRole(approverRole: string | undefined, userRole: string, userDepartment: string) {
   if (approverRole === "admin") {
     return userRole === "admin"
@@ -21,7 +26,7 @@ function isAuthorizedForRole(approverRole: string | undefined, userRole: string,
 
 export async function POST(request: NextRequest) {
   try {
-    const { requisitionId, action, approvedBy, approverRole, notes, approverSignature, userRole, userDepartment } = await request.json()
+    const { requisitionId, action, approvedBy, approvedById, approverRole, notes, approverSignature, userRole, userDepartment } = await request.json()
 
     if (!requisitionId || !action || !approvedBy) {
       return NextResponse.json({ error: "Missing required fields" }, { status: 400 })
@@ -50,6 +55,7 @@ export async function POST(request: NextRequest) {
     }
 
     const actingAsAdmin = approverRole === "admin"
+    const approvedByUuid = isUuidLike(approvedById) ? approvedById : null
     const now = new Date().toISOString()
 
     const updateData: any = {
@@ -87,12 +93,38 @@ export async function POST(request: NextRequest) {
     })
     updateData.approval_timeline = approvalChain
 
-    const { data: updated } = await supabaseAdmin
-      .from("it_equipment_requisitions")
-      .update(updateData)
-      .eq("id", requisitionId)
-      .select()
-      .single()
+    let updated: any = null
+    let updateError: any = null
+    for (let attempt = 0; attempt < 3; attempt++) {
+      const result = await supabaseAdmin
+        .from("it_equipment_requisitions")
+        .update(updateData)
+        .eq("id", requisitionId)
+        .select()
+        .single()
+
+      updated = result.data
+      updateError = result.error
+      if (!updateError) break
+
+      const message = String(updateError.message || "")
+      if (updateError.code === "22P02" && /invalid input syntax for type uuid/i.test(message)) {
+        const uuidByFields = ["it_head_approved_by", "admin_approved_by"]
+        let changed = false
+        for (const field of uuidByFields) {
+          if (Object.prototype.hasOwnProperty.call(updateData, field)) {
+            updateData[field] = approvedByUuid
+            changed = true
+          }
+        }
+        if (changed) continue
+      }
+      break
+    }
+
+    if (updateError) {
+      return NextResponse.json({ error: "Failed to update request" }, { status: 500 })
+    }
 
     // Notify relevant parties
     await supabaseAdmin.from("notifications").insert({

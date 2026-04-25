@@ -75,6 +75,9 @@ export function DepartmentHeadApprovalModule() {
   const [hodSignature, setHodSignature] = useState<string | null>(null)
   const [searchQuery, setSearchQuery] = useState("")
   const [filterTab, setFilterTab] = useState<"pending" | "approved" | "rejected" | "all">("pending")
+  const [sortOrder, setSortOrder] = useState<"newest" | "oldest">("newest")
+  const [pageSize, setPageSize] = useState(10)
+  const [currentPage, setCurrentPage] = useState(1)
   const { user } = useAuth()
   const { toast } = useToast()
 
@@ -101,13 +104,15 @@ export function DepartmentHeadApprovalModule() {
 
   useEffect(() => {
     filterRequisitions()
-  }, [searchQuery, requisitions, filterTab])
+    setCurrentPage(1)
+  }, [searchQuery, requisitions, filterTab, sortOrder])
 
   const getRequestNumber = (req: ITFormRequest) => req.requisition_number || req.request_number || req.id
   const getRequester = (req: ITFormRequest) => req.requested_by || req.staff_name || "Unknown requester"
   const getDepartment = (req: ITFormRequest) => req.department || req.department_name || "Unknown department"
   const getSummary = (req: ITFormRequest) => req.items_required || req.complaints_from_users || "No details provided"
   const getPurpose = (req: ITFormRequest) => req.purpose || req.other_comments || "N/A"
+  const getSubmittedDate = (req: ITFormRequest) => req.request_date || req.created_at
   const getTypeLabel = (req: ITFormRequest) =>
     req.formType === "maintenance"
       ? "Maintenance"
@@ -172,6 +177,12 @@ export function DepartmentHeadApprovalModule() {
         getDepartment(req).toLowerCase().includes(term) ||
         getSummary(req).toLowerCase().includes(term)
     )
+
+    filtered = [...filtered].sort((a, b) => {
+      const aTime = new Date(getSubmittedDate(a)).getTime()
+      const bTime = new Date(getSubmittedDate(b)).getTime()
+      return sortOrder === "oldest" ? aTime - bTime : bTime - aTime
+    })
 
     setFilteredRequisitions(filtered)
   }
@@ -294,6 +305,7 @@ export function DepartmentHeadApprovalModule() {
           formType: selectedRequisition.formType,
           action: approvalAction,
           approvedBy: user?.full_name || user?.email || "Unknown",
+          approvedById: user?.id,
           notes: approvalNotes,
           hodSignature: approvalAction === "approve" ? hodSignature : undefined,
         }),
@@ -329,6 +341,9 @@ export function DepartmentHeadApprovalModule() {
   const getPendingCount = () => requisitions.filter((req) => !isApproved(req) && !isRejected(req)).length
   const getApprovedCount = () => requisitions.filter((req) => isApproved(req) && !isRejected(req)).length
   const getRejectedCount = () => requisitions.filter((req) => isRejected(req)).length
+  const totalPages = Math.max(1, Math.ceil(filteredRequisitions.length / pageSize))
+  const startIndex = (currentPage - 1) * pageSize
+  const paginatedRequisitions = filteredRequisitions.slice(startIndex, startIndex + pageSize)
 
   return (
     <div className="space-y-6">
@@ -383,12 +398,41 @@ export function DepartmentHeadApprovalModule() {
           <CardDescription>Equipment requisitions, gadget requests, and maintenance forms now route through HOD first.</CardDescription>
         </CardHeader>
         <CardContent className="space-y-4">
-          <Input
-            placeholder="Search by request number, requester, department, or summary..."
-            value={searchQuery}
-            onChange={(e) => setSearchQuery(e.target.value)}
-            className="max-w-md"
-          />
+          <div className="flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
+            <Input
+              placeholder="Search by request number, requester, department, or summary..."
+              value={searchQuery}
+              onChange={(e) => setSearchQuery(e.target.value)}
+              className="max-w-md"
+            />
+            <div className="flex items-center gap-2 text-sm">
+              <Label htmlFor="sort-order" className="text-xs text-muted-foreground">Sort</Label>
+              <select
+                id="sort-order"
+                value={sortOrder}
+                onChange={(e) => setSortOrder(e.target.value as "newest" | "oldest")}
+                className="h-9 rounded-md border bg-background px-2"
+              >
+                <option value="newest">Newest first</option>
+                <option value="oldest">Oldest first (early requests)</option>
+              </select>
+
+              <Label htmlFor="page-size" className="text-xs text-muted-foreground">Per page</Label>
+              <select
+                id="page-size"
+                value={String(pageSize)}
+                onChange={(e) => {
+                  setPageSize(Number(e.target.value))
+                  setCurrentPage(1)
+                }}
+                className="h-9 rounded-md border bg-background px-2"
+              >
+                <option value="10">10</option>
+                <option value="20">20</option>
+                <option value="50">50</option>
+              </select>
+            </div>
+          </div>
 
           <Tabs value={filterTab} onValueChange={(v) => setFilterTab(v as any)}>
             <TabsList>
@@ -410,7 +454,7 @@ export function DepartmentHeadApprovalModule() {
                 </div>
               ) : (
                 <div className="space-y-3">
-                  {filteredRequisitions.map((req) => (
+                  {paginatedRequisitions.map((req) => (
                     <div key={req.id} className="border rounded-lg p-4 hover:bg-muted/50 transition-all hover:shadow-sm space-y-3">
                       <div className="flex items-start justify-between gap-4">
                         <div className="flex-1 space-y-2">
@@ -425,7 +469,7 @@ export function DepartmentHeadApprovalModule() {
                             Requested by: <span className="font-medium">{getRequester(req)}</span> • Department: <span className="font-medium">{getDepartment(req)}</span>
                           </p>
                           <p className="text-sm">Summary: {getSummary(req).substring(0, 90)}...</p>
-                          <p className="text-xs text-muted-foreground">Submitted: {formatDisplayDate(req.request_date)}</p>
+                          <p className="text-xs text-muted-foreground">Submitted: {formatDisplayDate(getSubmittedDate(req))}</p>
                         </div>
                         <div className="flex gap-2 flex-wrap">
                           <Button
@@ -455,6 +499,33 @@ export function DepartmentHeadApprovalModule() {
                       </div>
                     </div>
                   ))}
+
+                  <div className="mt-4 flex items-center justify-between border-t pt-4">
+                    <p className="text-xs text-muted-foreground">
+                      Showing {filteredRequisitions.length === 0 ? 0 : startIndex + 1}-{Math.min(startIndex + pageSize, filteredRequisitions.length)} of {filteredRequisitions.length}
+                    </p>
+                    <div className="flex items-center gap-2">
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        disabled={currentPage <= 1}
+                        onClick={() => setCurrentPage((prev) => Math.max(1, prev - 1))}
+                      >
+                        Previous
+                      </Button>
+                      <span className="text-xs text-muted-foreground">
+                        Page {currentPage} of {totalPages}
+                      </span>
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        disabled={currentPage >= totalPages}
+                        onClick={() => setCurrentPage((prev) => Math.min(totalPages, prev + 1))}
+                      >
+                        Next
+                      </Button>
+                    </div>
+                  </div>
                 </div>
               )}
             </TabsContent>
