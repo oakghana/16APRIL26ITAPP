@@ -220,7 +220,7 @@ export async function POST(request: NextRequest) {
 
     // Create notification for requester about HOD decision
     if (requisition.requested_by_id) {
-      await supabaseAdmin
+      const { error: requesterNotificationError } = await supabaseAdmin
         .from("notifications")
         .insert({
           user_id: requisition.requested_by_id,
@@ -232,7 +232,10 @@ export async function POST(request: NextRequest) {
           reference_id: requisitionId,
           is_read: false,
         })
-        .catch((err) => console.error("[v0] Error creating notification for requester:", err))
+
+      if (requesterNotificationError) {
+        console.error("[v0] Error creating notification for requester:", requesterNotificationError)
+      }
     }
 
     // Create notification for IT office-use staff in request location if approved
@@ -280,10 +283,13 @@ export async function POST(request: NextRequest) {
           is_read: false,
         }))
 
-        await supabaseAdmin
+        const { error: officeUseNotificationError } = await supabaseAdmin
           .from("notifications")
           .insert(notifications)
-          .catch((err) => console.error("[v0] Error creating IT office-use notifications:", err))
+
+        if (officeUseNotificationError) {
+          console.error("[v0] Error creating IT office-use notifications:", officeUseNotificationError)
+        }
       }
     }
 
@@ -307,10 +313,13 @@ export async function POST(request: NextRequest) {
           is_read: false,
         }))
 
-        await supabaseAdmin
+        const { error: adminNotificationError } = await supabaseAdmin
           .from("notifications")
           .insert(notifications)
-          .catch((err) => console.error("[v0] Error creating admin rejection notifications:", err))
+
+        if (adminNotificationError) {
+          console.error("[v0] Error creating admin rejection notifications:", adminNotificationError)
+        }
       }
     }
 
