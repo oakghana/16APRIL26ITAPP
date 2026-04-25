@@ -7,6 +7,7 @@ import { Badge } from "@/components/ui/badge"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { Textarea } from "@/components/ui/textarea"
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import {
   Dialog,
   DialogContent,
@@ -24,20 +25,61 @@ import { SignaturePad } from "@/components/ui/signature-pad"
 import { exportITFormPDF, openITFormPrintView } from "@/lib/export-utils"
 import { formatDisplayDate } from "@/lib/utils"
 
-type FormType = "requisition" | "new-gadget" | "maintenance"
+type FormType =
+  | "requisition"
+  | "new-gadget"
+  | "maintenance"
+  | "password-reset"
+  | "account-unlock"
+  | "onboarding"
+  | "offboarding"
+  | "software-access"
+  | "asset-transfer"
+
+interface AssigneeOption {
+  id: string
+  full_name: string
+  email?: string | null
+  role?: string | null
+  location?: string | null
+}
 
 interface ITRequisition {
   id: string
   formType: FormType
   requisition_number?: string
   request_number?: string
+  request_date?: string
   items_required?: string
   complaints_from_users?: string
   purpose?: string
+  issue_summary?: string
+  locked_system?: string
+  lock_description?: string
+  system_name?: string
+  other_system_name?: string
+  account_identifier?: string
+  new_staff_name?: string
+  new_staff_department?: string
+  start_date?: string
+  departing_staff_name?: string
+  departing_staff_department?: string
+  last_work_date?: string
+  software_name?: string
+  other_software_name?: string
+  access_level?: string
+  justification?: string
+  asset_type?: string
+  from_department?: string
+  to_department?: string
+  transfer_reason?: string
+  urgency?: string
   other_comments?: string
   requested_by?: string
-  staff_name?: string
+  requested_by_id?: string
   requested_by_email?: string
+  staff_name?: string
+  requester_location?: string | null
   department?: string
   department_name?: string
   status: string
@@ -61,6 +103,11 @@ interface ITRequisition {
   sectional_head_date?: string
   confirmed_by?: string
   confirmed_date?: string
+  manager_approved_by?: string
+  manager_approved_by_id?: string
+  manager_approved_at?: string
+  manager_notes?: string
+  manager_signature?: string
   it_manager_approved_by?: string
   it_manager_approved_at?: string
   it_manager_signature?: string
@@ -70,6 +117,14 @@ interface ITRequisition {
   created_by?: string
   created_by_role?: string
   created_by_email?: string
+  assigned_to?: string
+  assigned_to_id?: string
+  assigned_to_role?: string
+  user_confirmed?: boolean
+  user_confirmed_at?: string
+  confirmation_status?: string
+  work_notes?: string
+  work_completed_at?: string
   created_at: string
 }
 
@@ -83,6 +138,9 @@ export function ITHeadAdminPanel() {
   const [approvalNotes, setApprovalNotes] = useState("")
   const [approvalAction, setApprovalAction] = useState<"approve" | "reject">("approve")
   const [approverSignature, setApproverSignature] = useState<string | null>(null)
+  const [assignees, setAssignees] = useState<AssigneeOption[]>([])
+  const [selectedAssigneeId, setSelectedAssigneeId] = useState("")
+  const [loadingAssignees, setLoadingAssignees] = useState(false)
   const [isSubmitting, setIsSubmitting] = useState(false)
   const [searchQuery, setSearchQuery] = useState("")
   const [filterTab, setFilterTab] = useState<"pending" | "approved" | "rejected" | "all">("pending")
@@ -114,46 +172,117 @@ export function ITHeadAdminPanel() {
     filterRequisitions()
   }, [searchQuery, requisitions, filterTab])
 
+  const loadAssigneesByFormType = async (formType: FormType) => {
+    if (!user?.id) return
+    setLoadingAssignees(true)
+    try {
+      const params = new URLSearchParams({ mode: "assignees", viewerId: user.id })
+      const endpoint =
+        formType === "account-unlock"
+          ? "/api/it-forms/account-unlock"
+          : formType === "onboarding"
+            ? "/api/it-forms/onboarding"
+            : formType === "offboarding"
+              ? "/api/it-forms/offboarding"
+              : formType === "software-access"
+                ? "/api/it-forms/software-access"
+                : formType === "asset-transfer"
+                  ? "/api/it-forms/asset-transfer"
+                  : "/api/it-forms/password-reset"
+
+      const response = await fetch(`${endpoint}?${params.toString()}`)
+      const data = await response.json()
+      if (!response.ok) throw new Error(data.error || "Failed to load assignees")
+      const options = (data.assignees || []) as AssigneeOption[]
+      setAssignees(options)
+      if (options.length > 0) {
+        setSelectedAssigneeId((prev) => prev || options[0].id)
+      }
+    } catch {
+      setAssignees([])
+      setSelectedAssigneeId("")
+    } finally {
+      setLoadingAssignees(false)
+    }
+  }
+
   const getRequestNumber = (req: ITRequisition) => req.requisition_number || req.request_number || req.id
   const getRequester = (req: ITRequisition) => req.requested_by || req.staff_name || "Unknown requester"
   const getDepartment = (req: ITRequisition) => req.department || req.department_name || "Unknown department"
-  const getSummary = (req: ITRequisition) => req.items_required || req.complaints_from_users || "No details provided"
+  const getSummary = (req: ITRequisition) => {
+    if (req.formType === "password-reset") {
+      const systemName = req.system_name === "Other" ? (req.other_system_name || "Other") : (req.system_name || "System")
+      return `${systemName} | ${req.account_identifier || "Account not provided"} | ${req.issue_summary || "No details provided"}`
+    }
+    if (req.formType === "account-unlock") {
+      const lockedSystem = req.locked_system === "Other" ? (req.other_system_name || "Other") : (req.locked_system || "System")
+      return `${lockedSystem} | ${req.account_identifier || "Account not provided"} | ${req.lock_description || "No details provided"}`
+    }
+    if (req.formType === "onboarding") {
+      return `${req.new_staff_name || "New staff"} | ${req.new_staff_department || "No department"} | Start ${req.start_date || "N/A"}`
+    }
+    if (req.formType === "offboarding") {
+      return `${req.departing_staff_name || "Departing staff"} | ${req.departing_staff_department || "No department"} | Last day ${req.last_work_date || "N/A"}`
+    }
+    if (req.formType === "software-access") {
+      const softwareName = req.software_name === "Other" ? (req.other_software_name || "Other") : (req.software_name || "Software")
+      return `${softwareName} | ${req.access_level || "standard"} | ${req.justification || "No justification"}`
+    }
+    if (req.formType === "asset-transfer") {
+      return `${req.asset_type || "Asset"} | ${req.from_department || "From"} -> ${req.to_department || "To"} | ${req.transfer_reason || "No reason"}`
+    }
+    return req.items_required || req.complaints_from_users || "No details provided"
+  }
   const getTypeLabel = (req: ITRequisition) =>
     req.formType === "maintenance"
       ? "Maintenance"
       : req.formType === "new-gadget"
         ? "New Gadget"
+        : req.formType === "password-reset"
+          ? "Password Reset"
+          : req.formType === "account-unlock"
+            ? "Account Unlock"
+            : req.formType === "onboarding"
+              ? "Onboarding"
+              : req.formType === "offboarding"
+                ? "Offboarding"
+                : req.formType === "software-access"
+                  ? "Software Access"
+                  : req.formType === "asset-transfer"
+                    ? "Asset Transfer"
         : "Requisition"
 
   const extractManagerMeta = (req: ITRequisition) => {
     const noteText = req.other_comments || ""
     const match = noteText.match(/IT Manager\s+(approved|rejected)\s+note:[\s\S]*?\(by\s+(.+?)\s+on\s+([^\)]+)\)/i)
     return {
-      managerName: req.it_manager_approved_by || req.admin_approved_by || req.it_head_approved_by || (match?.[2] || ""),
-      managerDate: req.it_manager_approved_at || req.admin_approved_at || req.it_head_approved_at || (match?.[3] || ""),
+      managerName: req.manager_approved_by || req.it_manager_approved_by || req.admin_approved_by || req.it_head_approved_by || (match?.[2] || ""),
+      managerDate: req.manager_approved_at || req.it_manager_approved_at || req.admin_approved_at || req.it_head_approved_at || (match?.[3] || ""),
     }
   }
 
   const buildExportPayload = (req: ITRequisition) => {
     const requestNumber = getRequestNumber(req)
     const { managerName, managerDate } = extractManagerMeta(req)
+    const isPasswordReset = req.formType === "password-reset"
+    const passwordSystem = req.system_name === "Other" ? (req.other_system_name || "Other") : (req.system_name || "Password Reset")
     return {
       formType: req.formType,
       fileName: requestNumber,
       requestNumber,
       staffName: getRequester(req),
       department: getDepartment(req),
-      requestDate: req.created_at ? formatDisplayDate(req.created_at) : "",
+      requestDate: (req.request_date || req.created_at) ? formatDisplayDate(req.request_date || req.created_at || "") : "",
       summary: getSummary(req),
-      purpose: req.purpose || req.other_comments || "",
+      purpose: isPasswordReset ? passwordSystem : (req.purpose || req.other_comments || ""),
       status: req.status,
       hodName: req.department_head_approved_by || req.departmental_head_name || req.sectional_head_name,
       hodDate: req.department_head_approved_at || req.departmental_head_date || req.sectional_head_date,
       hodSignature: req.department_head_signature,
-      extraNotes: req.other_comments,
+      extraNotes: isPasswordReset ? (req.work_notes || req.manager_notes || req.other_comments) : req.other_comments,
       managerName,
       managerDate,
-      managerSignature: req.it_manager_signature || req.admin_signature || req.it_head_signature,
+      managerSignature: req.manager_signature || req.it_manager_signature || req.admin_signature || req.it_head_signature,
       recommendation: req.recommended,
       repairStatus: req.gadget_working_status,
     }
@@ -176,14 +305,35 @@ export function ITHeadAdminPanel() {
         fetch("/api/it-forms/maintenance-repairs?status=all"),
       ])
 
+      const passwordRes = await fetch(`/api/it-forms/password-reset?${new URLSearchParams({ status: "all", viewerId: user?.id || "" }).toString()}`)
+      const [unlockRes, onboardingRes, offboardingRes, softwareRes, transferRes] = await Promise.all([
+        fetch(`/api/it-forms/account-unlock?${new URLSearchParams({ status: "all", viewerId: user?.id || "" }).toString()}`),
+        fetch(`/api/it-forms/onboarding?${new URLSearchParams({ status: "all", viewerId: user?.id || "" }).toString()}`),
+        fetch(`/api/it-forms/offboarding?${new URLSearchParams({ status: "all", viewerId: user?.id || "" }).toString()}`),
+        fetch(`/api/it-forms/software-access?${new URLSearchParams({ status: "all", viewerId: user?.id || "" }).toString()}`),
+        fetch(`/api/it-forms/asset-transfer?${new URLSearchParams({ status: "all", viewerId: user?.id || "" }).toString()}`),
+      ])
+
       const requisitionData = requisitionRes.ok ? await requisitionRes.json() : { requisitions: [] }
       const gadgetData = gadgetRes.ok ? await gadgetRes.json() : { requests: [] }
       const maintenanceData = maintenanceRes.ok ? await maintenanceRes.json() : { requests: [] }
+      const passwordData = passwordRes.ok ? await passwordRes.json() : { requests: [] }
+      const unlockData = unlockRes.ok ? await unlockRes.json() : { requests: [] }
+      const onboardingData = onboardingRes.ok ? await onboardingRes.json() : { requests: [] }
+      const offboardingData = offboardingRes.ok ? await offboardingRes.json() : { requests: [] }
+      const softwareData = softwareRes.ok ? await softwareRes.json() : { requests: [] }
+      const transferData = transferRes.ok ? await transferRes.json() : { requests: [] }
 
       const combined: ITRequisition[] = [
         ...(requisitionData.requisitions || []).map((req: any) => ({ ...req, formType: "requisition" as const })),
         ...(gadgetData.requests || []).map((req: any) => ({ ...req, formType: "new-gadget" as const })),
         ...(maintenanceData.requests || []).map((req: any) => ({ ...req, formType: "maintenance" as const })),
+        ...(passwordData.requests || []).map((req: any) => ({ ...req, formType: "password-reset" as const })),
+        ...(unlockData.requests || []).map((req: any) => ({ ...req, formType: "account-unlock" as const })),
+        ...(onboardingData.requests || []).map((req: any) => ({ ...req, formType: "onboarding" as const })),
+        ...(offboardingData.requests || []).map((req: any) => ({ ...req, formType: "offboarding" as const })),
+        ...(softwareData.requests || []).map((req: any) => ({ ...req, formType: "software-access" as const })),
+        ...(transferData.requests || []).map((req: any) => ({ ...req, formType: "asset-transfer" as const })),
       ].sort((a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime())
 
       setRequisitions(combined)
@@ -207,15 +357,23 @@ export function ITHeadAdminPanel() {
     const isPendingForManager = (req: ITRequisition) =>
       req.formType === "requisition"
         ? req.status === "pending_it_head" && !req.it_head_approved
-        : req.status === "pending_manager"
+        : req.formType === "password-reset"
+          ? ["pending_manager", "reopened"].includes(req.status)
+          : req.status === "pending_manager"
 
     const isApprovedForManager = (req: ITRequisition) =>
       req.formType === "requisition"
         ? Boolean(req.it_head_approved || req.admin_approved)
+        : req.formType === "password-reset"
+          ? ["assigned", "in_progress", "awaiting_user_confirmation", "completed"].includes(req.status)
+          : req.formType === "account-unlock" || req.formType === "software-access"
+            ? ["assigned", "in_progress", "awaiting_user_confirmation", "completed"].includes(req.status)
+            : req.formType === "onboarding" || req.formType === "offboarding" || req.formType === "asset-transfer"
+              ? ["assigned", "in_progress", "completed"].includes(req.status)
         : ["recommended", "not_recommended", "gadget_issued", "manager_confirmed", "sent_for_repair", "repaired", "confirmed_working"].includes(req.status)
 
     const isRejectedForManager = (req: ITRequisition) =>
-      ["rejected_it_head", "rejected_admin", "rejected"].includes(req.status)
+      ["rejected_it_head", "rejected_admin", "rejected", "not_recommended"].includes(req.status)
 
     if (filterTab === "pending") {
       filtered = filtered.filter((req) => {
@@ -247,6 +405,96 @@ export function ITHeadAdminPanel() {
   }
 
   const buildApprovalStages = (req: ITRequisition): any[] => {
+    if (req.formType === "password-reset") {
+      const assignedOrBeyond = ["assigned", "in_progress", "awaiting_user_confirmation", "completed"].includes(req.status)
+      const startedOrBeyond = ["in_progress", "awaiting_user_confirmation", "completed"].includes(req.status)
+      const awaitingUserOrBeyond = ["awaiting_user_confirmation", "completed"].includes(req.status)
+      const closed = req.status === "completed"
+      const rejected = req.status === "rejected"
+
+      return [
+        {
+          stage: "Request Submitted",
+          role: "Requester",
+          status: "completed",
+          approver: req.staff_name,
+          timestamp: req.created_at,
+        },
+        {
+          stage: "IT Manager Approval & Assignment",
+          role: "IT Manager",
+          status: rejected ? "rejected" : assignedOrBeyond ? "completed" : "pending",
+          approver: req.manager_approved_by,
+          timestamp: req.manager_approved_at,
+          notes: req.manager_notes,
+          signatureDataUrl: req.manager_signature,
+        },
+        {
+          stage: "IT Staff Execution",
+          role: "IT Staff",
+          status: rejected ? "rejected" : startedOrBeyond ? "completed" : "pending",
+          approver: req.assigned_to,
+          timestamp: req.work_completed_at || req.updated_at,
+          notes: req.work_notes,
+        },
+        {
+          stage: "Requester Confirmation",
+          role: "Requester",
+          status: rejected ? "rejected" : closed ? "completed" : awaitingUserOrBeyond ? "pending" : "pending",
+          approver: req.user_confirmed ? req.staff_name : undefined,
+          timestamp: req.user_confirmed_at,
+        },
+      ]
+    }
+
+    if (["account-unlock", "software-access", "onboarding", "offboarding", "asset-transfer"].includes(req.formType)) {
+      const assignedOrBeyond = ["assigned", "in_progress", "awaiting_user_confirmation", "completed"].includes(req.status)
+      const startedOrBeyond = ["in_progress", "awaiting_user_confirmation", "completed"].includes(req.status)
+      const awaitingUserOrBeyond = ["awaiting_user_confirmation", "completed"].includes(req.status)
+      const closed = req.status === "completed"
+      const rejected = req.status === "rejected"
+      const hasUserConfirmation = ["account-unlock", "software-access"].includes(req.formType)
+
+      const stages: any[] = [
+        {
+          stage: "Request Submitted",
+          role: "Requester",
+          status: "completed",
+          approver: req.staff_name,
+          timestamp: req.created_at,
+        },
+        {
+          stage: "IT Manager Approval & Assignment",
+          role: "IT Manager",
+          status: rejected ? "rejected" : assignedOrBeyond ? "completed" : "pending",
+          approver: req.manager_approved_by,
+          timestamp: req.manager_approved_at,
+          notes: req.manager_notes,
+          signatureDataUrl: req.manager_signature,
+        },
+        {
+          stage: "IT Staff Execution",
+          role: "IT Staff",
+          status: rejected ? "rejected" : startedOrBeyond ? "completed" : "pending",
+          approver: req.assigned_to,
+          timestamp: req.work_completed_at || req.updated_at,
+          notes: req.work_notes,
+        },
+      ]
+
+      if (hasUserConfirmation) {
+        stages.push({
+          stage: "Requester Confirmation",
+          role: "Requester",
+          status: rejected ? "rejected" : closed ? "completed" : awaitingUserOrBeyond ? "pending" : "pending",
+          approver: req.user_confirmed ? req.staff_name : undefined,
+          timestamp: req.user_confirmed_at,
+        })
+      }
+
+      return stages
+    }
+
     const isNonRequisition = req.formType !== "requisition"
     const managerDoneForNonReq = ["recommended", "not_recommended", "gadget_issued", "manager_confirmed", "sent_for_repair", "repaired", "confirmed_working"].includes(req.status)
     const managerRejectedForNonReq = req.status === "rejected" || req.status === "not_recommended"
@@ -348,8 +596,12 @@ export function ITHeadAdminPanel() {
     setApprovalAction("approve")
     setApprovalNotes("")
     setApproverSignature(null)
+    setSelectedAssigneeId("")
     setIsApprovalDialogOpen(true)
     loadStoredSignature()
+    if (req.formType !== "requisition") {
+      loadAssigneesByFormType(req.formType)
+    }
   }
 
   const submitApproval = async () => {
@@ -375,9 +627,23 @@ export function ITHeadAdminPanel() {
     try {
       const endpoint = selectedRequisition.formType === "requisition"
         ? "/api/it-forms/it-head-approve"
-        : "/api/it-forms/manager-approve"
+        : selectedRequisition.formType === "password-reset"
+          ? "/api/it-forms/password-reset"
+          : selectedRequisition.formType === "account-unlock"
+            ? "/api/it-forms/account-unlock"
+            : selectedRequisition.formType === "onboarding"
+              ? "/api/it-forms/onboarding"
+              : selectedRequisition.formType === "offboarding"
+                ? "/api/it-forms/offboarding"
+                : selectedRequisition.formType === "software-access"
+                  ? "/api/it-forms/software-access"
+                  : selectedRequisition.formType === "asset-transfer"
+                    ? "/api/it-forms/asset-transfer"
+          : "/api/it-forms/manager-approve"
 
       const requisitionApproverRole = selectedRequisition.status === "pending_admin" ? "admin" : "it_head"
+
+      const assignee = assignees.find((person) => person.id === selectedAssigneeId)
 
       const payload = selectedRequisition.formType === "requisition"
         ? {
@@ -391,6 +657,36 @@ export function ITHeadAdminPanel() {
             userRole: user?.role,
             userDepartment: user?.department,
           }
+        : selectedRequisition.formType === "password-reset"
+          ? {
+              requestId: selectedRequisition.id,
+              action: approvalAction === "approve" ? "manager_assign" : "manager_reject",
+              actorId: user?.id,
+              actorName: user?.full_name || user?.email || "IT Manager",
+              actorRole: user?.role,
+              actorDepartment: user?.department,
+              actorLocation: user?.location,
+              notes: approvalNotes,
+              managerSignature: approvalAction === "approve" ? approverSignature : undefined,
+              assignToId: approvalAction === "approve" ? selectedAssigneeId : undefined,
+              assignToName: approvalAction === "approve" ? (assignee?.full_name || assignee?.email) : undefined,
+              assignToRole: approvalAction === "approve" ? assignee?.role : undefined,
+            }
+        : ["account-unlock", "onboarding", "offboarding", "software-access", "asset-transfer"].includes(selectedRequisition.formType)
+          ? {
+              requestId: selectedRequisition.id,
+              action: approvalAction === "approve" ? "manager_assign" : "manager_reject",
+              actorId: user?.id,
+              actorName: user?.full_name || user?.email || "IT Manager",
+              actorRole: user?.role,
+              actorDepartment: user?.department,
+              actorLocation: user?.location,
+              notes: approvalNotes,
+              managerSignature: approvalAction === "approve" ? approverSignature : undefined,
+              assignToId: approvalAction === "approve" ? selectedAssigneeId : undefined,
+              assignToName: approvalAction === "approve" ? (assignee?.full_name || assignee?.email) : undefined,
+              assignToRole: approvalAction === "approve" ? assignee?.role : undefined,
+            }
         : {
             requisitionId: selectedRequisition.id,
             formType: selectedRequisition.formType,
@@ -404,7 +700,7 @@ export function ITHeadAdminPanel() {
           }
 
       const response = await fetch(endpoint, {
-        method: "POST",
+        method: ["password-reset", "account-unlock", "onboarding", "offboarding", "software-access", "asset-transfer"].includes(selectedRequisition.formType) ? "PATCH" : "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify(payload),
       })
@@ -422,6 +718,7 @@ export function ITHeadAdminPanel() {
       setSelectedRequisition(null)
       setApprovalNotes("")
       setApproverSignature(null)
+      setSelectedAssigneeId("")
     } catch (error: any) {
       toast({
         title: "Error",
@@ -436,13 +733,21 @@ export function ITHeadAdminPanel() {
   const isPendingForManager = (req: ITRequisition) =>
     req.formType === "requisition"
       ? req.status === "pending_it_head" && !req.it_head_approved
-      : req.status === "pending_manager"
+      : req.formType === "password-reset"
+        ? ["pending_manager", "reopened"].includes(req.status)
+        : req.status === "pending_manager"
   const isApprovedForManager = (req: ITRequisition) =>
     req.formType === "requisition"
       ? Boolean(req.it_head_approved || req.admin_approved)
+      : req.formType === "password-reset"
+        ? ["assigned", "in_progress", "awaiting_user_confirmation", "completed"].includes(req.status)
+        : req.formType === "account-unlock" || req.formType === "software-access"
+          ? ["assigned", "in_progress", "awaiting_user_confirmation", "completed"].includes(req.status)
+          : req.formType === "onboarding" || req.formType === "offboarding" || req.formType === "asset-transfer"
+            ? ["assigned", "in_progress", "completed"].includes(req.status)
       : ["recommended", "not_recommended", "gadget_issued", "manager_confirmed", "sent_for_repair", "repaired", "confirmed_working"].includes(req.status)
   const isRejectedForManager = (req: ITRequisition) =>
-    ["rejected_it_head", "rejected_admin", "rejected"].includes(req.status)
+    ["rejected_it_head", "rejected_admin", "rejected", "not_recommended"].includes(req.status)
 
   const pendingCount = requisitions.filter((r) => {
     if (user?.role === "admin") {
@@ -506,7 +811,7 @@ export function ITHeadAdminPanel() {
           <div className="flex items-center justify-between">
             <div>
               <CardTitle>IT Manager Review Queue</CardTitle>
-              <CardDescription>Requisitions, new gadgets, and maintenance requests ready for manager stage</CardDescription>
+              <CardDescription>Review queue for requisitions, repairs, password reset, unlock, onboarding, offboarding, software access, and asset transfer requests</CardDescription>
             </div>
             <BarChart3 className="h-5 w-5 text-muted-foreground" />
           </div>
@@ -583,10 +888,10 @@ export function ITHeadAdminPanel() {
                             </Button>
                           </>
                         )}
-                        {req.formType !== "requisition" && req.status === "pending_manager" && (
+                        {req.formType !== "requisition" && ["pending_manager", "reopened"].includes(req.status) && (
                           <Button size="sm" className="bg-amber-600 hover:bg-amber-700" onClick={() => handleReview(req)}>
                             <CheckCircle2 className="h-4 w-4 mr-1" />
-                            Review
+                            {req.status === "reopened" ? "Re-Assign" : "Assign"}
                           </Button>
                         )}
                       </div>
@@ -723,6 +1028,23 @@ export function ITHeadAdminPanel() {
               onChange={(e) => setApprovalNotes(e.target.value)}
               className="min-h-24"
             />
+            {selectedRequisition?.formType !== "requisition" && approvalAction === "approve" && (
+              <div className="space-y-2">
+                <Label>Assign To IT Staff *</Label>
+                <Select value={selectedAssigneeId} onValueChange={setSelectedAssigneeId}>
+                  <SelectTrigger>
+                    <SelectValue placeholder={loadingAssignees ? "Loading assignees..." : "Select assignee"} />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {assignees.map((person) => (
+                      <SelectItem key={person.id} value={person.id}>
+                        {person.full_name || person.email} {person.role ? `(${person.role})` : ""}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+            )}
             {approvalAction === "approve" && (
               <div>
                 <Label className="flex items-center gap-1.5 mb-1.5">
@@ -749,7 +1071,7 @@ export function ITHeadAdminPanel() {
             </Button>
             <Button
               onClick={submitApproval}
-              disabled={isSubmitting || !approvalNotes.trim()}
+              disabled={isSubmitting || !approvalNotes.trim() || (selectedRequisition?.formType === "password-reset" && approvalAction === "approve" && !selectedAssigneeId)}
               variant={approvalAction === "approve" ? "default" : "destructive"}
             >
               {isSubmitting ? <Loader2 className="h-4 w-4 mr-2 animate-spin" /> : null}

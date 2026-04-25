@@ -1,0 +1,8 @@
+BASE_URL:http://localhost:3000
+SERVER_READY:True
+POST_STATUS:500
+POST_BODY:{"error":"invalid input syntax for type uuid: \"OAK SYSTEM LIMITED\""}
+GET_STATUS:200
+GET_SUMMARY:{"count":1,"first_id":null,"first_requisition_number":null,"first_status":null,"first_department":null,"first_requested_by_email":null,"error":null,"message":null}
+UUID_OR_COLUMN_ERRORS:FOUND
+SERVER_STOPPED:NOT_STARTED_HERE

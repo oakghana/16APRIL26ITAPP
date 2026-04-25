@@ -118,6 +118,21 @@ export async function GET(request: NextRequest) {
 
       const { data: tickets } = await ticketQuery
 
+      // Password reset assignments for this staff member (assigned by IT manager)
+      let passwordQuery = supabaseAdmin
+        .from("password_reset_requests")
+        .select("id, status, urgency, created_at, updated_at, assigned_at, submitted_for_confirmation_at, user_confirmed_at, closed_at, assigned_to, assigned_to_id")
+        .or(`assigned_to_id.eq.${member.id},assigned_to.ilike.%${memberName}%`)
+
+      if (startDate) {
+        passwordQuery = passwordQuery.gte("created_at", startDate)
+      }
+      if (endDate) {
+        passwordQuery = passwordQuery.lte("created_at", endDate)
+      }
+
+      const { data: passwordResets } = await passwordQuery
+
       // Store issuance actions made by this staff member (direct stock assignments)
       let assignmentQuery = supabaseAdmin
         .from("stock_assignments")
@@ -194,10 +209,12 @@ export async function GET(request: NextRequest) {
 
       const repairTasks = repairs || []
       const ticketTasks = tickets || []
-      const allTasks = [...repairTasks, ...ticketTasks]
+      const passwordTasks = passwordResets || []
+      const allTasks = [...repairTasks, ...ticketTasks, ...passwordTasks]
       const totalTasks = allTasks.length
       const totalRepairTasks = repairTasks.length
       const totalTicketTasks = ticketTasks.length
+      const totalPasswordTasks = passwordTasks.length
 
       // Calculate completed tasks
       const completedStatuses = ["completed", "closed", "resolved", "repaired"]
@@ -209,7 +226,8 @@ export async function GET(request: NextRequest) {
 
       const completedRepairs = repairTasks.filter(isCompleted)
       const completedTickets = ticketTasks.filter(isCompleted)
-      const completedTasks = [...completedRepairs, ...completedTickets]
+      const completedPasswords = passwordTasks.filter((t: any) => (t.status || "").toLowerCase() === "completed")
+      const completedTasks = [...completedRepairs, ...completedTickets, ...completedPasswords]
 
       const storeIssuances = myStoreAssignments.length
       const serviceDeskDispatches = myDispatches.length
@@ -224,11 +242,11 @@ export async function GET(request: NextRequest) {
 
       completedTasks.forEach((task) => {
         const start = new Date(task.created_at)
-        const end = new Date(task.completed_at || task.resolved_at || task.updated_at)
+        const end = new Date(task.completed_at || task.resolved_at || task.user_confirmed_at || task.closed_at || task.submitted_for_confirmation_at || task.updated_at)
         const completionDays = Math.max(1, Math.ceil((end.getTime() - start.getTime()) / (1000 * 60 * 60 * 24)))
         totalCompletionDays += completionDays
 
-        const priority = task.priority?.toLowerCase() || "medium"
+        const priority = (task.priority || task.urgency || "medium").toLowerCase()
         let expectedDays = 7
         if (priority === "critical" || priority === "urgent") expectedDays = 1
         else if (priority === "high") expectedDays = 3
@@ -348,9 +366,11 @@ export async function GET(request: NextRequest) {
         totalTasksAssigned: effectiveAssignedUnits,
         totalRepairTasks,
         totalTicketTasks,
+        totalPasswordTasks,
         completedTasks: effectiveCompletedUnits,
         completedRepairTasks: completedRepairs.length,
         completedTicketTasks: completedTickets.length,
+        completedPasswordTasks: completedPasswords.length,
         onTimeCompletions: totalOnTimeCompletions,
         averageCompletionDays: Math.round(averageCompletionDays * 10) / 10,
         completionRate: Math.round(completionRate * 10) / 10,

@@ -57,7 +57,7 @@ export async function POST(request: NextRequest) {
     })
 
     const requestNumber = await generateNextSequentialNumber()
-    const canEditOfficialSections = false
+    const canEditTechnicalDetails = ["it_staff", "regional_it_head", "it_head", "admin"].includes(String(submittedByRole || "").toLowerCase())
 
     const insertData = {
       request_number: requestNumber,
@@ -65,15 +65,16 @@ export async function POST(request: NextRequest) {
       department_name: normalizedDepartment,
       complaints_from_users: complaintsFromUsers,
       request_date: requestDate || new Date().toISOString().split("T")[0],
-      gadget_make: canEditOfficialSections ? makeOfGadget || null : null,
-      serial_number: canEditOfficialSections ? serialNumber || null : null,
-      year_of_purchase: canEditOfficialSections && yearOfPurchase ? parseInt(yearOfPurchase) : null,
-      other_comments: canEditOfficialSections ? otherComments || null : null,
-      departmental_head_name: canEditOfficialSections ? departmentalHeadName || null : null,
-      departmental_head_date: canEditOfficialSections ? departmentalHeadDate || null : null,
-      recommended: canEditOfficialSections ? (recommended === "yes" ? true : recommended === "no" ? false : null) : null,
-      confirmed_by: canEditOfficialSections ? confirmedBy || null : null,
-      confirmed_date: canEditOfficialSections ? confirmedDate || null : null,
+      gadget_make: canEditTechnicalDetails ? makeOfGadget || null : null,
+      serial_number: canEditTechnicalDetails ? serialNumber || null : null,
+      year_of_purchase: canEditTechnicalDetails && yearOfPurchase ? parseInt(yearOfPurchase) : null,
+      other_comments: canEditTechnicalDetails ? otherComments || null : null,
+      // HOD and manager approval fields remain workflow-owned and are never set at requester submit time.
+      departmental_head_name: null,
+      departmental_head_date: null,
+      recommended: null,
+      confirmed_by: null,
+      confirmed_date: null,
       // Initiator tracking - who submitted this form
       created_by: staffName,
       created_by_role: submittedByRole,
@@ -174,10 +175,12 @@ export async function GET(request: NextRequest) {
 
       if (officeUseLocation) {
         const normalizedOfficeLocation = normalizeLocation(officeUseLocation)
+        const isServiceDeskRole = (officeUseRole || "").startsWith("service_desk")
         const canSeeNationwide =
           officeUseRole === "admin" ||
           officeUseRole === "it_head" ||
-          (officeUseRole === "it_staff" && (normalizedOfficeLocation === "head_office" || normalizedOfficeLocation === "accra"))
+          officeUseRole === "it_store_head" ||
+          (isServiceDeskRole && (normalizedOfficeLocation === "head_office" || normalizedOfficeLocation === "accra"))
 
         if (!canSeeNationwide) {
           requests = requests.filter((req: any) => {

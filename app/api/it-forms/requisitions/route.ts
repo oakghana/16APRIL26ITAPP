@@ -324,10 +324,12 @@ export async function GET(request: NextRequest) {
       }))
 
       const normalizedOfficeLocation = normalizeLocation(officeUseLocation)
+      const isServiceDeskRole = (officeUseRole || "").startsWith("service_desk")
       const canSeeNationwide =
         officeUseRole === "admin" ||
         officeUseRole === "it_head" ||
-        (officeUseRole === "it_staff" && (normalizedOfficeLocation === "head_office" || normalizedOfficeLocation === "accra"))
+        officeUseRole === "it_store_head" ||
+        (isServiceDeskRole && (normalizedOfficeLocation === "head_office" || normalizedOfficeLocation === "accra"))
 
       if (!canSeeNationwide) {
         requisitions = requisitions.filter((r: any) => {

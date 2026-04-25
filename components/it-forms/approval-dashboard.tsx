@@ -7,13 +7,14 @@ import { Button } from "@/components/ui/button"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import { Badge } from "@/components/ui/badge"
 import { useAuth } from "@/lib/auth-context"
-import { Laptop, Wrench, ClipboardList, ShieldCheck, Lock, ArrowRight, Users, Loader2, Trash2 } from "lucide-react"
+import { Laptop, Wrench, ClipboardList, ShieldCheck, Lock, ArrowRight, Users, Loader2, Trash2, LockKeyhole, UserPlus, UserMinus, KeySquare, ArrowLeftRight } from "lucide-react"
 import { useToast } from "@/hooks/use-toast"
 import { DepartmentHeadApprovalModule } from "./department-head-approval"
 import { ITServiceDeskProcessingPanel } from "./service-desk-processing"
 import { ITHeadAdminPanel } from "./it-head-admin-panel"
 import { HodApprovalTracker } from "./hod-approval-tracker"
 import { SignatureManagementPanel } from "./signature-management"
+import { PasswordResetWorkQueue } from "./password-reset-work-queue"
 
 function LockedSection({ title, description }: { title: string; description: string }) {
   return (
@@ -37,6 +38,8 @@ export function ITFormsApprovalDashboard() {
   const role = user?.role || ""
   const department = user?.department || ""
   const [isDeletingAll, setIsDeletingAll] = useState(false)
+  const [isDownloadingAllRecords, setIsDownloadingAllRecords] = useState(false)
+  const [isDownloadingApprovedBackup, setIsDownloadingApprovedBackup] = useState(false)
 
   // ITD (IT Department) Department Head can act as IT Manager
   const isITDepartmentHead = role === "department_head" && department?.toLowerCase().includes("it")
@@ -51,6 +54,7 @@ export function ITFormsApprovalDashboard() {
   const canUseManagerDesk = ["it_head", "admin"].includes(role) || isITDepartmentHead
   const canUseHODTracker = ["it_head", "admin"].includes(role) || isITDepartmentHead
   const canUseSignatureDesk = ["department_head", "admin", "it_head", "regional_it_head"].includes(role) || isITDepartmentHead
+  const canUsePasswordWorkDesk = ["it_staff", "it_head", "regional_it_head", "admin"].includes(role) || isITDepartmentHead
 
   const defaultTab = useMemo(() => {
     if (canUseHODDesk) return "hod"
@@ -80,13 +84,49 @@ export function ITFormsApprovalDashboard() {
       href: "/dashboard/it-forms/new-gadget",
       icon: ClipboardList,
     },
+    {
+      title: "Password Reset Request",
+      description: "Request password resets for enterprise systems with IT manager assignment workflow.",
+      href: "/dashboard/it-forms/password-reset",
+      icon: ShieldCheck,
+    },
+    {
+      title: "Account Unlock Request",
+      description: "Request account unlock support with manager assignment and completion workflow.",
+      href: "/dashboard/it-forms/account-unlock",
+      icon: LockKeyhole,
+    },
+    {
+      title: "New User Onboarding",
+      description: "Submit onboarding setup requests for new employees and required systems access.",
+      href: "/dashboard/it-forms/onboarding",
+      icon: UserPlus,
+    },
+    {
+      title: "User Offboarding",
+      description: "Submit access deprovisioning and handover requests for departing staff.",
+      href: "/dashboard/it-forms/offboarding",
+      icon: UserMinus,
+    },
+    {
+      title: "Software Access Request",
+      description: "Request software/application access levels with IT manager assignment.",
+      href: "/dashboard/it-forms/software-access",
+      icon: KeySquare,
+    },
+    {
+      title: "IT Asset Transfer",
+      description: "Request transfer of IT assets across departments and locations.",
+      href: "/dashboard/it-forms/asset-transfer",
+      icon: ArrowLeftRight,
+    },
   ]
 
   const deleteAllITForms = async () => {
     if (role !== "admin") return
 
     const confirmed = window.confirm(
-      "This will permanently delete ALL IT form requests (Requisitions, New Gadget, Maintenance & Repairs). Continue?"
+      "This will permanently delete ALL IT form requests (Requisitions, New Gadget, Maintenance & Repairs, Password Reset). Continue?"
     )
     if (!confirmed) return
 
@@ -128,6 +168,56 @@ export function ITFormsApprovalDashboard() {
     }
   }
 
+  const downloadAdminRecords = async (mode: "all" | "approved") => {
+    const isApproved = mode === "approved"
+    if (isApproved) {
+      setIsDownloadingApprovedBackup(true)
+    } else {
+      setIsDownloadingAllRecords(true)
+    }
+
+    try {
+      const params = new URLSearchParams({
+        mode,
+        userRole: role,
+        username: user?.full_name || user?.email || user?.username || "admin",
+      })
+
+      const response = await fetch(`/api/it-forms/admin-records?${params.toString()}`)
+      const data = await response.json()
+      if (!response.ok) throw new Error(data.error || "Failed to fetch IT form records")
+
+      const fileDate = new Date().toISOString().replace(/[:.]/g, "-")
+      const fileName = isApproved ? `it-forms-approved-backup-${fileDate}.json` : `it-forms-records-${fileDate}.json`
+      const blob = new Blob([JSON.stringify(data, null, 2)], { type: "application/json" })
+      const url = URL.createObjectURL(blob)
+      const link = document.createElement("a")
+      link.href = url
+      link.download = fileName
+      document.body.appendChild(link)
+      link.click()
+      link.remove()
+      URL.revokeObjectURL(url)
+
+      toast({
+        title: isApproved ? "Approved backup downloaded" : "Previous records downloaded",
+        description: `Saved ${data?.counts?.total || 0} records to ${fileName}.`,
+      })
+    } catch (error: any) {
+      toast({
+        title: isApproved ? "Approved backup failed" : "Fetch records failed",
+        description: error.message || "Unable to export IT form records",
+        variant: "destructive",
+      })
+    } finally {
+      if (isApproved) {
+        setIsDownloadingApprovedBackup(false)
+      } else {
+        setIsDownloadingAllRecords(false)
+      }
+    }
+  }
+
   return (
     <div className="space-y-6">
       <div className="space-y-2">
@@ -146,10 +236,20 @@ export function ITFormsApprovalDashboard() {
                 Delete all submitted IT form requests when there is a critical fault in form processing.
               </p>
             </div>
-            <Button variant="destructive" onClick={deleteAllITForms} disabled={isDeletingAll}>
-              {isDeletingAll ? <Loader2 className="h-4 w-4 mr-2 animate-spin" /> : <Trash2 className="h-4 w-4 mr-2" />}
-              Delete All IT Forms
-            </Button>
+            <div className="flex flex-wrap gap-2">
+              <Button variant="outline" onClick={() => downloadAdminRecords("all")} disabled={isDownloadingAllRecords || isDownloadingApprovedBackup || isDeletingAll}>
+                {isDownloadingAllRecords ? <Loader2 className="h-4 w-4 mr-2 animate-spin" /> : null}
+                Fetch Previous Records
+              </Button>
+              <Button variant="outline" onClick={() => downloadAdminRecords("approved")} disabled={isDownloadingApprovedBackup || isDownloadingAllRecords || isDeletingAll}>
+                {isDownloadingApprovedBackup ? <Loader2 className="h-4 w-4 mr-2 animate-spin" /> : null}
+                Backup Approved Records
+              </Button>
+              <Button variant="destructive" onClick={deleteAllITForms} disabled={isDeletingAll || isDownloadingAllRecords || isDownloadingApprovedBackup}>
+                {isDeletingAll ? <Loader2 className="h-4 w-4 mr-2 animate-spin" /> : <Trash2 className="h-4 w-4 mr-2" />}
+                Delete All IT Forms
+              </Button>
+            </div>
           </CardContent>
         </Card>
       )}
@@ -168,33 +268,36 @@ export function ITFormsApprovalDashboard() {
         </Card>
         <Card className={canUseHODDesk ? "shadow-sm border-emerald-200" : "shadow-sm opacity-60 bg-slate-50 dark:bg-slate-900"}>
           <CardContent className="p-5">
-            <p className="text-sm text-muted-foreground">Head of Department</p>
+            <p className="text-sm text-muted-foreground">HOD Desk</p>
             <p className="mt-2 text-lg font-semibold">{canUseHODDesk ? "Enabled" : "Locked"}</p>
           </CardContent>
         </Card>
         <Card className={canUseOfficeUseDesk ? "shadow-sm border-emerald-200" : "shadow-sm opacity-60 bg-slate-50 dark:bg-slate-900"}>
           <CardContent className="p-5">
-            <p className="text-sm text-muted-foreground">IT Office Use</p>
+            <p className="text-sm text-muted-foreground">IT Office</p>
             <p className="mt-2 text-lg font-semibold">{canUseOfficeUseDesk ? "Enabled" : "Locked"}</p>
           </CardContent>
         </Card>
         <Card className={canUseManagerDesk ? "shadow-sm border-emerald-200" : "shadow-sm opacity-60 bg-slate-50 dark:bg-slate-900"}>
           <CardContent className="p-5">
-            <p className="text-sm text-muted-foreground">IT Head or Admin</p>
+            <p className="text-sm text-muted-foreground">IT Manager</p>
             <p className="mt-2 text-lg font-semibold">{canUseManagerDesk ? "Enabled" : "Locked"}</p>
           </CardContent>
         </Card>
       </div>
 
       <Tabs value={activeTab} onValueChange={setActiveTab} className="space-y-4">
-        <TabsList className="grid h-auto grid-cols-2 gap-2 md:grid-cols-6">
-          <TabsTrigger value="request">Request Services</TabsTrigger>
-          <TabsTrigger value="hod" disabled={!canUseHODDesk}>Head of Department</TabsTrigger>
-          <TabsTrigger value="service-desk" disabled={!canUseOfficeUseDesk}>IT Office Use</TabsTrigger>
-          <TabsTrigger value="manager" disabled={!canUseManagerDesk}>IT Manager</TabsTrigger>
-          <TabsTrigger value="hod-tracker" disabled={!canUseHODTracker}>HOD Tracker</TabsTrigger>
-          <TabsTrigger value="signature" disabled={!canUseSignatureDesk}>Signature</TabsTrigger>
-        </TabsList>
+        <div className="w-full overflow-x-auto pb-1">
+          <TabsList className="inline-flex h-9 min-w-max gap-1 px-1">
+            <TabsTrigger value="request" className="px-3 text-xs">Requests</TabsTrigger>
+            <TabsTrigger value="hod" disabled={!canUseHODDesk} className="px-3 text-xs">HOD</TabsTrigger>
+            <TabsTrigger value="service-desk" disabled={!canUseOfficeUseDesk} className="px-3 text-xs">IT Office</TabsTrigger>
+            <TabsTrigger value="manager" disabled={!canUseManagerDesk} className="px-3 text-xs">Manager</TabsTrigger>
+            <TabsTrigger value="password-work" disabled={!canUsePasswordWorkDesk} className="px-3 text-xs">Resets</TabsTrigger>
+            <TabsTrigger value="hod-tracker" disabled={!canUseHODTracker} className="px-3 text-xs">Tracker</TabsTrigger>
+            <TabsTrigger value="signature" disabled={!canUseSignatureDesk} className="px-3 text-xs">Signature</TabsTrigger>
+          </TabsList>
+        </div>
 
         <TabsContent value="request" className="space-y-4">
           <Card className="shadow-sm">
@@ -235,7 +338,7 @@ export function ITFormsApprovalDashboard() {
             <DepartmentHeadApprovalModule />
           ) : (
             <LockedSection
-              title="Head of Department section"
+              title="HOD Desk"
               description="This section is only for Department Heads and Admin users."
             />
           )}
@@ -246,7 +349,7 @@ export function ITFormsApprovalDashboard() {
             <ITServiceDeskProcessingPanel />
           ) : (
             <LockedSection
-              title="IT Office Use section"
+              title="IT Office"
               description="This section is only for IT staff teams and Admin users."
             />
           )}
@@ -257,8 +360,19 @@ export function ITFormsApprovalDashboard() {
             <ITHeadAdminPanel />
           ) : (
             <LockedSection
-              title="IT Manager section"
+              title="IT Manager"
               description="This section is only for IT Head and Admin users."
+            />
+          )}
+        </TabsContent>
+
+        <TabsContent value="password-work" className="space-y-4">
+          {canUsePasswordWorkDesk ? (
+            <PasswordResetWorkQueue />
+          ) : (
+            <LockedSection
+              title="Password Resets"
+              description="This section is only for IT teams and Admin users."
             />
           )}
         </TabsContent>
@@ -268,7 +382,7 @@ export function ITFormsApprovalDashboard() {
             <HodApprovalTracker />
           ) : (
             <LockedSection
-              title="HOD tracker section"
+              title="HOD Tracker"
               description="This section is only for IT Head and Admin users."
             />
           )}
@@ -279,7 +393,7 @@ export function ITFormsApprovalDashboard() {
             <SignatureManagementPanel />
           ) : (
             <LockedSection
-              title="Signature section"
+              title="Signature"
               description="This section is only for Department Heads and Admin users."
             />
           )}

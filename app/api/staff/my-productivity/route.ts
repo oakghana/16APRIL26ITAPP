@@ -67,6 +67,11 @@ export async function GET(request: NextRequest) {
       .select("id, status, priority, created_at, updated_at, completed_at, resolved_at")
       .or(`assigned_to.eq.${staffId},assigned_to_name.ilike.%${staffName}%`)
 
+    const { data: passwordResetTasks } = await supabase
+      .from("password_reset_requests")
+      .select("id, status, urgency, created_at, updated_at, assigned_at, submitted_for_confirmation_at, user_confirmed_at, closed_at, assigned_to, assigned_to_id")
+      .or(`assigned_to_id.eq.${staffId},assigned_to.ilike.%${staffName}%`)
+
     // Store issuance actions (stock assignments made by this staff)
     const { data: stockAssignments } = await supabase
       .from("stock_assignments")
@@ -112,7 +117,7 @@ export async function GET(request: NextRequest) {
 
     const officeUseActions = [...processedRequisitions, ...processedGadget, ...processedMaintenance]
 
-    const tasks = [...(repairTasks || []), ...(ticketTasks || [])]
+    const tasks = [...(repairTasks || []), ...(ticketTasks || []), ...(passwordResetTasks || [])]
     const totalTasksAssigned = tasks.length
 
     // Filter completed tasks (cover all completion statuses)
@@ -143,16 +148,17 @@ export async function GET(request: NextRequest) {
       if (!task.created_at) return
 
       const createdDate = new Date(task.created_at)
-      const completedDate = new Date(task.completed_at || task.resolved_at || task.updated_at)
+      const completedDate = new Date(task.completed_at || task.resolved_at || task.user_confirmed_at || task.closed_at || task.submitted_for_confirmation_at || task.updated_at)
       const daysToComplete = Math.floor((completedDate.getTime() - createdDate.getTime()) / (1000 * 60 * 60 * 24))
       
       totalCompletionDays += daysToComplete
 
       // Determine expected completion time based on priority
       let expectedDays = 10 // Low priority
-      if (task.priority === "critical") expectedDays = 1
-      else if (task.priority === "high") expectedDays = 3
-      else if (task.priority === "medium") expectedDays = 5
+      const normalizedPriority = (task.priority || task.urgency || "").toLowerCase()
+      if (normalizedPriority === "critical") expectedDays = 1
+      else if (normalizedPriority === "high") expectedDays = 3
+      else if (normalizedPriority === "medium") expectedDays = 5
 
       if (daysToComplete <= expectedDays) {
         onTimeCompletions++
@@ -267,6 +273,7 @@ export async function GET(request: NextRequest) {
       serviceDeskDispatches,
       officeUseProcesses,
       totalTicketCount,
+      totalPasswordResetCount: (passwordResetTasks || []).length,
       grading,
       rank,
       totalStaff,

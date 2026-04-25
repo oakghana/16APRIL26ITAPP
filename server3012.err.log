@@ -1,0 +1,9 @@
+ ⨯ Failed to start server
+Error: listen EADDRINUSE: address already in use :::3012
+    at <unknown> (Error: listen EADDRINUSE: address already in use :::3012)
+    [it-requisitions] Error creating requisition: {
+  code: '22P02',
+  details: null,
+  hint: null,
+  message: 'invalid input syntax for type uuid: "Simulation User"'
+}

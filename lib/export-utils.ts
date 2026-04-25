@@ -13,7 +13,7 @@ export interface ExportData {
   rows: (string | number)[][]
 }
 
-export type ITFormType = "requisition" | "maintenance" | "new-gadget"
+export type ITFormType = "requisition" | "maintenance" | "new-gadget" | "password-reset"
 
 export interface ITFormPDFData {
   formType: ITFormType
@@ -429,7 +429,8 @@ export async function exportToPDF(data: ExportData) {
 
 export async function exportITFormPDF(data: ITFormPDFData) {
   const enrichedData = await enrichITFormSignatures(data)
-  const pdfHodSignature = await normalizeSignatureForPdf(enrichedData.hodSignature)
+  const hideHodForPasswordReset = enrichedData.formType === "password-reset"
+  const pdfHodSignature = hideHodForPasswordReset ? undefined : await normalizeSignatureForPdf(enrichedData.hodSignature)
   const pdfManagerSignature = await normalizeSignatureForPdf(enrichedData.managerSignature)
   const doc = new jsPDF("p", "mm", "a4")
   const logoDataUrl = await getLogoDataUrl()
@@ -441,6 +442,8 @@ export async function exportITFormPDF(data: ITFormPDFData) {
       ? "Maintenance and Repairs Report"
       : enrichedData.formType === "new-gadget"
         ? "New IT Gadget Request Report"
+        : enrichedData.formType === "password-reset"
+          ? "Password Reset Request Report"
         : "IT Equipment Requisition Report"
 
   doc.setFillColor(237, 246, 241)
@@ -488,7 +491,7 @@ export async function exportITFormPDF(data: ITFormPDFData) {
   })
 
   const detailRows: Array<[string, string]> = [
-    [enrichedData.formType === "new-gadget" ? "Complaints / Reason" : "Request Summary", blankLineValue(enrichedData.summary, "-")],
+    [enrichedData.formType === "new-gadget" ? "Complaints / Reason" : enrichedData.formType === "password-reset" ? "Account and Issue" : "Request Summary", blankLineValue(enrichedData.summary, "-")],
     ["Purpose / Notes", blankLineValue(normalizeReportNotes(enrichedData.purpose || enrichedData.extraNotes), "-")],
   ]
 
@@ -511,12 +514,17 @@ export async function exportITFormPDF(data: ITFormPDFData) {
     margin: { left: 14, right: 14 },
   })
 
-  const approvalsRows: Array<[string, string]> = [
-    ["Department Head", blankLineValue(enrichedData.hodName, "-")],
-    ["Department Head Date", blankLineValue(enrichedData.hodDate, "-")],
-    ["IT Manager / IT Head", blankLineValue(enrichedData.managerName, "-")],
-    ["Manager Date", blankLineValue(enrichedData.managerDate, "-")],
-  ]
+  const approvalsRows: Array<[string, string]> = hideHodForPasswordReset
+    ? [
+        ["IT Manager / IT Head", blankLineValue(enrichedData.managerName, "-")],
+        ["Manager Date", blankLineValue(enrichedData.managerDate, "-")],
+      ]
+    : [
+        ["Department Head", blankLineValue(enrichedData.hodName, "-")],
+        ["Department Head Date", blankLineValue(enrichedData.hodDate, "-")],
+        ["IT Manager / IT Head", blankLineValue(enrichedData.managerName, "-")],
+        ["Manager Date", blankLineValue(enrichedData.managerDate, "-")],
+      ]
 
   autoTable(doc, {
     startY: (doc as any).lastAutoTable.finalY + 6,
@@ -536,33 +544,48 @@ export async function exportITFormPDF(data: ITFormPDFData) {
   y += 4
 
   doc.setDrawColor(148, 163, 184)
-  doc.rect(14, y, 86, 24)
-  doc.rect(110, y, 86, 24)
-
   doc.setFont("helvetica", "normal")
   doc.setFontSize(8)
   doc.setTextColor(71, 85, 105)
-  doc.text("Department Head Signature", 16, y + 4)
-  doc.text("IT Manager / IT Head Signature", 112, y + 4)
 
-  if (pdfHodSignature) {
-    try {
-      doc.addImage(pdfHodSignature, "PNG", 16, y + 6, 82, 16)
-    } catch {
-      doc.text("signature image unavailable", 16, y + 14)
+  if (hideHodForPasswordReset) {
+    doc.rect(14, y, 182, 24)
+    doc.text("IT Manager / IT Head Signature", 16, y + 4)
+
+    if (pdfManagerSignature) {
+      try {
+        doc.addImage(pdfManagerSignature, "PNG", 16, y + 6, 178, 16)
+      } catch {
+        doc.text("signature image unavailable", 16, y + 14)
+      }
+    } else {
+      doc.text("not signed", 16, y + 14)
     }
   } else {
-    doc.text("not signed", 16, y + 14)
-  }
+    doc.rect(14, y, 86, 24)
+    doc.rect(110, y, 86, 24)
+    doc.text("Department Head Signature", 16, y + 4)
+    doc.text("IT Manager / IT Head Signature", 112, y + 4)
 
-  if (pdfManagerSignature) {
-    try {
-      doc.addImage(pdfManagerSignature, "PNG", 112, y + 6, 82, 16)
-    } catch {
-      doc.text("signature image unavailable", 112, y + 14)
+    if (pdfHodSignature) {
+      try {
+        doc.addImage(pdfHodSignature, "PNG", 16, y + 6, 82, 16)
+      } catch {
+        doc.text("signature image unavailable", 16, y + 14)
+      }
+    } else {
+      doc.text("not signed", 16, y + 14)
     }
-  } else {
-    doc.text("not signed", 112, y + 14)
+
+    if (pdfManagerSignature) {
+      try {
+        doc.addImage(pdfManagerSignature, "PNG", 112, y + 6, 82, 16)
+      } catch {
+        doc.text("signature image unavailable", 112, y + 14)
+      }
+    } else {
+      doc.text("not signed", 112, y + 14)
+    }
   }
 
   doc.setFontSize(8)
@@ -604,6 +627,10 @@ function buildPrintSections(data: ITFormPDFData) {
     detailRows.push(["Serial Number", data.serialNumber])
     detailRows.push(["Year of Purchase", data.yearOfPurchase])
     detailRows.push(["Recommendation", formatRecommendation(data.recommendation)])
+  } else if (data.formType === "password-reset") {
+    detailRows.push(["System / Application", data.purpose])
+    detailRows.push(["Account Identifier", data.summary])
+    detailRows.push(["Work Notes", data.extraNotes])
   } else {
     detailRows.push(["Complaints", data.summary])
     detailRows.push(["Date of Purchase", data.dateOfPurchase])
@@ -612,12 +639,18 @@ function buildPrintSections(data: ITFormPDFData) {
     detailRows.push(["Repair Status", data.repairStatus])
   }
 
-  const approvalsRows: Array<[string, string | number | boolean | null | undefined]> = [
-    ["Department Head", data.hodName],
-    ["Department Head Date", data.hodDate],
-    ["IT Manager / IT Head", data.managerName],
-    ["Manager Date", data.managerDate],
-  ]
+  const approvalsRows: Array<[string, string | number | boolean | null | undefined]> =
+    data.formType === "password-reset"
+      ? [
+          ["IT Manager / IT Head", data.managerName],
+          ["Manager Date", data.managerDate],
+        ]
+      : [
+          ["Department Head", data.hodName],
+          ["Department Head Date", data.hodDate],
+          ["IT Manager / IT Head", data.managerName],
+          ["Manager Date", data.managerDate],
+        ]
 
   const actorNotes = parseActorNotes(data.extraNotes || data.purpose)
 
@@ -638,10 +671,13 @@ export function openITFormPrintView(data: ITFormPDFData) {
         ? "Maintenance and Repairs Request"
         : enrichedData.formType === "new-gadget"
           ? "New IT Gadget Request"
+          : enrichedData.formType === "password-reset"
+            ? "Password Reset Request"
           : "IT Equipment Requisition"
 
     const { commonRows, detailRows, approvalsRows, actorNotes } = buildPrintSections(enrichedData)
     const logoUrl = `${window.location.origin}${LOGO_PATH}`
+    const hideHodForPasswordReset = enrichedData.formType === "password-reset"
     const hodSignatureImg = enrichedData.hodSignature
       ? `<img src="${escapeHtml(enrichedData.hodSignature)}" alt="HOD Signature" class="sig-img" />`
       : `<span class="sig-empty">not signed</span>`
@@ -743,11 +779,8 @@ export function openITFormPrintView(data: ITFormPDFData) {
 
             <section class="section">
               <h2>Signatures</h2>
-              <div class="sig-grid" style="padding: 12px;">
-                <div class="sig-box">
-                  <div class="sig-label">Department Head Signature</div>
-                  ${hodSignatureImg}
-                </div>
+              <div class="sig-grid" style="padding: 12px; ${hideHodForPasswordReset ? "grid-template-columns: 1fr;" : ""}">
+                ${hideHodForPasswordReset ? "" : `<div class="sig-box"><div class="sig-label">Department Head Signature</div>${hodSignatureImg}</div>`}
                 <div class="sig-box">
                   <div class="sig-label">IT Manager / IT Head Signature</div>
                   ${managerSignatureImg}

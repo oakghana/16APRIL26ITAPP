@@ -1,0 +1,6 @@
+SERVER_READY:False
+POST_STATUS:0
+POST_KEY_FIELDS:{"id":null,"requisition_number":null,"status":null,"department":null,"requested_by_email":null,"error":null,"message":null}
+GET_STATUS:0
+GET_KEY_FIELDS:{"count":0,"first_id":null,"first_requisition_number":null,"first_status":null,"first_department":null,"first_requested_by_email":null,"error":null,"message":null}
+UUID_OR_COLUMN_ERRORS:NOT_FOUND_IN_RESPONSES

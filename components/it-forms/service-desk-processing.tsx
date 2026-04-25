@@ -17,10 +17,12 @@ import {
   DialogTitle,
 } from "@/components/ui/dialog"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
-import { CheckCircle2, Eye, AlertCircle, Loader2, ClipboardList, History, Pencil, ChevronLeft, ChevronRight, Lock } from "lucide-react"
+import { CheckCircle2, Eye, AlertCircle, Loader2, ClipboardList, History, Pencil, ChevronLeft, ChevronRight, Lock, Download, Printer, Send } from "lucide-react"
 import { useAuth } from "@/lib/auth-context"
 import { useToast } from "@/hooks/use-toast"
 import { ApprovalTracker } from "./approval-tracker"
+import { exportITFormPDF, openITFormPrintView } from "@/lib/export-utils"
+import { formatDisplayDate } from "@/lib/utils"
 
 type FormType = "requisition" | "new-gadget" | "maintenance"
 
@@ -61,11 +63,29 @@ interface ITRequisition {
   status: string
   department_head_approved_by?: string
   department_head_approved_at?: string
+  department_head_signature?: string
   department_head_notes?: string
   service_desk_notes?: string
   service_desk_approved?: boolean
   service_desk_processed_by?: string
   service_desk_processed_at?: string
+  submitted_to_management?: boolean
+  submitted_to_management_at?: string
+  submitted_to_management_by?: string
+  submitted_to_management_by_name?: string
+  it_submitted_to_management?: boolean
+  it_submitted_to_management_at?: string
+  it_submitted_to_management_by?: string
+  it_manager_approved_by?: string
+  it_manager_approved_at?: string
+  it_manager_signature?: string
+  it_head_approved_by?: string
+  it_head_approved_at?: string
+  it_head_signature?: string
+  admin_approved_by?: string
+  admin_approved_at?: string
+  admin_signature?: string
+  recommended?: boolean | null
   it_head_approved?: boolean
   admin_approved?: boolean
   store_head_approved?: boolean
@@ -77,9 +97,11 @@ interface ITRequisition {
 export function ITServiceDeskProcessingPanel() {
   const [requisitions, setRequisitions] = useState<ITRequisition[]>([])
   const [myWorkHistory, setMyWorkHistory] = useState<ITRequisition[]>([])
+  const [approvedRequests, setApprovedRequests] = useState<ITRequisition[]>([])
   const [filteredRequisitions, setFilteredRequisitions] = useState<ITRequisition[]>([])
   const [loading, setLoading] = useState(true)
   const [historyLoading, setHistoryLoading] = useState(false)
+  const [approvedLoading, setApprovedLoading] = useState(false)
   const [selectedRequisition, setSelectedRequisition] = useState<ITRequisition | null>(null)
   const [isDetailDialogOpen, setIsDetailDialogOpen] = useState(false)
   const [isProcessDialogOpen, setIsProcessDialogOpen] = useState(false)
@@ -91,18 +113,27 @@ export function ITServiceDeskProcessingPanel() {
   const [isEditSubmitting, setIsEditSubmitting] = useState(false)
   const [searchQuery, setSearchQuery] = useState("")
   const [historySearch, setHistorySearch] = useState("")
+  const [approvedSearch, setApprovedSearch] = useState("")
   const [filterTab, setFilterTab] = useState<"pending" | "processed" | "all">("pending")
-  const [mainTab, setMainTab] = useState<"queue" | "mywork">("queue")
+  const [mainTab, setMainTab] = useState<"queue" | "approved" | "mywork">("queue")
   // Pagination for My Work tab
   const ITEMS_PER_PAGE = 10
   const [historyPage, setHistoryPage] = useState(1)
   const { user } = useAuth()
   const { toast } = useToast()
+  const normalizedUserLocation = (user?.location || "").toLowerCase()
+  const canSeeApprovedDashboard =
+    user?.role === "admin" ||
+    user?.role === "it_head" ||
+    ((user?.role || "").startsWith("service_desk") && (normalizedUserLocation.includes("accra") || normalizedUserLocation.includes("head office")))
 
   useEffect(() => {
     fetchRequisitions()
     fetchMyWorkHistory()
-  }, [user?.location, user?.full_name])
+    if (canSeeApprovedDashboard) {
+      fetchApprovedRequests()
+    }
+  }, [user?.location, user?.full_name, user?.role])
 
   useEffect(() => {
     filterRequisitions()
@@ -198,6 +229,156 @@ export function ITServiceDeskProcessingPanel() {
       console.error("[v0] Error fetching work history:", error)
     } finally {
       setHistoryLoading(false)
+    }
+  }
+
+  const isApprovedByManagement = (req: ITRequisition) => {
+    if (req.formType === "requisition") {
+      return Boolean(req.it_head_approved || req.admin_approved) || ["pending_store", "approved", "issued", "completed"].includes(req.status)
+    }
+    if (req.formType === "new-gadget") {
+      return ["recommended", "gadget_issued"].includes(req.status)
+    }
+    return ["manager_confirmed", "sent_for_repair", "repaired", "confirmed_working"].includes(req.status)
+  }
+
+  const isEligibleForManagementSubmission = (req: ITRequisition) => {
+    if (req.formType === "new-gadget") return req.status === "recommended"
+    if (req.formType === "maintenance") return req.status === "manager_confirmed"
+    return false
+  }
+
+  const isAlreadySubmittedToManagement = (req: ITRequisition) => {
+    return (
+      req.submitted_to_management === true ||
+      req.it_submitted_to_management === true ||
+      /submitted to management/i.test(String(req.other_comments || ""))
+    )
+  }
+
+  const extractManagerMeta = (req: ITRequisition) => {
+    const noteText = req.other_comments || ""
+    const match = noteText.match(/IT Manager\s+(approved|rejected)\s+note:[\s\S]*?\(by\s+(.+?)\s+on\s+([^\)]+)\)/i)
+    return {
+      managerName: req.it_manager_approved_by || req.admin_approved_by || req.it_head_approved_by || (match?.[2] || ""),
+      managerDate: req.it_manager_approved_at || req.admin_approved_at || req.it_head_approved_at || (match?.[3] || ""),
+    }
+  }
+
+  const buildExportPayload = (req: ITRequisition) => {
+    const requestNumber = getRequestNumber(req)
+    const { managerName, managerDate } = extractManagerMeta(req)
+    return {
+      formType: req.formType,
+      fileName: requestNumber,
+      requestNumber,
+      staffName: getRequester(req),
+      department: getDepartment(req),
+      requestDate: req.created_at ? formatDisplayDate(req.created_at) : "",
+      summary: getFaultSummary(req),
+      purpose: req.purpose || req.other_comments || "",
+      status: req.status,
+      hodName: req.department_head_approved_by || req.departmental_head_name || req.sectional_head_name,
+      hodDate: req.department_head_approved_at || req.departmental_head_date || req.sectional_head_date,
+      hodSignature: req.department_head_signature,
+      extraNotes: req.other_comments,
+      managerName,
+      managerDate,
+      managerSignature: req.it_manager_signature || req.admin_signature || req.it_head_signature,
+      recommendation: req.recommended,
+      repairStatus: req.gadget_working_status,
+    }
+  }
+
+  const handleDownload = async (req: ITRequisition) => {
+    await exportITFormPDF(buildExportPayload(req))
+  }
+
+  const handlePrint = (req: ITRequisition) => {
+    openITFormPrintView(buildExportPayload(req))
+  }
+
+  const fetchApprovedRequests = async () => {
+    try {
+      setApprovedLoading(true)
+      const params = new URLSearchParams({ status: "all" })
+      if (user?.location) params.set("officeUseLocation", user.location)
+      if (user?.role) params.set("officeUseRole", user.role)
+
+      const scopeQuery = params.toString()
+      const [reqRes, gadgetRes, maintenanceRes] = await Promise.all([
+        fetch(`/api/it-forms/requisitions?${scopeQuery}`),
+        fetch(`/api/it-forms/new-gadget?${scopeQuery}`),
+        fetch(`/api/it-forms/maintenance-repairs?${scopeQuery}`),
+      ])
+
+      const reqData = reqRes.ok ? await reqRes.json() : { requisitions: [] }
+      const gadgetData = gadgetRes.ok ? await gadgetRes.json() : { requests: [] }
+      const maintenanceData = maintenanceRes.ok ? await maintenanceRes.json() : { requests: [] }
+
+      const combined: ITRequisition[] = [
+        ...((reqData.requisitions || []).map((r: any) => ({ ...r, formType: "requisition" as const }))),
+        ...((gadgetData.requests || []).map((r: any) => ({ ...r, formType: "new-gadget" as const }))),
+        ...((maintenanceData.requests || []).map((r: any) => ({ ...r, formType: "maintenance" as const }))),
+      ]
+
+      const approved = combined
+        .filter((req) => isApprovedByManagement(req))
+        .sort((a, b) => new Date(b.updated_at || b.created_at).getTime() - new Date(a.updated_at || a.created_at).getTime())
+
+      setApprovedRequests(approved)
+    } catch (error) {
+      console.error("[service-desk] Error loading approved requests:", error)
+      toast({
+        title: "Error",
+        description: "Failed to load approved requests",
+        variant: "destructive",
+      })
+    } finally {
+      setApprovedLoading(false)
+    }
+  }
+
+  const submitToManagement = async (req: ITRequisition) => {
+    if (!isEligibleForManagementSubmission(req) || isAlreadySubmittedToManagement(req)) {
+      return
+    }
+
+    setIsSubmitting(true)
+    try {
+      const response = await fetch("/api/it-forms/management-submission", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          requisitionId: req.id,
+          formType: req.formType,
+          submittedBy: user?.full_name || user?.email || "Unknown",
+          submittedById: user?.id,
+          submittedByRole: user?.role,
+          submittedByLocation: user?.location,
+          notes: "Forwarded by IT Office for management action",
+        }),
+      })
+
+      const data = await response.json()
+      if (!response.ok) {
+        throw new Error(data.error || "Failed to submit to management")
+      }
+
+      toast({
+        title: "Submitted to management",
+        description: `${getRequestNumber(req)} has been confirmed as submitted to management.`,
+      })
+
+      fetchApprovedRequests()
+    } catch (error: any) {
+      toast({
+        title: "Error",
+        description: error.message || "Failed to submit to management",
+        variant: "destructive",
+      })
+    } finally {
+      setIsSubmitting(false)
     }
   }
 
@@ -359,6 +540,7 @@ export function ITServiceDeskProcessingPanel() {
           action: processingAction,
           processedBy: user?.full_name || user?.email || "Unknown",
           processedById: user?.id,
+          processedByRole: user?.role,
           processedByLocation: user?.location,
           notes: processingNotes,
         }),
@@ -495,9 +677,12 @@ export function ITServiceDeskProcessingPanel() {
       </div>
 
       {/* Main Tabs: Queue vs My Work History */}
-      <Tabs value={mainTab} onValueChange={(v) => setMainTab(v as "queue" | "mywork")}>
+      <Tabs value={mainTab} onValueChange={(v) => setMainTab(v as "queue" | "approved" | "mywork")}>
         <TabsList className="mb-2">
           <TabsTrigger value="queue"><ClipboardList className="h-4 w-4 mr-2" />Processing Queue</TabsTrigger>
+          {canSeeApprovedDashboard && (
+            <TabsTrigger value="approved"><CheckCircle2 className="h-4 w-4 mr-2" />Approved by IT Manager/Head ({approvedRequests.length})</TabsTrigger>
+          )}
           <TabsTrigger value="mywork"><History className="h-4 w-4 mr-2" />My Completed Work ({myWorkHistory.length})</TabsTrigger>
         </TabsList>
 
@@ -578,6 +763,111 @@ export function ITServiceDeskProcessingPanel() {
             </CardContent>
           </Card>
         </TabsContent>
+
+        {/* ── APPROVED TAB ── */}
+        {canSeeApprovedDashboard && (
+          <TabsContent value="approved">
+            <Card>
+              <CardHeader>
+                <div className="flex items-center justify-between">
+                  <div>
+                    <CardTitle>Approved IT Requests</CardTitle>
+                    <CardDescription>
+                      Requests already approved by IT Manager/IT Head. You can view, download, print, and confirm submission to management for approved New Gadget and Maintenance forms.
+                    </CardDescription>
+                  </div>
+                  <CheckCircle2 className="h-5 w-5 text-muted-foreground" />
+                </div>
+              </CardHeader>
+              <CardContent className="space-y-4">
+                <Input
+                  placeholder="Search approved requests by number, requester, department, or fault..."
+                  value={approvedSearch}
+                  onChange={(e) => setApprovedSearch(e.target.value)}
+                  className="max-w-md"
+                />
+
+                {approvedLoading ? (
+                  <div className="flex items-center justify-center py-12"><Loader2 className="h-8 w-8 animate-spin text-muted-foreground" /></div>
+                ) : approvedRequests
+                    .filter((r) => {
+                      const term = approvedSearch.toLowerCase()
+                      if (!term) return true
+                      return (
+                        getRequestNumber(r).toLowerCase().includes(term) ||
+                        getRequester(r).toLowerCase().includes(term) ||
+                        getDepartment(r).toLowerCase().includes(term) ||
+                        getFaultSummary(r).toLowerCase().includes(term)
+                      )
+                    }).length === 0 ? (
+                  <div className="text-center py-12">
+                    <AlertCircle className="h-12 w-12 text-muted-foreground/30 mx-auto mb-3" />
+                    <p className="text-muted-foreground">No approved IT requests found</p>
+                  </div>
+                ) : (
+                  <div className="space-y-3">
+                    {approvedRequests
+                      .filter((r) => {
+                        const term = approvedSearch.toLowerCase()
+                        if (!term) return true
+                        return (
+                          getRequestNumber(r).toLowerCase().includes(term) ||
+                          getRequester(r).toLowerCase().includes(term) ||
+                          getDepartment(r).toLowerCase().includes(term) ||
+                          getFaultSummary(r).toLowerCase().includes(term)
+                        )
+                      })
+                      .map((req) => {
+                        const canSubmit = isEligibleForManagementSubmission(req) && !isAlreadySubmittedToManagement(req)
+                        const submitted = isAlreadySubmittedToManagement(req)
+                        return (
+                          <div key={req.id} className="border rounded-lg p-4 hover:bg-muted/50 transition-all hover:shadow-sm space-y-3">
+                            <div className="flex items-start justify-between gap-4">
+                              <div className="flex-1 space-y-2">
+                                <div className="flex items-center gap-2 flex-wrap">
+                                  <span className="font-semibold">{getRequestNumber(req)}</span>
+                                  <Badge variant="outline" className="text-xs">
+                                    {req.formType === "maintenance" ? "Maintenance" : req.formType === "new-gadget" ? "New Gadget" : "Requisition"}
+                                  </Badge>
+                                  <Badge variant="secondary" className="text-xs capitalize">{req.status.replace(/_/g, " ")}</Badge>
+                                  <Badge variant="secondary" className="text-xs">{getRequesterLocation(req)}</Badge>
+                                  {submitted && <Badge className="text-xs bg-green-600 hover:bg-green-600">Submitted to Management</Badge>}
+                                </div>
+                                <p className="text-sm text-muted-foreground">From: <span className="font-medium">{getRequester(req)}</span> ({getDepartment(req)})</p>
+                                <p className="text-sm">Fault / Request: {getFaultSummary(req).substring(0, 120)}...</p>
+                              </div>
+                              <div className="flex gap-2 flex-wrap justify-end">
+                                <Button variant="outline" size="sm" onClick={() => { setSelectedRequisition(req); setIsDetailDialogOpen(true) }}>
+                                  <Eye className="h-4 w-4 mr-1" />View
+                                </Button>
+                                <Button variant="outline" size="sm" onClick={() => handleDownload(req)}>
+                                  <Download className="h-4 w-4 mr-1" />Download
+                                </Button>
+                                <Button variant="outline" size="sm" onClick={() => handlePrint(req)}>
+                                  <Printer className="h-4 w-4 mr-1" />Print
+                                </Button>
+                                {(req.formType === "new-gadget" || req.formType === "maintenance") && (
+                                  <Button
+                                    size="sm"
+                                    className="bg-emerald-600 hover:bg-emerald-700"
+                                    onClick={() => submitToManagement(req)}
+                                    disabled={!canSubmit || isSubmitting}
+                                  >
+                                    <Send className="h-4 w-4 mr-1" />
+                                    {submitted ? "Submitted" : "Submit to Management"}
+                                  </Button>
+                                )}
+                              </div>
+                            </div>
+                          </div>
+                        )
+                      })}
+                  </div>
+                )}
+              </CardContent>
+            </Card>
+          </TabsContent>
+        )}
 
         {/* ── MY WORK HISTORY TAB ── */}
         <TabsContent value="mywork">

@@ -59,7 +59,7 @@ export async function POST(request: NextRequest) {
     })
 
     const requestNumber = await generateNextSequentialNumber()
-    const canEditOfficialSections = false
+    const canEditTechnicianDetails = ["it_staff", "regional_it_head", "it_head", "admin"].includes(String(submittedByRole || "").toLowerCase())
 
     const insertData = {
       request_number: requestNumber,
@@ -67,18 +67,19 @@ export async function POST(request: NextRequest) {
       department_name: normalizedDepartment,
       complaints_from_users: complaintsFromUsers,
       request_date: requestDate || new Date().toISOString().split("T")[0],
-      diagnosis_items: canEditOfficialSections ? faultItems || [] : [],
-      other_comments: canEditOfficialSections ? otherComments || null : null,
-      hardware_supervisor_name: canEditOfficialSections ? hardwareSupervisorName || null : null,
-      hardware_supervisor_date: canEditOfficialSections ? hardwareSupervisorDate || null : null,
-      date_of_last_repairs: canEditOfficialSections ? dateOfLastRepairs || null : null,
-      date_of_purchase: canEditOfficialSections ? dateOfPurchase || null : null,
-      times_repaired: canEditOfficialSections && numberOfTimesRepaired ? parseInt(numberOfTimesRepaired) : null,
-      sectional_head_name: canEditOfficialSections ? sectionalHeadName || null : null,
-      sectional_head_date: canEditOfficialSections ? sectionalHeadDate || null : null,
-      confirmed_by: canEditOfficialSections ? confirmedBy || null : null,
-      confirmed_date: canEditOfficialSections ? confirmedDate || null : null,
-      gadget_working_status: canEditOfficialSections ? repairStatus || null : null,
+      diagnosis_items: canEditTechnicianDetails ? faultItems || [] : [],
+      other_comments: canEditTechnicianDetails ? otherComments || null : null,
+      hardware_supervisor_name: canEditTechnicianDetails ? hardwareSupervisorName || null : null,
+      hardware_supervisor_date: canEditTechnicianDetails ? hardwareSupervisorDate || null : null,
+      date_of_last_repairs: canEditTechnicianDetails ? dateOfLastRepairs || null : null,
+      date_of_purchase: canEditTechnicianDetails ? dateOfPurchase || null : null,
+      times_repaired: canEditTechnicianDetails && numberOfTimesRepaired ? parseInt(numberOfTimesRepaired) : null,
+      // HOD/manager/post-repair feedback are workflow-owned and not set during requester submit.
+      sectional_head_name: null,
+      sectional_head_date: null,
+      confirmed_by: null,
+      confirmed_date: null,
+      gadget_working_status: null,
       created_by: staffName || null,
       created_by_role: submittedByRole || null,
       created_by_email: submittedByEmail || null,
@@ -178,10 +179,12 @@ export async function GET(request: NextRequest) {
 
       if (officeUseLocation) {
         const normalizedOfficeLocation = normalizeLocation(officeUseLocation)
+        const isServiceDeskRole = (officeUseRole || "").startsWith("service_desk")
         const canSeeNationwide =
           officeUseRole === "admin" ||
           officeUseRole === "it_head" ||
-          (officeUseRole === "it_staff" && (normalizedOfficeLocation === "head_office" || normalizedOfficeLocation === "accra"))
+          officeUseRole === "it_store_head" ||
+          (isServiceDeskRole && (normalizedOfficeLocation === "head_office" || normalizedOfficeLocation === "accra"))
 
         if (!canSeeNationwide) {
           requests = requests.filter((req: any) => {

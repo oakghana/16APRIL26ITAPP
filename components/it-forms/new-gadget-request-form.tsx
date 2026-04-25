@@ -70,6 +70,7 @@ export function NewGadgetRequestForm({ onSubmit }: { onSubmit: () => void }) {
     "Other",
   ]
 
+  const canEditFormDetails = ["it_staff", "regional_it_head", "it_head", "admin"].includes(user?.role || "")
   const canEditOfficialSections = false
 
   const handleInputChange = (e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement>) => {
@@ -109,16 +110,20 @@ export function NewGadgetRequestForm({ onSubmit }: { onSubmit: () => void }) {
           ...(canEditOfficialSections
             ? {}
             : {
-                makeOfGadget: "",
-                serialNumber: "",
-                yearOfPurchase: "",
-                otherComments: "",
                 departmentalHeadName: "",
                 departmentalHeadDate: "",
                 recommended: "",
                 confirmedBy: "",
                 confirmedDate: "",
               }),
+          ...(!canEditFormDetails
+            ? {
+                makeOfGadget: "",
+                serialNumber: "",
+                yearOfPurchase: "",
+                otherComments: "",
+              }
+            : {}),
         }),
       })
 
@@ -186,7 +191,7 @@ export function NewGadgetRequestForm({ onSubmit }: { onSubmit: () => void }) {
             </div>
           </div>
           <div className="rounded-full border border-amber-200 bg-amber-50 px-3 py-1 text-xs font-medium text-amber-700">
-            Review fields are locked for staff submissions
+            {canEditFormDetails ? "IT technical details can be filled where needed" : "Review fields are locked for staff submissions"}
           </div>
         </div>
       </div>
@@ -266,13 +271,13 @@ export function NewGadgetRequestForm({ onSubmit }: { onSubmit: () => void }) {
           <span className="text-xs text-muted-foreground">(To be filled by IT Hardware Group)</span>
         </div>
 
-        {!canEditOfficialSections && (
+        {!canEditFormDetails && (
           <div className="mb-4 rounded-md border border-dashed border-orange-200 bg-orange-50 px-3 py-2 text-xs text-orange-700 dark:border-orange-800 dark:bg-orange-950/30 dark:text-orange-300">
             This history block stays blank for staff submissions and is completed during technical review.
           </div>
         )}
 
-        <fieldset disabled={!canEditOfficialSections} className={!canEditOfficialSections ? "opacity-60" : ""}>
+        <fieldset disabled={!canEditFormDetails} className={!canEditFormDetails ? "opacity-60" : ""}>
           <div className="space-y-4">
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
               <div className="space-y-2">

@@ -8,7 +8,7 @@
 
    Creating an optimized production build ...
 [baseline-browser-mapping] The data in this module is over two months old.  To ensure accurate Baseline data, please update: `npm i baseline-browser-mapping@latest -D`
- Γ£ô Compiled successfully in 44s
+ Γ£ô Compiled successfully in 50s
    Skipping validation of types
    Collecting page data using 11 workers ...
 [baseline-browser-mapping] The data in this module is over two months old.  To ensure accurate Baseline data, please update: `npm i baseline-browser-mapping@latest -D`
@@ -22,7 +22,7 @@
 [baseline-browser-mapping] The data in this module is over two months old.  To ensure accurate Baseline data, please update: `npm i baseline-browser-mapping@latest -D`
 [baseline-browser-mapping] The data in this module is over two months old.  To ensure accurate Baseline data, please update: `npm i baseline-browser-mapping@latest -D`
 [baseline-browser-mapping] The data in this module is over two months old.  To ensure accurate Baseline data, please update: `npm i baseline-browser-mapping@latest -D`
-   Generating static pages using 11 workers (0/231) ...
+   Generating static pages using 11 workers (0/235) ...
 [baseline-browser-mapping] The data in this module is over two months old.  To ensure accurate Baseline data, please update: `npm i baseline-browser-mapping@latest -D`
 [baseline-browser-mapping] The data in this module is over two months old.  To ensure accurate Baseline data, please update: `npm i baseline-browser-mapping@latest -D`
 [baseline-browser-mapping] The data in this module is over two months old.  To ensure accurate Baseline data, please update: `npm i baseline-browser-mapping@latest -D`
@@ -33,10 +33,10 @@
 [baseline-browser-mapping] The data in this module is over two months old.  To ensure accurate Baseline data, please update: `npm i baseline-browser-mapping@latest -D`
 [baseline-browser-mapping] The data in this module is over two months old.  To ensure accurate Baseline data, please update: `npm i baseline-browser-mapping@latest -D`
 [baseline-browser-mapping] The data in this module is over two months old.  To ensure accurate Baseline data, please update: `npm i baseline-browser-mapping@latest -D`
-   Generating static pages using 11 workers (57/231) 
-   Generating static pages using 11 workers (115/231) 
-   Generating static pages using 11 workers (173/231) 
- Γ£ô Generating static pages using 11 workers (231/231) in 12.7s
+   Generating static pages using 11 workers (58/235) 
+   Generating static pages using 11 workers (117/235) 
+   Generating static pages using 11 workers (176/235) 
+ Γ£ô Generating static pages using 11 workers (235/235) in 7.8s
    Finalizing page optimization ...
 
 Route (app)
@@ -106,6 +106,7 @@ Route (app)
 Γö£ ╞Æ /api/devices/validate-location
 Γö£ ╞Æ /api/investigate-vr
 Γö£ ╞Æ /api/it-forms/admin-clear
+Γö£ ╞Æ /api/it-forms/admin-records
 Γö£ ╞Æ /api/it-forms/approve
 Γö£ ╞Æ /api/it-forms/department-head-approve
 Γö£ ╞Æ /api/it-forms/department-head-requisitions
@@ -113,10 +114,12 @@ Route (app)
 Γö£ ╞Æ /api/it-forms/issue
 Γö£ ╞Æ /api/it-forms/it-head-approve
 Γö£ ╞Æ /api/it-forms/maintenance-repairs
+Γö£ ╞Æ /api/it-forms/management-submission
 Γö£ ╞Æ /api/it-forms/manager-approve
 Γö£ ╞Æ /api/it-forms/my-requisitions
 Γö£ ╞Æ /api/it-forms/new-gadget
 Γö£ ╞Æ /api/it-forms/office-use-edit
+Γö£ ╞Æ /api/it-forms/password-reset
 Γö£ ╞Æ /api/it-forms/requisitions
 Γö£ ╞Æ /api/it-forms/service-desk-process
 Γö£ ╞Æ /api/it-forms/signature-lookup
@@ -235,6 +238,7 @@ Route (app)
 Γö£ Γùï /dashboard/it-forms/maintenance-repairs
 Γö£ Γùï /dashboard/it-forms/my-requisitions
 Γö£ Γùï /dashboard/it-forms/new-gadget
+Γö£ Γùï /dashboard/it-forms/password-reset
 Γö£ Γùï /dashboard/it-forms/service-desk
 Γö£ Γùï /dashboard/it-forms/store-issuance
 Γö£ Γùï /dashboard/it-reports

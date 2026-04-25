@@ -1,0 +1,5 @@
+
+> my-v0-project@0.1.0 start C:\aprilitapp\IT-APP
+> next start "--" "-p" "3013"
+
+ ELIFECYCLE  Command failed with exit code 1.

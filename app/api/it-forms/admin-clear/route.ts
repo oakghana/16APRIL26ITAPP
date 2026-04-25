@@ -14,10 +14,11 @@ export async function DELETE(request: NextRequest) {
       return NextResponse.json({ error: "Forbidden" }, { status: 403 })
     }
 
-    const [reqDelete, gadgetDelete, maintenanceDelete] = await Promise.all([
+    const [reqDelete, gadgetDelete, maintenanceDelete, passwordResetDelete] = await Promise.all([
       supabaseAdmin.from("it_equipment_requisitions").delete().not("id", "is", null),
       supabaseAdmin.from("new_gadget_requests").delete().not("id", "is", null),
       supabaseAdmin.from("maintenance_repair_requests").delete().not("id", "is", null),
+      supabaseAdmin.from("password_reset_requests").delete().not("id", "is", null),
     ])
 
     if (reqDelete.error) {
@@ -29,14 +30,18 @@ export async function DELETE(request: NextRequest) {
     if (maintenanceDelete.error) {
       return NextResponse.json({ error: maintenanceDelete.error.message }, { status: 500 })
     }
+    if (passwordResetDelete.error) {
+      return NextResponse.json({ error: passwordResetDelete.error.message }, { status: 500 })
+    }
 
     const deleted = {
       requisitions: reqDelete.count || 0,
       newGadget: gadgetDelete.count || 0,
       maintenance: maintenanceDelete.count || 0,
+      passwordReset: passwordResetDelete.count || 0,
     }
 
-    const total = deleted.requisitions + deleted.newGadget + deleted.maintenance
+    const total = deleted.requisitions + deleted.newGadget + deleted.maintenance + deleted.passwordReset
 
     await supabaseAdmin
       .from("audit_logs")
@@ -44,7 +49,7 @@ export async function DELETE(request: NextRequest) {
         username: username || userId || "admin",
         action: "ADMIN_CLEAR_IT_FORMS",
         resource: "it_forms",
-        details: `Deleted all IT forms requests. Total deleted: ${total} (Requisitions: ${deleted.requisitions}, New Gadget: ${deleted.newGadget}, Maintenance: ${deleted.maintenance})`,
+        details: `Deleted all IT forms requests. Total deleted: ${total} (Requisitions: ${deleted.requisitions}, New Gadget: ${deleted.newGadget}, Maintenance: ${deleted.maintenance}, Password Reset: ${deleted.passwordReset})`,
         severity: "critical",
         ip_address: request.headers.get("x-forwarded-for") || "unknown",
         user_agent: request.headers.get("user-agent") || "unknown",

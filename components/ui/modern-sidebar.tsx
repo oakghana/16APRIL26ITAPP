@@ -129,10 +129,12 @@ export function ModernSidebar({ isOpen, setIsOpen, className, onCollapseChange }
 
     if (user?.role === "admin") {
       return {
-        items: [],
+        items: [
+          { name: "Admin Dashboard", href: "/dashboard/admin", icon: BarChart3 },
+        ],
         groups: [
           {
-            name: "IT Operations",
+            name: "Operations",
             icon: Building2,
             badge: counts.itStaffStatus > 0 ? counts.itStaffStatus : undefined,
             items: [
@@ -142,17 +144,21 @@ export function ModernSidebar({ isOpen, setIsOpen, className, onCollapseChange }
                 icon: Users,
                 badge: counts.itStaffStatus > 0 ? counts.itStaffStatus : undefined,
               },
-              { name: "Staff Performance Report", href: "/dashboard/staff-performance-report", icon: Target },
-              { name: "Weekly Internet Report", href: "/dashboard/weekly-internet-report", icon: Wifi },
               { name: "Reports & Analysis", href: "/dashboard/it-reports", icon: BarChart3 },
               { name: "IT Documents", href: "/dashboard/it-documents", icon: FileText },
             ],
           },
           {
-            name: "Service & Repairs",
-            icon: Wrench,
-            badge: counts.repairs > 0 ? counts.repairs : undefined,
+            name: "Devices & Repairs",
+            icon: Monitor,
+            badge: (counts.devices > 0 || counts.repairs > 0) ? (counts.devices + counts.repairs) : undefined,
             items: [
+              {
+                name: "All Devices",
+                href: "/dashboard/devices",
+                icon: Monitor,
+                badge: counts.devices > 0 ? counts.devices : undefined,
+              },
               {
                 name: "Repairs",
                 href: "/dashboard/repairs",
@@ -160,89 +166,34 @@ export function ModernSidebar({ isOpen, setIsOpen, className, onCollapseChange }
                 badge: counts.repairs > 0 ? counts.repairs : undefined,
               },
               {
-                name: "IT Service Provider",
+                name: "Service Provider",
                 href: "/dashboard/service-provider",
                 icon: Truck,
                 badge: counts.serviceProviders > 0 ? counts.serviceProviders : undefined,
               },
-              { name: "Analytics", href: "/dashboard/analytics", icon: BarChart3 },
             ],
           },
           {
-            name: "Device Management",
-            icon: Monitor,
-            badge: counts.devices > 0 ? counts.devices : undefined,
-            items: [
-              { 
-                name: "All Devices", 
-                href: "/dashboard/devices", 
-                icon: Monitor,
-                badge: counts.devices > 0 ? counts.devices : undefined,
-              },
-              {
-                name: "Device Summary Report",
-                href: "/dashboard/device-summary-report",
-                icon: FileText,
-              },
-              {
-                name: "User Device Allocation",
-                href: "/dashboard/user-device-allocation",
-                icon: UserCheck,
-              },
-            ],
-          },
-          {
-            name: "Store Management",
+            name: "Store",
             icon: Store,
             badge: counts.storeRequisitions > 0 ? counts.storeRequisitions : undefined,
             items: [
               { name: "Store Overview", href: "/dashboard/store-overview", icon: Package },
               { name: "Store Inventory", href: "/dashboard/store-inventory", icon: Database },
               {
-                name: "Assign Stock to Staff",
-                href: "/dashboard/assign-stock",
-                icon: UserPlus,
-              },
-              {
-                name: "Store Requisitions",
+                name: "Requisitions",
                 href: "/dashboard/store-requisitions",
                 icon: ClipboardList,
                 badge: counts.storeRequisitions > 0 ? counts.storeRequisitions : undefined,
               },
-              {
-                name: "Stock Transfer Requests",
-                href: "/dashboard/stock-transfer-requests",
-                icon: Send,
-              },
-              {
-                name: "Stock Balance Report",
-                href: "/dashboard/store-summary-report",
-                icon: FileText,
-              },
-            ],
-          },
-          {
-            name: "User Management",
-            icon: Users,
-            badge: counts.userAccounts > 0 ? counts.userAccounts : undefined,
-            items: [
-              { name: "All Users", href: "/dashboard/users", icon: Users },
-              {
-                name: "Pending Approvals",
-                href: "/dashboard/user-accounts",
-                icon: UserPlus,
-                badge: counts.userAccounts > 0 ? counts.userAccounts : undefined,
-              },
+              { name: "Assign Stock", href: "/dashboard/assign-stock", icon: UserPlus },
             ],
           },
           {
             name: "IT Forms",
             icon: FileText,
             items: [
-              { name: "Equipment Requisition", href: "/dashboard/it-forms/equipment-requisition", icon: Laptop },
-              { name: "Maintenance & Repairs", href: "/dashboard/it-forms/maintenance-repairs", icon: Wrench },
-              { name: "New Gadget Request", href: "/dashboard/it-forms/new-gadget", icon: Laptop },
-              { name: "Approvals", href: "/dashboard/it-forms/approvals", icon: ClipboardList },
+              { name: "IT Forms Hub", href: "/dashboard/it-forms/approvals", icon: ClipboardList },
             ],
           },
         ],
@@ -635,7 +586,36 @@ export function ModernSidebar({ isOpen, setIsOpen, className, onCollapseChange }
     }, 100)
   }
 
-  const navigation = useMemo(() => getNavigationItems(), [user, counts])
+  const navigation = useMemo(() => {
+    const base = getNavigationItems()
+    const moduleItems: NavigationItem[] = [
+      { name: "Password Reset", href: "/dashboard/it-forms/password-reset", icon: Laptop },
+      { name: "Account Unlock", href: "/dashboard/it-forms/account-unlock", icon: Laptop },
+      { name: "New User Onboarding", href: "/dashboard/it-forms/onboarding", icon: Users },
+      { name: "User Offboarding", href: "/dashboard/it-forms/offboarding", icon: Users },
+      { name: "Software Access", href: "/dashboard/it-forms/software-access", icon: Settings },
+      { name: "Asset Transfer", href: "/dashboard/it-forms/asset-transfer", icon: Send },
+    ]
+
+    const itFormsIndex = base.groups.findIndex((group) => group.name === "IT Forms")
+    if (itFormsIndex >= 0) {
+      const updatedGroups = [...base.groups]
+      const existing = new Set(updatedGroups[itFormsIndex].items.map((item) => item.href))
+      updatedGroups[itFormsIndex] = {
+        ...updatedGroups[itFormsIndex],
+        items: [
+          ...updatedGroups[itFormsIndex].items,
+          ...moduleItems.filter((item) => !existing.has(item.href)),
+        ],
+      }
+      return { ...base, groups: updatedGroups }
+    }
+
+    return {
+      ...base,
+      groups: [...base.groups, { name: "IT Forms", icon: FileText, items: moduleItems }],
+    }
+  }, [user, counts])
 
   useEffect(() => {
     if (navigation.groups.length > 0) {
@@ -833,11 +813,9 @@ export function ModernSidebar({ isOpen, setIsOpen, className, onCollapseChange }
                   {navigation.groups.map((group) => (
                     <Collapsible
                       key={group.name}
-                      open={user?.role === "admin" ? true : expandedGroups.includes(group.name)}
+                        open={expandedGroups.includes(group.name)}
                       onOpenChange={() => {
-                        if (user?.role !== "admin") {
                           toggleGroup(group.name)
-                        }
                       }}
                     >
                       <CollapsibleTrigger asChild>
@@ -855,14 +833,12 @@ export function ModernSidebar({ isOpen, setIsOpen, className, onCollapseChange }
                                 {group.badge}
                               </Badge>
                             )}
-                            {user?.role !== "admin" && (
                               <ChevronRight
                                 className={cn(
                                   "h-4 w-4 transition-transform duration-200",
                                   expandedGroups.includes(group.name) && "rotate-90"
                                 )}
                               />
-                            )}
                           </div>
                         </Button>
                       </CollapsibleTrigger>

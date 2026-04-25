@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from "next/server"
 import { createClient } from "@supabase/supabase-js"
+import { isLocationInSameRegion, normalizeLocation } from "@/lib/location-filter"
 
 type FormType = "requisition" | "new-gadget" | "maintenance"
 
@@ -36,7 +37,16 @@ function isUuidLike(value?: string | null) {
 
 export async function POST(request: NextRequest) {
   try {
-    const { requisitionId, action, processedBy, processedById, processedByLocation, notes, formType = "requisition" } = await request.json()
+    const {
+      requisitionId,
+      action,
+      processedBy,
+      processedById,
+      processedByRole,
+      processedByLocation,
+      notes,
+      formType = "requisition",
+    } = await request.json()
 
     const config = FORM_CONFIG[formType as FormType]
     if (!config) {
@@ -67,6 +77,63 @@ export async function POST(request: NextRequest) {
         { error: "Requisition not found" },
         { status: 404 }
       )
+    }
+
+    const actorRole = String(processedByRole || "")
+    const actorLocation = String(processedByLocation || "")
+    const normalizedActorLocation = normalizeLocation(actorLocation)
+    const isServiceDeskRole = actorRole.startsWith("service_desk")
+    const canSeeNationwide =
+      actorRole === "admin" ||
+      actorRole === "it_head" ||
+      actorRole === "it_store_head" ||
+      (isServiceDeskRole && (normalizedActorLocation === "head_office" || normalizedActorLocation === "accra"))
+
+    if (!canSeeNationwide) {
+      let requesterLocation = ""
+
+      if (formType === "requisition") {
+        const requesterId = requisition.requested_by_id || requisition.requested_by
+        if (requesterId) {
+          const { data: requesterProfile } = await supabaseAdmin
+            .from("profiles")
+            .select("location")
+            .eq("id", requesterId)
+            .single()
+          requesterLocation = String(requesterProfile?.location || "")
+        }
+      } else {
+        const requesterName = String(requisition.staff_name || "").trim().toLowerCase()
+        if (requesterName) {
+          const { data: profiles } = await supabaseAdmin
+            .from("profiles")
+            .select("full_name, username, location")
+
+          for (const profile of profiles || []) {
+            const fullName = String(profile.full_name || "").trim().toLowerCase()
+            const username = String(profile.username || "").trim().toLowerCase()
+            if (fullName === requesterName || username === requesterName) {
+              requesterLocation = String(profile.location || "")
+              break
+            }
+          }
+        }
+      }
+
+      if (!actorLocation || !requesterLocation) {
+        return NextResponse.json(
+          { error: "You can only process requests from your own region" },
+          { status: 403 }
+        )
+      }
+
+      const inSameRegion = isLocationInSameRegion(requesterLocation, actorLocation)
+      if (!inSameRegion) {
+        return NextResponse.json(
+          { error: "You can only process requests from your own region" },
+          { status: 403 }
+        )
+      }
     }
 
     const processedByUuid = isUuidLike(processedById) ? processedById : null

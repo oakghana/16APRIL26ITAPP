@@ -18,7 +18,7 @@ import {
   DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu"
-import { Bell, Search, User, LogOut, ChevronDown, WifiOff, Zap, Loader2, Home, Headphones, Monitor, MessageSquare, Send, Database, Settings, Rss, BookOpen, Wrench, ClipboardList, Users, Package, BarChart3, FileText, Store, Target, Wifi } from "lucide-react"
+import { Bell, Search, User, LogOut, ChevronDown, WifiOff, Zap, Loader2, Home, Headphones, Monitor, MessageSquare, Send, Database, Settings, Rss, BookOpen, Wrench, ClipboardList, Users, Package, BarChart3, FileText, Store, Target, Wifi, KeyRound } from "lucide-react"
 import { useAuth } from "@/lib/auth-context"
 import { useNotifications } from "@/lib/notification-context"
 import { useOfflineCache } from "@/lib/offline-cache"
@@ -183,7 +183,10 @@ export function ModernLayout({ children, className }: ModernLayoutProps) {
     }
     return [{ name: "Dashboard", href: "/dashboard", icon: Home }]
   }
-  const quickIconLinks = getQuickIconLinks()
+  const quickIconLinksBase = getQuickIconLinks()
+  const quickIconLinks = quickIconLinksBase.some((item) => item.href === "/dashboard/it-forms/password-reset")
+    ? quickIconLinksBase
+    : [...quickIconLinksBase, { name: "Password Reset", href: "/dashboard/it-forms/password-reset", icon: KeyRound }]
 
   const quickAccessLinks: { name: string; href: string }[] = []
 

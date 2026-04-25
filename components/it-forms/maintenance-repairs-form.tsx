@@ -65,6 +65,7 @@ export function MaintenanceRepairsForm({ onSubmit }: { onSubmit: () => void }) {
     }))
   }, [user?.full_name, user?.department])
 
+  const canEditTechnicianSection = ["it_staff", "regional_it_head", "it_head", "admin"].includes(user?.role || "")
   const canEditOfficialSections = false
 
   const handleInputChange = (e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement>) => {
@@ -130,6 +131,14 @@ export function MaintenanceRepairsForm({ onSubmit }: { onSubmit: () => void }) {
           ...(canEditOfficialSections
             ? {}
             : {
+                sectionalHeadName: "",
+                sectionalHeadDate: "",
+                confirmedBy: "",
+                confirmedDate: "",
+                repairStatus: "",
+              }),
+          ...(!canEditTechnicianSection
+            ? {
                 faultItems: [{ id: "1", partItem: "", makeSerialNo: "", faultRemarks: "" }],
                 otherComments: "",
                 hardwareSupervisorName: "",
@@ -137,12 +146,8 @@ export function MaintenanceRepairsForm({ onSubmit }: { onSubmit: () => void }) {
                 dateOfLastRepairs: "",
                 dateOfPurchase: "",
                 numberOfTimesRepaired: "",
-                sectionalHeadName: "",
-                sectionalHeadDate: "",
-                confirmedBy: "",
-                confirmedDate: "",
-                repairStatus: "",
-              }),
+              }
+            : {}),
         }),
       })
 
@@ -209,7 +214,7 @@ export function MaintenanceRepairsForm({ onSubmit }: { onSubmit: () => void }) {
             </div>
           </div>
           <div className="rounded-full border border-amber-200 bg-amber-50 px-3 py-1 text-xs font-medium text-amber-700">
-            HOD and official fields are reviewer-only
+            {canEditTechnicianSection ? "Technician section is enabled for IT teams" : "HOD and official fields are reviewer-only"}
           </div>
         </div>
       </div>
@@ -289,13 +294,13 @@ export function MaintenanceRepairsForm({ onSubmit }: { onSubmit: () => void }) {
           <span className="text-xs text-muted-foreground">(To be filled by IT Hardware Group)</span>
         </div>
 
-        {!canEditOfficialSections && (
+        {!canEditTechnicianSection && (
           <div className="mb-4 rounded-md border border-dashed border-orange-200 bg-orange-50 px-3 py-2 text-xs text-orange-700 dark:border-orange-800 dark:bg-orange-950/30 dark:text-orange-300">
             This technician section remains blank for staff and IT staff until the request reaches authorized reviewers.
           </div>
         )}
 
-        <fieldset disabled={!canEditOfficialSections} className={!canEditOfficialSections ? "opacity-60" : ""}>
+        <fieldset disabled={!canEditTechnicianSection} className={!canEditTechnicianSection ? "opacity-60" : ""}>
           <div className="space-y-4">
           <div className="overflow-x-auto">
             <table className="w-full border-collapse">
