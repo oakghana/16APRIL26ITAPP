@@ -115,7 +115,12 @@ interface RegionalDispatchConfirmation {
   status: string
 }
 
-const REGIONAL_CONFIRMATION_STATUSES = ["awaiting_regional_confirmation", "pending_regional_store"]
+const REGIONAL_PENDING_CONFIRMATION_STATUSES = ["awaiting_regional_confirmation"]
+const REGIONAL_CONFIRMED_DISPATCH_STATUSES = ["pending_regional_store", "issued"]
+const REGIONAL_DISPATCH_STATUSES = [
+  ...REGIONAL_PENDING_CONFIRMATION_STATUSES,
+  ...REGIONAL_CONFIRMED_DISPATCH_STATUSES,
+]
 
 const categoryIcons: Record<string, any> = {
   "Computers": Laptop,
@@ -140,6 +145,7 @@ export function AssignStockToStaff() {
   const [assignDialogOpen, setAssignDialogOpen] = useState(false)
   const [selectedItem, setSelectedItem] = useState<StockItem | null>(null)
   const [regionalPendingConfirmations, setRegionalPendingConfirmations] = useState<RegionalDispatchConfirmation[]>([])
+  const [regionalConfirmedDispatches, setRegionalConfirmedDispatches] = useState<RegionalDispatchConfirmation[]>([])
   const [regionalConfirmLoading, setRegionalConfirmLoading] = useState(false)
   const [confirmingDispatchId, setConfirmingDispatchId] = useState<string | null>(null)
 
@@ -254,7 +260,7 @@ export function AssignStockToStaff() {
     setRegionalConfirmLoading(true)
     try {
       const params = new URLSearchParams({
-        status: REGIONAL_CONFIRMATION_STATUSES.join(","),
+        status: REGIONAL_DISPATCH_STATUSES.join(","),
         officeUseLocation: user.location || "",
         officeUseRole: user.role || "",
         officeUseUserId: user.id || "",
@@ -268,9 +274,15 @@ export function AssignStockToStaff() {
         return
       }
 
+      const requisitions: RegionalDispatchConfirmation[] = result.requisitions || []
       setRegionalPendingConfirmations(
-        (result.requisitions || []).filter((req: RegionalDispatchConfirmation) =>
-          REGIONAL_CONFIRMATION_STATUSES.includes(String(req.status || ""))
+        requisitions.filter((req: RegionalDispatchConfirmation) =>
+          REGIONAL_PENDING_CONFIRMATION_STATUSES.includes(String(req.status || ""))
+        )
+      )
+      setRegionalConfirmedDispatches(
+        requisitions.filter((req: RegionalDispatchConfirmation) =>
+          REGIONAL_CONFIRMED_DISPATCH_STATUSES.includes(String(req.status || ""))
         )
       )
     } catch (error) {
@@ -864,6 +876,12 @@ export function AssignStockToStaff() {
               Confirm Dispatch ({regionalPendingConfirmations.length})
             </TabsTrigger>
           )}
+          {user?.role === "regional_it_head" && (
+            <TabsTrigger value="confirmed-dispatches">
+              <History className="h-4 w-4 mr-2" />
+              Confirmed ({regionalConfirmedDispatches.length})
+            </TabsTrigger>
+          )}
           <TabsTrigger value="assign">
             <UserPlus className="h-4 w-4 mr-2" />
             Assign Items
@@ -917,7 +935,7 @@ export function AssignStockToStaff() {
                               <p className="text-xs text-muted-foreground">Store note: {req.issuance_notes}</p>
                             ) : null}
                             <p className="text-xs text-muted-foreground">
-                              Status: {req.status === "awaiting_regional_confirmation" ? "Awaiting Receipt Confirmation" : "Ready for Regional IT Head Issuance"}
+                              Status: Awaiting Receipt Confirmation
                             </p>
                           </div>
                           <Button
@@ -935,6 +953,63 @@ export function AssignStockToStaff() {
                       </div>
                       )
                     })}
+                  </div>
+                )}
+              </CardContent>
+            </Card>
+          </TabsContent>
+        )}
+
+        {user?.role === "regional_it_head" && (
+          <TabsContent value="confirmed-dispatches" className="space-y-4">
+            <Card className="rounded-2xl border-emerald-100 bg-white shadow-sm">
+              <CardHeader>
+                <CardTitle>Confirmed Dispatches</CardTitle>
+                <CardDescription>
+                  Dispatches already confirmed by Regional IT Head and ready for issuance or already issued.
+                </CardDescription>
+              </CardHeader>
+              <CardContent className="space-y-4">
+                <div className="flex items-center justify-end">
+                  <Button variant="outline" onClick={loadRegionalPendingConfirmations} className="border-emerald-200 bg-white hover:bg-emerald-50 text-emerald-800">
+                    <RefreshCw className="h-4 w-4 mr-2 text-emerald-800" />
+                    Refresh
+                  </Button>
+                </div>
+
+                {regionalConfirmLoading ? (
+                  <div className="text-center py-8 text-muted-foreground">Loading confirmed dispatches...</div>
+                ) : regionalConfirmedDispatches.length === 0 ? (
+                  <div className="text-center py-8 text-muted-foreground">
+                    <History className="h-12 w-12 mx-auto mb-4 opacity-50" />
+                    <p>No confirmed dispatch records yet.</p>
+                  </div>
+                ) : (
+                  <div className="space-y-3">
+                    {regionalConfirmedDispatches.map((req) => (
+                      <div key={req.id} className="rounded-lg border p-4 space-y-2">
+                        <div className="flex flex-col md:flex-row md:items-start md:justify-between gap-3">
+                          <div className="space-y-1">
+                            <p className="font-semibold">{req.requisition_number || req.id}</p>
+                            <p className="text-sm text-muted-foreground">
+                              Requested by: {req.requested_by || "Unknown"}
+                              {(req.requester_location || req.location) ? ` • ${req.requester_location || req.location}` : ""}
+                            </p>
+                            <p className="text-sm text-muted-foreground">Department: {req.department || "-"}</p>
+                            <p className="text-sm">Items: {req.items_required}</p>
+                            {req.issuance_notes ? (
+                              <p className="text-xs text-muted-foreground">Store note: {req.issuance_notes}</p>
+                            ) : null}
+                            <p className="text-xs text-muted-foreground">
+                              Status: {req.status === "pending_regional_store" ? "Confirmed - Ready for Regional Issuance" : "Issued"}
+                            </p>
+                          </div>
+                          <Badge variant="secondary" className="bg-emerald-100 text-emerald-800 w-fit">
+                            {req.status === "pending_regional_store" ? "Confirmed" : "Issued"}
+                          </Badge>
+                        </div>
+                      </div>
+                    ))}
                   </div>
                 )}
               </CardContent>

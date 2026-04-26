@@ -522,7 +522,7 @@ export async function GET(request: NextRequest) {
           locationByName.get(String(r.created_by_email || r.requester_email || "").toLowerCase().trim()) ||
           // Fallback: resolve via the HOD who approved, when requester identity is unknown
           locationByName.get(String(r.department_head_approved_by || "").toLowerCase().trim()) ||
-          null,
+          "",
       }))
 
       const normalizedOfficeLocation = normalizeLocation(officeUseLocation)
@@ -538,7 +538,10 @@ export async function GET(request: NextRequest) {
           const currentStatus = String(r.status || "").toLowerCase().trim()
           const requesterLocation = String(r.requester_location || "")
           const dispatchTargetLocation = String(r.regional_dispatch_location || "")
-          const filterLocation = dispatchTargetLocation || requesterLocation
+          const isRegionalConfirmationStage = ["awaiting_regional_confirmation", "pending_regional_store"].includes(currentStatus)
+          const filterLocation = isRegionalConfirmationStage
+            ? dispatchTargetLocation
+            : dispatchTargetLocation || requesterLocation
           const assignedRegionalHeadId = String(r.assigned_regional_head_id || r.assigned_to_id || "")
 
           if (officeUseRole === "regional_it_head" && officeUseUserId && assignedRegionalHeadId) {
@@ -549,7 +552,7 @@ export async function GET(request: NextRequest) {
             // Legacy fallback: some previously dispatched rows were saved without
             // requester/dispatch location metadata. Keep them visible for regional
             // confirmation/issuance instead of dropping them.
-            if (officeUseRole === "regional_it_head" && ["awaiting_regional_confirmation", "pending_regional_store"].includes(currentStatus)) {
+            if (officeUseRole === "regional_it_head" && isRegionalConfirmationStage) {
               return true
             }
             return false
