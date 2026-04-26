@@ -68,7 +68,7 @@ export async function POST(request: NextRequest) {
     const headDept = normalizeValue(headProfile.department)
     const headLocation = normalizeValue(headProfile.location)
     const invalidStaff = (staffProfiles || []).filter((profile: any) => {
-      const roleAllowed = profile.role === "staff" || profile.role === "user"
+      const roleAllowed = ["staff", "user", "it_staff", "regional_it_head"].includes(profile.role)
       const sameDepartment = normalizeValue(profile.department) === headDept
       const sameLocation = normalizeValue(profile.location) === headLocation
       return !roleAllowed || !sameDepartment || !sameLocation

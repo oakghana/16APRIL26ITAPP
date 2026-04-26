@@ -55,7 +55,7 @@ export function DepartmentHeadLinking() {
   const [isAutoLinkingAll, setIsAutoLinkingAll] = useState(false)
   const [activeTab, setActiveTab] = useState("mapping")
 
-  const isLinkableRole = (role?: string) => role === "staff" || role === "user"
+  const isLinkableRole = (role?: string) => ["staff", "user", "it_staff", "regional_it_head"].includes(role ?? "")
 
   // Determine if the current user is restricted to their own location
   const currentUser = safeJsonParse<{ id?: string; role?: string; location?: string } | null>(
