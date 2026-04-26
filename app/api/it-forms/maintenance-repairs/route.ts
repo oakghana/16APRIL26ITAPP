@@ -180,6 +180,8 @@ export async function GET(request: NextRequest) {
           locationByIdentity.get(String(req.requested_by_id || req.created_by_id || "").toLowerCase().trim()) ||
           locationByIdentity.get(String(req.requested_by_email || req.created_by_email || "").toLowerCase().trim()) ||
           locationByIdentity.get(String(req.staff_name || req.requested_by || req.created_by || "").toLowerCase().trim()) ||
+          // Fallback: resolve via the HOD who approved, when requester identity is unknown
+          locationByIdentity.get(String(req.sectional_head_name || req.departmental_head_name || "").toLowerCase().trim()) ||
           null
 
         return {

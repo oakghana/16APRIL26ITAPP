@@ -301,7 +301,7 @@ export async function GET(request: NextRequest) {
       const requesterIds = [...new Set(requisitions.map((r: any) => r.requested_by_id).filter(Boolean))]
       const { data: requesterProfiles } = await supabaseAdmin
         .from("profiles")
-        .select("id, full_name, username, location")
+        .select("id, full_name, username, email, location")
 
       const locationById = new Map((requesterProfiles || []).map((p: any) => [p.id, String(p.location || "")]))
       const locationByName = new Map<string, string>()
@@ -313,6 +313,9 @@ export async function GET(request: NextRequest) {
         if (p.username) {
           locationByName.set(String(p.username).toLowerCase().trim(), String(p.location || ""))
         }
+        if (p.email) {
+          locationByName.set(String(p.email).toLowerCase().trim(), String(p.location || ""))
+        }
       }
 
       requisitions = requisitions.map((r: any) => ({
@@ -320,6 +323,9 @@ export async function GET(request: NextRequest) {
         requester_location:
           (r.requested_by_id ? locationById.get(r.requested_by_id) : "") ||
           locationByName.get(String(r.requested_by || "").toLowerCase().trim()) ||
+          locationByName.get(String(r.created_by_email || r.requester_email || "").toLowerCase().trim()) ||
+          // Fallback: resolve via the HOD who approved, when requester identity is unknown
+          locationByName.get(String(r.department_head_approved_by || "").toLowerCase().trim()) ||
           null,
       }))
 
