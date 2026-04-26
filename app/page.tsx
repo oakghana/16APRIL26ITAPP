@@ -85,17 +85,16 @@ export default function HomePage() {
             </div>
             <div>
               <h1 className="text-2xl font-bold text-white">QCC IT TRACKER</h1>
-              <p className="text-yellow-400 text-sm">For the IT Department of QCC</p>
+              <p className="text-yellow-400 text-sm">Your IT support family across all QCC branches</p>
             </div>
           </div>
         </div>
 
         <div className="relative z-10 space-y-8">
           <div>
-            <h2 className="text-4xl font-bold text-white mb-4 text-balance">Quick IT Support When You Need It</h2>
+            <h2 className="text-4xl font-bold text-white mb-4 text-balance">Your IT Help, Fast & Simple</h2>
             <p className="text-xl text-slate-300 text-pretty">
-              The IT Department ensures staff members get their issues resolved quickly and promptly across all QCC
-              locations.
+              Whether your laptop is misbehaving or you need a new account — the QCC IT team has got you, from Accra to every branch.
             </p>
           </div>
 
@@ -112,8 +111,8 @@ export default function HomePage() {
                 </svg>
               </div>
               <div>
-                <h3 className="font-semibold text-white mb-1">Real-Time Tracking</h3>
-                <p className="text-sm text-slate-400">Monitor device status and repair progress across all locations</p>
+                <h3 className="font-semibold text-white mb-1">See Everything Live</h3>
+                <p className="text-sm text-slate-400">Know exactly where your device is and how your repair is going — no chasing!</p>
               </div>
             </div>
 
@@ -129,8 +128,8 @@ export default function HomePage() {
                 </svg>
               </div>
               <div>
-                <h3 className="font-semibold text-white mb-1">Secure & Reliable</h3>
-                <p className="text-sm text-slate-400">Role-based access control with enterprise-grade security</p>
+                <h3 className="font-semibold text-white mb-1">Safe & Trustworthy</h3>
+                <p className="text-sm text-slate-400">Your data stays in the right hands — each role sees only what's meant for them.</p>
               </div>
             </div>
 
@@ -146,15 +145,15 @@ export default function HomePage() {
                 </svg>
               </div>
               <div>
-                <h3 className="font-semibold text-white mb-1">Analytics & Insights</h3>
-                <p className="text-sm text-slate-400">Data-driven decisions with comprehensive reporting</p>
+                <h3 className="font-semibold text-white mb-1">Smart Reporting</h3>
+                <p className="text-sm text-slate-400">All the numbers you need to make sharp decisions — in one place.</p>
               </div>
             </div>
           </div>
         </div>
 
         <div className="relative z-10 text-slate-400 text-sm">
-          <p>© 2025 QCC IT Department. All rights reserved.</p>
+          <p>© 2026 QCC IT Department · Serving all our Ghana branches with pride.</p>
         </div>
       </div>
 

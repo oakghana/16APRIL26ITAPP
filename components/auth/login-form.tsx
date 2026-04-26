@@ -86,8 +86,8 @@ export function LoginForm() {
             <Shield className="h-7 w-7 text-slate-900" />
           </div>
           <div className="text-center space-y-2">
-            <CardTitle className="text-2xl font-bold">Welcome Back</CardTitle>
-            <CardDescription className="text-base">Sign in to access the IT management system</CardDescription>
+            <CardTitle className="text-2xl font-bold">Akwaaba! Welcome Back 👋</CardTitle>
+            <CardDescription className="text-base">Sign in and let's sort out your IT needs — quick quick.</CardDescription>
           </div>
         </CardHeader>
         <CardContent className="space-y-6">
@@ -108,7 +108,7 @@ export function LoginForm() {
                   id="username"
                   name="username"
                   type="email"
-                  placeholder="your.email@qccgh.com"
+                  placeholder="your.email@qccgh.com — e.g. kwame.asante@qccgh.com"
                   className="pl-11 h-12 text-base"
                   required
                   disabled={isPending}
@@ -126,7 +126,7 @@ export function LoginForm() {
                   id="password"
                   name="password"
                   type="password"
-                  placeholder="Enter your password"
+                  placeholder="Your password — keep it safe, eh!"
                   className="pl-11 h-12 text-base"
                   required
                   disabled={isPending}
@@ -142,7 +142,7 @@ export function LoginForm() {
               {isPending ? (
                 <>
                   <Loader2 className="mr-2 h-5 w-5 animate-spin" />
-                  Signing in...
+                  Just a moment, we're getting you in…
                 </>
               ) : (
                 <>
@@ -154,9 +154,9 @@ export function LoginForm() {
 
             <div className="text-center pt-4 border-t space-y-2">
               <p className="text-sm text-muted-foreground">
-                Need an account?{" "}
+                No account yet?{" "}
                 <a href="/create-account" className="font-semibold text-primary hover:underline">
-                  Request Access
+                  Request Access — it's easy!
                 </a>
               </p>
               <p className="text-xs text-muted-foreground">

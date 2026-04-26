@@ -66,14 +66,13 @@ export default function RegisterPage() {
 
     // Validation
     if (formData.password !== formData.confirmPassword) {
-      setError("Passwords do not match")
+      setError("Ei! Your passwords don't match — please check and try again.")
       setIsLoading(false)
       return
     }
 
     if (formData.password.length < 8) {
-      setError("Password must be at least 8 characters long")
-      setIsLoading(false)
+      setError("Password too short — use at least 8 characters to keep it secure.")
       return
     }
 
@@ -89,10 +88,10 @@ export default function RegisterPage() {
         setIsSuccess(true)
       } else {
         const data = await response.json()
-        setError(data.message || "Registration failed. Please try again.")
+        setError(data.message || "Something went wrong with your registration. Please try again.")
       }
     } catch (err) {
-      setError("An error occurred. Please try again later.")
+      setError("Hmm, something didn't go through. Check your connection and try again.")
     } finally {
       setIsLoading(false)
     }
@@ -106,16 +105,16 @@ export default function RegisterPage() {
             <div className="mx-auto w-16 h-16 bg-green-100 rounded-full flex items-center justify-center mb-4">
               <CheckCircle2 className="w-10 h-10 text-green-600" />
             </div>
-            <CardTitle className="text-2xl">Registration Successful!</CardTitle>
+            <CardTitle className="text-2xl">Ei! You're In! 🎉</CardTitle>
             <CardDescription className="text-base">
-              Your account has been created with default user role.
+              Your account is ready. Welcome to the QCC IT family!
             </CardDescription>
           </CardHeader>
           <CardContent className="space-y-4">
             <Alert className="border-yellow-200 bg-yellow-50">
               <AlertDescription className="text-sm">
                 <div className="space-y-2">
-                  <p className="font-semibold">Your login credentials:</p>
+                  <p className="font-semibold">Your login details:</p>
                   <p>
                     <strong>Username:</strong> Your email address
                   </p>
@@ -123,15 +122,14 @@ export default function RegisterPage() {
                     <strong>Default Password:</strong> <code className="bg-white px-2 py-1 rounded">pa$$w0rd</code>
                   </p>
                   <p className="text-xs text-yellow-800 mt-2">
-                    Please change this password after your first login for security.
+                    Please change your password the first time you log in — keep your account safe!
                   </p>
                 </div>
               </AlertDescription>
             </Alert>
             <Alert>
               <AlertDescription>
-                You have been assigned the "User" role. You can now request IT services and view your service desk
-                requests. Contact your administrator if you need additional permissions.
+                You've been set up as a User. You can raise IT requests and track your tickets right away. If you need extra access, reach out to your IT admin.
               </AlertDescription>
             </Alert>
             <Link href="/" className="block">
@@ -155,8 +153,8 @@ export default function RegisterPage() {
               <Image src="/images/qcc-logo.png" alt="QCC Logo" width={40} height={40} className="object-contain" />
             </div>
             <div>
-              <CardTitle className="text-2xl">Create Account</CardTitle>
-              <CardDescription>QCC IT Tracker - Register for access</CardDescription>
+              <CardTitle className="text-2xl">Join the QCC IT System</CardTitle>
+              <CardDescription>Create your account and get IT support across all our locations.</CardDescription>
             </div>
           </div>
         </CardHeader>
@@ -175,7 +173,7 @@ export default function RegisterPage() {
                 </Label>
                 <Input
                   id="fullName"
-                  placeholder="Enter your full name"
+                  placeholder="e.g. Kwame Mensah"
                   value={formData.fullName}
                   onChange={(e) => setFormData({ ...formData, fullName: e.target.value })}
                   required
@@ -228,7 +226,7 @@ export default function RegisterPage() {
                 <Label htmlFor="department">Department</Label>
                 <Input
                   id="department"
-                  placeholder="e.g., IT Department"
+                  placeholder="e.g. Finance, Operations"
                   value={formData.department}
                   onChange={(e) => setFormData({ ...formData, department: e.target.value })}
                 />

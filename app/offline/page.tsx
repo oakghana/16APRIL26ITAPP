@@ -88,10 +88,10 @@ export default function OfflinePage() {
               </div>
             </div>
             <h1 className="text-4xl font-bold text-orange-900 dark:text-orange-100 mb-2">
-              You're Offline
+              Ei! No Internet Right Now
             </h1>
             <p className="text-lg text-orange-700 dark:text-orange-300 mb-4">
-              QCC IT Tracker is working in offline mode
+              No wahala — QCC IT Tracker is keeping things running offline for you.
             </p>
             <Badge 
               variant={isOnline ? "default" : "secondary"} 
@@ -106,12 +106,12 @@ export default function OfflinePage() {
             <CardHeader>
               <CardTitle className="flex items-center gap-2 text-orange-900 dark:text-orange-100">
                 <AlertTriangle className="h-5 w-5" />
-                Connection Status
+                Network Status
               </CardTitle>
               <CardDescription>
                 {isOnline 
-                  ? "Your internet connection has been restored. You can now access all features."
-                  : "You're currently offline, but you can still view cached data and use basic features."
+                  ? "Your connection is back — you're good to go! Head straight to the dashboard."
+                  : "You're offline right now, but your recent pages are still available. We'll reconnect soon."
                 }
               </CardDescription>
             </CardHeader>
@@ -123,11 +123,11 @@ export default function OfflinePage() {
                   disabled={isOnline}
                 >
                   <RefreshCw className="mr-2 h-4 w-4" />
-                  {isOnline ? "Connected" : "Retry Connection"}
+                  {isOnline ? "Connected — Carry On!" : "Try Reconnecting"}
                 </Button>
                 {isOnline && (
                   <Button onClick={handleRefresh} variant="outline" className="border-orange-300 text-orange-700 hover:bg-orange-50">
-                    Go to Dashboard
+                    Back to Dashboard
                   </Button>
                 )}
               </div>
@@ -148,7 +148,7 @@ export default function OfflinePage() {
                   {cachedData.devices}
                 </div>
                 <p className="text-xs text-orange-600 dark:text-orange-400">
-                  Cached data
+                  Saved from last sync
                 </p>
               </CardContent>
             </Card>
@@ -165,7 +165,7 @@ export default function OfflinePage() {
                   {cachedData.pendingRepairs}
                 </div>
                 <p className="text-xs text-orange-600 dark:text-orange-400">
-                  Last known count
+                  Last recorded count
                 </p>
               </CardContent>
             </Card>
@@ -182,7 +182,7 @@ export default function OfflinePage() {
                   {cachedData.activeUsers}
                 </div>
                 <p className="text-xs text-orange-600 dark:text-orange-400">
-                  Cached information
+                  From last online session
                 </p>
               </CardContent>
             </Card>
@@ -192,10 +192,10 @@ export default function OfflinePage() {
           <Card className="mb-6 border-orange-200 dark:border-orange-700">
             <CardHeader>
               <CardTitle className="text-orange-900 dark:text-orange-100">
-                Available Offline Features
+                What You Can Still Do
               </CardTitle>
               <CardDescription>
-                You can still use these features while offline
+                Even without internet, these are still working for you.
               </CardDescription>
             </CardHeader>
             <CardContent>
@@ -203,15 +203,15 @@ export default function OfflinePage() {
                 <div className="flex items-center gap-3 p-3 bg-orange-50 dark:bg-orange-900/30 rounded-lg">
                   <Monitor className="h-5 w-5 text-orange-600 dark:text-orange-400" />
                   <div>
-                    <p className="font-medium text-orange-900 dark:text-orange-100">View Cached Pages</p>
-                    <p className="text-sm text-orange-600 dark:text-orange-400">Access previously visited pages</p>
+                    <p className="font-medium text-orange-900 dark:text-orange-100">Browse Recent Pages</p>
+                    <p className="text-sm text-orange-600 dark:text-orange-400">Pages you visited are still accessible</p>
                   </div>
                 </div>
                 <div className="flex items-center gap-3 p-3 bg-orange-50 dark:bg-orange-900/30 rounded-lg">
                   <Smartphone className="h-5 w-5 text-orange-600 dark:text-orange-400" />
                   <div>
-                    <p className="font-medium text-orange-900 dark:text-orange-100">PWA Functions</p>
-                    <p className="text-sm text-orange-600 dark:text-orange-400">App continues to work offline</p>
+                    <p className="font-medium text-orange-900 dark:text-orange-100">App Still Running</p>
+                    <p className="text-sm text-orange-600 dark:text-orange-400">The app keeps working even without a signal</p>
                   </div>
                 </div>
                 <div className="flex items-center gap-3 p-3 bg-orange-50 dark:bg-orange-900/30 rounded-lg">
