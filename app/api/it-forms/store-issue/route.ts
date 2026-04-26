@@ -6,6 +6,18 @@ const supabaseAdmin = createClient(
   (process.env.SUPABASE_SERVICE_ROLE_KEY ?? "placeholder-build-key")
 )
 
+function isUuidLike(value?: string | null) {
+  if (!value) return false
+  return /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(value)
+}
+
+function isHeadOfficeLocation(location: string | null | undefined): boolean {
+  if (!location) return false
+  const n = location.toLowerCase().replace(/[\s_-]+/g, "_").trim()
+  return n === "head_office" || n === "head_office_accra" || n === "headoffice" ||
+         n === "accra" || n.startsWith("head_office") || n === "ho"
+}
+
 function generateFiveCharAlphaNumeric() {
   const alphabet = "ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789"
   let token = ""
@@ -23,149 +35,291 @@ async function generateUniqueItemSn() {
       .select("id")
       .eq("item_sn", candidate)
       .limit(1)
-
-    if (!data || data.length === 0) {
-      return candidate
-    }
+    if (!data || data.length === 0) return candidate
   }
-
-  // Fallback with timestamp suffix to avoid hard failure on unlikely collision loops.
   return `${generateFiveCharAlphaNumeric().slice(0, 3)}${Date.now().toString().slice(-2)}`
+}
+
+export async function GET(request: NextRequest) {
+  // Returns available central store (Head Office) stock for dispatch selection
+  try {
+    const { searchParams } = new URL(request.url)
+    const location = searchParams.get("location") || "Head Office"
+
+    const { data: items, error } = await supabaseAdmin
+      .from("store_items")
+      .select("id, name, category, quantity, unit, location, sku")
+      .ilike("location", location.replace(/[_-]+/g, " ").trim())
+      .gt("quantity", 0)
+      .order("name", { ascending: true })
+
+    if (error) {
+      return NextResponse.json({ error: error.message }, { status: 500 })
+    }
+
+    return NextResponse.json({ items: items || [] })
+  } catch (err: any) {
+    return NextResponse.json({ error: err?.message || "Internal error" }, { status: 500 })
+  }
 }
 
 export async function POST(request: NextRequest) {
   try {
-    const { requisitionId, issuedBy, notes, supplierName, userRole, userLocation } = await request.json()
+    const { requisitionId, issuedBy, notes, supplierName, userRole, userLocation, dispatchItems } = await request.json()
+    // dispatchItems: Array<{ id?: string; name: string; dispatchQty: number; unit?: string; category?: string }>
 
     if (!requisitionId || !issuedBy || !notes) {
       return NextResponse.json({ error: "Missing required fields" }, { status: 400 })
     }
 
-    const isRegionalITHead = userRole === "regional_it_head"
     const isStoreHead = userRole === "it_store_head"
+    const isRegionalITHead = userRole === "regional_it_head"
     const isAdmin = userRole === "admin"
 
     if (!isStoreHead && !isRegionalITHead && !isAdmin) {
       return NextResponse.json({ error: "Only IT Store Head or Regional IT Head can issue items" }, { status: 403 })
     }
 
-    // Store Head requires supplierName; regional IT head does not need it
     if (isStoreHead && !supplierName) {
       return NextResponse.json({ error: "Supplier name is required for Store Head issuance" }, { status: 400 })
     }
 
     const { data: requisition } = await supabaseAdmin
       .from("it_equipment_requisitions")
-      .select()
+      .select("*")
       .eq("id", requisitionId)
       .single()
 
     if (!requisition) {
-      return NextResponse.json({ error: "Not found" }, { status: 404 })
+      return NextResponse.json({ error: "Requisition not found" }, { status: 404 })
     }
 
-    // Regional IT head can only process pending_regional_store items
-    if (isRegionalITHead && requisition.status !== "pending_regional_store") {
-      return NextResponse.json({ error: "Regional IT Head can only process regionally-assigned requisitions" }, { status: 403 })
+    // Validate prerequisite: must be approved by IT Head first (status = pending_store)
+    if (requisition.status !== "pending_store" && requisition.status !== "pending_regional_store") {
+      return NextResponse.json({ error: "Requisition must be approved by IT Head before issuance" }, { status: 409 })
     }
-
-    // Store head can only process pending_store items (Head Office flow)
-    if (isStoreHead && requisition.status !== "pending_store" && !(requisition.it_head_approved || requisition.admin_approved)) {
-      return NextResponse.json({ error: "Requisition must be IT Head approved and in pending_store status" }, { status: 409 })
-    }
-
-    if (!(requisition.it_head_approved || requisition.admin_approved)) {
-      return NextResponse.json({ error: "Requisition must be approved by IT Manager/IT Head before store issuance" }, { status: 409 })
-    }
-
-    if (requisition.store_head_approved) {
+    
+    if (requisition.status === "issued") {
       return NextResponse.json({ error: "Requisition already issued" }, { status: 409 })
     }
 
-    const generatedItemSn = requisition.item_sn || (await generateUniqueItemSn())
+    // Regional IT head can only process items dispatched to their region
+    if (isRegionalITHead && requisition.status !== "pending_regional_store") {
+      return NextResponse.json({ error: "This item has not been dispatched to regional stock yet" }, { status: 403 })
+    }
 
+    // Store head or admin processes pending_store items
+    if ((isStoreHead || isAdmin) && requisition.status !== "pending_store") {
+      return NextResponse.json({ error: "Requisition must be in pending_store status" }, { status: 409 })
+    }
+
+    // Determine requester location
+    let requesterLocation = String(requisition.requester_location || requisition.location || "")
+    if (!requesterLocation && isUuidLike(requisition.requested_by_id)) {
+      const { data: rp } = await supabaseAdmin
+        .from("profiles").select("location").eq("id", requisition.requested_by_id).single()
+      requesterLocation = rp?.location || ""
+    }
+    if (!requesterLocation && requisition.requested_by) {
+      const { data: rps } = await supabaseAdmin
+        .from("profiles").select("location").ilike("full_name", requisition.requested_by).limit(1)
+      requesterLocation = rps?.[0]?.location || ""
+    }
+
+    const isHeadOfficeRequester = isHeadOfficeLocation(requesterLocation)
+    const generatedItemSn = requisition.item_sn || (await generateUniqueItemSn())
+    const now = new Date().toISOString()
+
+    // ── STORE HEAD: Head Office requester → issue directly ─────────────────
+    // ── STORE HEAD: Regional requester   → dispatch to regional stock ───────
+    // ── REGIONAL IT HEAD: always assigns from their local stock ─────────────
+
+    if ((isStoreHead || isAdmin) && !isHeadOfficeRequester) {
+      // DISPATCH TO REGIONAL STOCK
+      const updateData: any = {
+        status: "pending_regional_store",
+        updated_at: now,
+        // Record that store head dispatched it
+        issued_by: issuedBy,
+        issuance_notes: notes,
+        item_sn: generatedItemSn,
+      }
+      if (supplierName) updateData.supplier_name = supplierName
+
+      const approvalChain = Array.isArray(requisition.approval_timeline)
+        ? [...requisition.approval_timeline]
+        : Array.isArray(requisition.approval_chain) ? [...requisition.approval_chain] : []
+      approvalChain.push({
+        approver: issuedBy,
+        role: "store_head",
+        action: "dispatched_to_region",
+        notes: `Dispatched to regional stock at ${requesterLocation}. ${notes}`,
+        timestamp: now,
+      })
+      updateData.approval_timeline = approvalChain
+
+      let dispatchError: any = null
+      for (let attempt = 0; attempt < 5; attempt++) {
+        const result = await supabaseAdmin
+          .from("it_equipment_requisitions")
+          .update(updateData)
+          .eq("id", requisitionId)
+          .select()
+          .single()
+        dispatchError = result.error
+        if (!dispatchError) break
+        const msg = String(dispatchError.message || "")
+        const missing = msg.match(/Could not find the '([^']+)' column/i)?.[1]
+        if (missing) { delete updateData[missing]; continue }
+        break
+      }
+      if (dispatchError) {
+        return NextResponse.json({ error: dispatchError.message || "Failed to dispatch" }, { status: 500 })
+      }
+
+      // Deduct from central store + upsert into regional store_items
+      const itemsToDispatch: Array<{ id?: string; name: string; dispatchQty: number; unit?: string; category?: string }> =
+        Array.isArray(dispatchItems) && dispatchItems.length > 0
+          ? dispatchItems
+          : [{ name: requisition.items_required || requisition.item_description || "IT Equipment",
+               dispatchQty: Number(requisition.quantity_required || requisition.quantity || 1), unit: "unit", category: "IT Equipment" }]
+
+      const regionalLocation = requesterLocation.replace(/[_-]+/g, " ").trim()
+
+      for (const dispItem of itemsToDispatch) {
+        const qty = Number(dispItem.dispatchQty) || 1
+
+        // Deduct from central (Head Office) store
+        if (dispItem.id) {
+          const { data: centralItem } = await supabaseAdmin
+            .from("store_items").select("id, quantity").eq("id", dispItem.id).maybeSingle()
+          if (centralItem) {
+            const newQty = Math.max(0, centralItem.quantity - qty)
+            await supabaseAdmin.from("store_items")
+              .update({ quantity: newQty, updated_at: now })
+              .eq("id", centralItem.id)
+              .then(() => {}).catch((e: any) => console.error("[v0] Central deduct error:", e?.message))
+          }
+        } else {
+          // Deduct by name match at Head Office
+          const { data: centralItem } = await supabaseAdmin
+            .from("store_items").select("id, quantity")
+            .ilike("name", dispItem.name)
+            .or("location.ilike.Head Office,location.ilike.head_office,location.ilike.HQ")
+            .maybeSingle()
+          if (centralItem) {
+            const newQty = Math.max(0, centralItem.quantity - qty)
+            await supabaseAdmin.from("store_items")
+              .update({ quantity: newQty, updated_at: now })
+              .eq("id", centralItem.id)
+              .then(() => {}).catch((e: any) => console.error("[v0] Central deduct by name error:", e?.message))
+          }
+        }
+
+        // Add to regional store_items
+        if (regionalLocation) {
+          const { data: existingRegional } = await supabaseAdmin
+            .from("store_items").select("id, quantity")
+            .ilike("name", dispItem.name)
+            .ilike("location", regionalLocation)
+            .maybeSingle()
+          if (existingRegional) {
+            await supabaseAdmin.from("store_items")
+              .update({ quantity: existingRegional.quantity + qty, updated_at: now })
+              .eq("id", existingRegional.id)
+              .then(() => {}).catch((e: any) => console.error("[v0] Regional add error:", e?.message))
+          } else {
+            await supabaseAdmin.from("store_items").insert({
+              name: dispItem.name,
+              category: dispItem.category || "IT Equipment",
+              location: regionalLocation,
+              quantity: qty,
+              unit: dispItem.unit || "unit",
+              requisition_sourced: true,
+              notes: `Dispatched from HQ for requisition ${requisition.requisition_number}`,
+              created_at: now, updated_at: now,
+            }).then(() => {}).catch((e: any) => console.error("[v0] Regional insert error:", e?.message))
+          }
+        }
+      }
+
+      // Notify regional IT heads at that location
+      const { data: regionalHeads } = await supabaseAdmin
+        .from("profiles").select("id").eq("role", "regional_it_head").eq("is_active", true)
+      if (regionalHeads && regionalHeads.length > 0) {
+        await supabaseAdmin.from("notifications").insert(
+          regionalHeads.map((rh: any) => ({
+            user_id: rh.id,
+            title: "IT Equipment Dispatched to Your Region",
+            message: `Requisition ${requisition.requisition_number} has been dispatched by the IT Store to ${requesterLocation} stock. Please assign to the requesting staff.`,
+            type: "info", category: "approval",
+            reference_type: "it_equipment_requisition", reference_id: requisitionId, is_read: false,
+          }))
+        ).then(() => {}).catch((e: any) => console.error("[v0] Regional notify error:", e?.message))
+      }
+
+      return NextResponse.json({ success: true, dispatched: true, requesterLocation })
+    }
+
+    // ── DIRECT ISSUE (Head Office requester OR Regional IT Head assigning from local stock) ──
     const updateData: any = {
       store_head_approved: true,
       issued_by: issuedBy,
-      issued_at: new Date().toISOString(),
+      issued_at: now,
       issuance_notes: notes,
       item_sn: generatedItemSn,
       status: "issued",
-      updated_at: new Date().toISOString(),
+      updated_at: now,
     }
     if (supplierName) updateData.supplier_name = supplierName
 
-    const approvalChain = requisition.approval_timeline || requisition.approval_chain || []
+    const approvalChain = Array.isArray(requisition.approval_timeline)
+      ? [...requisition.approval_timeline]
+      : Array.isArray(requisition.approval_chain) ? [...requisition.approval_chain] : []
     approvalChain.push({
       approver: issuedBy,
-      role: "store_head",
+      role: isRegionalITHead ? "regional_it_head" : "store_head",
       action: "issued",
-      notes: `${notes} | Supplier: ${supplierName} | Item S/N: ${generatedItemSn}`,
-      timestamp: new Date().toISOString(),
+      notes: `${notes}${supplierName ? ` | Supplier: ${supplierName}` : ""} | Item S/N: ${generatedItemSn}`,
+      timestamp: now,
     })
     updateData.approval_timeline = approvalChain
 
-    const { data: updated } = await supabaseAdmin
-      .from("it_equipment_requisitions")
-      .update(updateData)
-      .eq("id", requisitionId)
-      .select()
-      .single()
-
-    // For regional IT head: add the requisitioned item to regional store stock for tracking
-    if (isRegionalITHead) {
-      const itemName = requisition.items_required || requisition.item_description || "IT Equipment"
-      const itemQty = Number(requisition.quantity_required || requisition.quantity || 1)
-      const targetLocation = userLocation || requisition.requester_location || requisition.location || ""
-      if (targetLocation) {
-        // Try to find existing store item at this location
-        const { data: existingItem } = await supabaseAdmin
-          .from("store_items")
-          .select("id, quantity")
-          .ilike("name", itemName)
-          .ilike("location", targetLocation.replace(/[_-]+/g, " ").trim())
-          .maybeSingle()
-
-        if (existingItem) {
-          await supabaseAdmin
-            .from("store_items")
-            .update({ quantity: existingItem.quantity + itemQty, updated_at: new Date().toISOString() })
-            .eq("id", existingItem.id)
-            .catch(console.error)
-        } else {
-          await supabaseAdmin
-            .from("store_items")
-            .insert({
-              name: itemName,
-              category: "IT Equipment",
-              location: targetLocation,
-              quantity: itemQty,
-              unit: "unit",
-              requisition_sourced: true,
-              notes: `Auto-created from requisition ${requisition.requisition_number}`,
-              created_at: new Date().toISOString(),
-              updated_at: new Date().toISOString(),
-            })
-            .catch(console.error)
-        }
-      }
+    let updateError: any = null
+    let updated: any = null
+    for (let attempt = 0; attempt < 5; attempt++) {
+      const result = await supabaseAdmin
+        .from("it_equipment_requisitions")
+        .update(updateData).eq("id", requisitionId).select().single()
+      updated = result.data
+      updateError = result.error
+      if (!updateError) break
+      const msg = String(updateError.message || "")
+      const missing = msg.match(/Could not find the '([^']+)' column/i)?.[1]
+      if (missing) { delete updateData[missing]; continue }
+      break
     }
 
-    // Notify staff
-    await supabaseAdmin.from("notifications").insert({
-      recipient_id: requisition.requested_by,
-      recipient_type: "staff",
-      title: "Your IT Equipment has been Issued",
-      message: `Your requisition ${requisition.requisition_number} has been fulfilled and is ready for collection.`,
-      type: "it_form_update",
-      related_id: requisitionId,
-      related_type: "it_equipment_requisition",
-      read: false,
-    }).catch(err => console.error("[v0]:", err))
+    if (updateError) {
+      return NextResponse.json({ error: updateError.message || "Failed to issue" }, { status: 500 })
+    }
+
+    // Notify requester
+    const notifyId = isUuidLike(requisition.requested_by_id) ? requisition.requested_by_id
+      : isUuidLike(requisition.created_by_id) ? requisition.created_by_id : null
+    if (notifyId) {
+      await supabaseAdmin.from("notifications").insert({
+        user_id: notifyId,
+        title: "Your IT Equipment has been Issued",
+        message: `Your requisition ${requisition.requisition_number} has been fulfilled. Item S/N: ${generatedItemSn}.`,
+        type: "success", category: "approval",
+        reference_type: "it_equipment_requisition", reference_id: requisitionId, is_read: false,
+      }).then(() => {}).catch((e: any) => console.error("[v0] Notify requester error:", e?.message))
+    }
 
     return NextResponse.json({ success: true, requisition: updated })
-  } catch (error) {
-    console.error("[v0] Error:", error)
-    return NextResponse.json({ error: "Internal error" }, { status: 500 })
+  } catch (error: any) {
+    console.error("[v0] store-issue error:", error?.message || error)
+    return NextResponse.json({ error: error?.message || "Internal error" }, { status: 500 })
   }
 }

@@ -18,7 +18,7 @@ import {
   DialogTrigger,
 } from "@/components/ui/dialog"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
-import { Plus, FileText, Search, CheckCircle, Clock, XCircle, Download, Edit, Trash2, Package, Zap } from "lucide-react"
+import { Plus, FileText, Search, CheckCircle, Clock, XCircle, Download, Edit, Trash2, Package, Zap, Eye, Loader2, CheckCircle2, Minus } from "lucide-react"
 import { NewRequisitionForm } from "./new-requisition-form"
 import { IssueItemsForm } from "./issue-items-form"
 import { AddStockToCentralStore } from "./add-stock-to-central-store"
@@ -69,6 +69,21 @@ interface StockTransaction {
   created_at: string
   item_id?: string
   reference_number?: string
+}
+
+interface StockItem {
+  id: string
+  name: string
+  category: string
+  quantity: number
+  unit: string
+  location: string
+  sku?: string
+}
+
+interface DispatchItem extends StockItem {
+  dispatchQty: number
+  selected: boolean
 }
 
 const statusConfig = {
@@ -145,6 +160,22 @@ export function RequisitionManagement() {
   const [pageSizeByTab, setPageSizeByTab] = useState<Record<RequisitionTabValue, number>>(INITIAL_PAGE_SIZE_STATE)
   const [isSyncingApprovedIt, setIsSyncingApprovedIt] = useState(false)
   const [hasHandledAutoSync, setHasHandledAutoSync] = useState(false)
+  const [approvedItOpen, setApprovedItOpen] = useState(false)
+  const [approvedItReqs, setApprovedItReqs] = useState<any[]>([])
+  const [approvedItLoading, setApprovedItLoading] = useState(false)
+  const [issuingItReq, setIssuingItReq] = useState<string | null>(null)
+  const [itIssueDialogOpen, setItIssueDialogOpen] = useState(false)
+  const [selectedItReq, setSelectedItReq] = useState<any | null>(null)
+  const [itIssueNotes, setItIssueNotes] = useState("")
+  const [itSupplierName, setItSupplierName] = useState("")
+  const [centralStock, setCentralStock] = useState<DispatchItem[]>([])
+  const [stockLoading, setStockLoading] = useState(false)
+  const [stockSearch, setStockSearch] = useState("")
+  const [regionalHeads, setRegionalHeads] = useState<{ id: string; full_name: string; location: string; email?: string }[]>([])
+  const [selectedRegionalHead, setSelectedRegionalHead] = useState<string>("")
+  const [dispatchLocation, setDispatchLocation] = useState<string>("")
+  const [headSearch, setHeadSearch] = useState("")
+  const [headDropOpen, setHeadDropOpen] = useState(false)
 
   useEffect(() => {
     loadRequisitions()
@@ -291,47 +322,131 @@ export function RequisitionManagement() {
   }, [hasHandledAutoSync, searchParams, user])
 
   const syncApprovedItRequisitions = async () => {
-    if (!user || !["admin", "it_store_head"].includes(user.role)) {
+    // Legacy — kept for auto-sync URL param compat
+  }
+
+  const isHeadOfficeReq = (req: any): boolean => {
+    const loc = String(req.requester_location || req.location || "").toLowerCase().replace(/[\s_-]+/g, "_").trim()
+    return loc === "head_office" || loc === "head_office_accra" || loc === "headoffice" || loc === "accra" || loc.startsWith("head_office") || loc === "ho"
+  }
+
+  const loadApprovedItRequisitions = async () => {
+    setApprovedItLoading(true)
+    try {
+      const response = await fetch("/api/it-forms/requisitions?status=pending_store")
+      const data = await response.json()
+      setApprovedItReqs(data.requisitions || [])
+    } catch (err) {
+      console.error("[v0] Failed to load approved IT requisitions:", err)
+    } finally {
+      setApprovedItLoading(false)
+    }
+  }
+
+  const openApprovedItPanel = () => {
+    setApprovedItOpen(true)
+    void loadApprovedItRequisitions()
+  }
+
+  const loadCentralStock = async () => {
+    setStockLoading(true)
+    try {
+      const response = await fetch("/api/it-forms/store-issue?location=Head%20Office")
+      const data = await response.json()
+      setCentralStock((data.items || []).map((item: StockItem) => ({
+        ...item, dispatchQty: 1, selected: false,
+      })))
+    } catch (err) {
+      console.error("[v0] Failed to load central stock:", err)
+    } finally {
+      setStockLoading(false)
+    }
+  }
+
+  const loadRegionalHeads = async () => {
+    try {
+      const res = await fetch("/api/weekly-internet-reports/regional-heads")
+      const json = await res.json()
+      setRegionalHeads(json.heads || [])
+    } catch (err) {
+      console.error("[v0] Failed to load regional IT heads:", err)
+    }
+  }
+
+  const handleItIssue = (req: any) => {
+    setSelectedItReq(req)
+    setItIssueNotes("")
+    setItSupplierName("")
+    setStockSearch("")
+    setSelectedRegionalHead("")
+    // Pre-fill dispatch location from requester's location
+    setDispatchLocation(req.requester_location || req.location || "")
+    setItIssueDialogOpen(true)
+    if (!isHeadOfficeReq(req)) {
+      void loadCentralStock()
+      void loadRegionalHeads()
+    }
+  }
+
+  const toggleDispatchItem = (id: string) => {
+    setCentralStock(prev => prev.map(item => item.id === id ? { ...item, selected: !item.selected } : item))
+  }
+
+  const setDispatchQty = (id: string, qty: number) => {
+    setCentralStock(prev => prev.map(item => item.id === id ? { ...item, dispatchQty: Math.max(1, Math.min(qty, item.quantity)) } : item))
+  }
+
+  const submitItIssuance = async () => {
+    if (!selectedItReq || !itIssueNotes.trim() || !itSupplierName.trim()) return
+    const isDispatch = !isHeadOfficeReq(selectedItReq)
+    const selectedDispatchItems = centralStock.filter(i => i.selected)
+    if (isDispatch && selectedDispatchItems.length === 0) {
+      toast({ title: "Select items", description: "Please select at least one item to dispatch", variant: "destructive" })
       return
     }
-
+    if (isDispatch && !selectedRegionalHead) {
+      toast({ title: "Select regional IT head", description: "Please select the regional IT head to dispatch to", variant: "destructive" })
+      return
+    }
+    setIssuingItReq(selectedItReq.id)
+    const assignedHead = regionalHeads.find(h => h.id === selectedRegionalHead)
     try {
-      setIsSyncingApprovedIt(true)
-
-      const response = await fetch("/api/store/sync-approved-it-requisitions", {
+      const response = await fetch("/api/it-forms/store-issue", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
-          userRole: user.role,
-          triggeredBy: user.full_name || user.email,
+          requisitionId: selectedItReq.id,
+          issuedBy: user?.full_name || user?.email || "Store Head",
+          userRole: user?.role || "",
+          userLocation: user?.location || "",
+          supplierName: itSupplierName,
+          notes: itIssueNotes,
+          assignedRegionalHeadId: isDispatch ? selectedRegionalHead : undefined,
+          assignedRegionalHeadName: isDispatch ? assignedHead?.full_name : undefined,
+          dispatchToLocation: isDispatch ? (dispatchLocation || assignedHead?.location) : undefined,
+          dispatchItems: isDispatch ? selectedDispatchItems.map(i => ({
+            id: i.id, name: i.name, dispatchQty: i.dispatchQty, unit: i.unit, category: i.category,
+          })) : undefined,
         }),
       })
-
-      const result = await response.json()
-
-      if (!response.ok) {
-        throw new Error(result.error || "Failed to sync approved IT requisitions")
-      }
-
+      const data = await response.json()
+      if (!response.ok) throw new Error(data.error)
       toast({
-        title: result.createdCount > 0 ? "Approved Requests Synced" : "No New Approved Requests",
-        description:
-          result.createdCount > 0
-            ? `${result.createdCount} approved IT requisition(s) moved into Store Requisitions. ${result.skippedCount || 0} already existed.`
-            : "All approved IT requisitions are already available in Store Requisitions.",
+        title: isDispatch ? "Dispatched to Regional Stock" : "Items Issued",
+        description: isDispatch
+          ? `${selectedDispatchItems.length} item type(s) dispatched to ${assignedHead?.full_name || "regional IT head"} at ${dispatchLocation || assignedHead?.location || "region"}`
+          : "Items issued successfully to requester",
       })
-
-      await loadRequisitions()
-      setActiveTab("all")
-    } catch (error: any) {
-      console.error("[v0] Error syncing approved IT requisitions:", error)
-      toast({
-        title: "Sync failed",
-        description: error.message || "Failed to sync approved IT requisitions",
-        variant: "destructive",
-      })
+      setItIssueDialogOpen(false)
+      setSelectedItReq(null)
+      setCentralStock([])
+      setSelectedRegionalHead("")
+      setDispatchLocation("")
+      void loadApprovedItRequisitions()
+    } catch (err: any) {
+      toast({ title: "Error", description: err.message, variant: "destructive" })
     } finally {
-      setIsSyncingApprovedIt(false)
+      setIssuingItReq(null)
     }
   }
 
@@ -778,12 +893,12 @@ export function RequisitionManagement() {
 
           {(user?.role === "admin" || user?.role === "it_store_head") && (
             <Button
+              onClick={openApprovedItPanel}
+              className="border-blue-300 bg-blue-50 text-blue-900 hover:bg-blue-100 border"
               variant="outline"
-              onClick={syncApprovedItRequisitions}
-              disabled={isSyncingApprovedIt}
-              className="border-blue-300 bg-blue-50 text-blue-900 hover:bg-blue-100"
             >
-              {isSyncingApprovedIt ? "Syncing Approved IT Requests..." : "Sync Approved IT Requests"}
+              <Eye className="mr-2 h-4 w-4" />
+              View Approved IT Requisitions
             </Button>
           )}
           
@@ -1445,6 +1560,445 @@ export function RequisitionManagement() {
               {isDeletingTransaction ? 'Deleting...' : 'Delete & Reverse'}
             </Button>
           </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* ── Approved IT Requisitions Panel ─────────────────────────────────── */}
+      <Dialog open={approvedItOpen} onOpenChange={setApprovedItOpen}>
+        <DialogContent className="max-w-4xl max-h-[90vh] overflow-y-auto">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2">
+              <Package className="h-5 w-5 text-blue-600" />
+              Approved IT Requisitions — Ready for Issuance
+            </DialogTitle>
+            <DialogDescription>
+              IT Head-approved requisitions awaiting store issuance. Issue directly to Head Office staff or dispatch to regional stock.
+            </DialogDescription>
+          </DialogHeader>
+
+          {approvedItLoading ? (
+            <div className="flex justify-center py-12">
+              <Loader2 className="h-8 w-8 animate-spin text-muted-foreground" />
+            </div>
+          ) : approvedItReqs.length === 0 ? (
+            <div className="text-center py-12 text-muted-foreground">
+              <CheckCircle2 className="h-12 w-12 mx-auto mb-3 opacity-40" />
+              <p className="font-medium">No pending IT requisitions</p>
+              <p className="text-sm">All approved IT requisitions have been issued.</p>
+            </div>
+          ) : (
+            <div className="space-y-3">
+              {approvedItReqs.map((req: any) => {
+                const isHO = isHeadOfficeReq(req)
+                return (
+                  <div key={req.id} className="border rounded-lg p-4 space-y-2">
+                    <div className="flex items-start justify-between gap-4">
+                      <div className="flex-1 space-y-1">
+                        <div className="flex items-center gap-2 flex-wrap">
+                          <span className="font-semibold text-sm">{req.requisition_number}</span>
+                          <Badge variant={isHO ? "default" : "secondary"} className="text-xs">
+                            {isHO ? "Head Office" : (req.requester_location || req.location || "Regional")}
+                          </Badge>
+                        </div>
+                        <p className="text-sm">
+                          <span className="text-muted-foreground">Assign to: </span>
+                          <span className="font-medium">{req.requested_by || "—"}</span>
+                          {req.department && (
+                            <span className="text-muted-foreground"> · {req.department}</span>
+                          )}
+                        </p>
+                        <p className="text-sm text-muted-foreground">
+                          Items: {String(req.items_required || "").substring(0, 100)}{String(req.items_required || "").length > 100 ? "…" : ""}
+                        </p>
+                        {(req.it_head_approved_by_name || req.it_head_approved_by) && (
+                          <p className="text-xs text-muted-foreground">
+                            Approved by: {req.it_head_approved_by_name || req.it_head_approved_by}
+                          </p>
+                        )}
+                      </div>
+                      <Button
+                        size="sm"
+                        className={isHO ? "bg-green-600 hover:bg-green-700 shrink-0" : "bg-blue-600 hover:bg-blue-700 shrink-0"}
+                        onClick={() => handleItIssue(req)}
+                        disabled={issuingItReq === req.id}
+                      >
+                        {issuingItReq === req.id ? (
+                          <Loader2 className="h-4 w-4 animate-spin" />
+                        ) : (
+                          <>
+                            <CheckCircle2 className="h-4 w-4 mr-1" />
+                            {isHO ? "Issue Directly" : "Dispatch to Region"}
+                          </>
+                        )}
+                      </Button>
+                    </div>
+                  </div>
+                )
+              })}
+            </div>
+          )}
+
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setApprovedItOpen(false)}>Close</Button>
+            <Button variant="outline" onClick={loadApprovedItRequisitions} disabled={approvedItLoading}>
+              {approvedItLoading ? <Loader2 className="h-4 w-4 animate-spin mr-2" /> : null}
+              Refresh
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* ── IT Issue / Dispatch Confirmation Dialog ───────────────────────── */}
+      <Dialog
+        open={itIssueDialogOpen}
+        onOpenChange={(open) => {
+          if (!open) {
+            setSelectedRegionalHead("")
+            setDispatchLocation("")
+            setCentralStock([])
+            setStockSearch("")
+            setHeadSearch("")
+            setHeadDropOpen(false)
+          }
+          setItIssueDialogOpen(open)
+        }}
+      >
+        <DialogContent className="max-w-2xl max-h-[92vh] overflow-hidden flex flex-col p-0 gap-0">
+          {/* ── Hidden title for accessibility ── */}
+          <DialogTitle className="sr-only">
+            {selectedItReq && !isHeadOfficeReq(selectedItReq) ? "Dispatch to Regional Stock" : "Issue Directly"} — {selectedItReq?.requisition_number}
+          </DialogTitle>
+
+          {/* ── Coloured header ── */}
+          <div
+            className={`px-6 py-5 rounded-t-lg text-white ${
+              selectedItReq && !isHeadOfficeReq(selectedItReq)
+                ? "bg-gradient-to-r from-green-500 to-green-600"
+                : "bg-gradient-to-r from-emerald-600 to-emerald-700"
+            }`}
+          >
+            <div className="flex items-center gap-3">
+              {selectedItReq && !isHeadOfficeReq(selectedItReq)
+                ? <Package className="h-5 w-5 opacity-90" />
+                : <CheckCircle2 className="h-5 w-5 opacity-90" />}
+              <div>
+                <h2 className="text-base font-semibold leading-tight">
+                  {selectedItReq && !isHeadOfficeReq(selectedItReq)
+                    ? "Dispatch to Regional Stock"
+                    : "Issue Directly to Staff"}
+                </h2>
+                <p className="text-xs opacity-75 mt-0.5">{selectedItReq?.requisition_number}</p>
+              </div>
+            </div>
+          </div>
+
+          {/* ── Scrollable body ── */}
+          <div className="overflow-y-auto flex-1 px-6 py-5 space-y-5">
+            {selectedItReq && (
+              <>
+                {/* Requisition info grid */}
+                <div className="grid grid-cols-2 gap-x-6 gap-y-3 rounded-xl border bg-muted/30 px-5 py-4 text-sm">
+                  <div>
+                    <p className="text-[10px] font-semibold uppercase tracking-widest text-muted-foreground mb-0.5">Requested By</p>
+                    <p className="font-semibold">{selectedItReq.requested_by || "—"}</p>
+                  </div>
+                  <div>
+                    <p className="text-[10px] font-semibold uppercase tracking-widest text-muted-foreground mb-0.5">Department</p>
+                    <p className="font-semibold">{selectedItReq.department || "—"}</p>
+                  </div>
+                  <div>
+                    <p className="text-[10px] font-semibold uppercase tracking-widest text-muted-foreground mb-0.5">Origin Location</p>
+                    <p className="font-semibold">{selectedItReq.requester_location || selectedItReq.location || "—"}</p>
+                  </div>
+                  <div>
+                    <p className="text-[10px] font-semibold uppercase tracking-widest text-muted-foreground mb-0.5">Items Requested</p>
+                    <p className="font-semibold">{selectedItReq.items_required}</p>
+                  </div>
+                </div>
+
+                {/* ── REGIONAL DISPATCH ONLY ── */}
+                {!isHeadOfficeReq(selectedItReq) && (
+                  <>
+                    {/* Step 1: Regional IT Head selector (searchable combobox) */}
+                    <div className="space-y-2">
+                      <Label className="text-sm font-semibold flex items-center gap-2">
+                        <span className="inline-flex h-5 w-5 items-center justify-center rounded-full bg-green-100 text-green-700 text-[11px] font-bold shrink-0">1</span>
+                        Assign Regional IT Head <span className="text-red-500">*</span>
+                      </Label>
+
+                      {/* Custom searchable dropdown */}
+                      <div className="relative">
+                        <button
+                          type="button"
+                          onClick={() => { setHeadDropOpen((o) => !o); setHeadSearch("") }}
+                          className="flex h-10 w-full items-center justify-between rounded-lg border border-input bg-background px-3 py-2 text-sm ring-offset-background focus:outline-none focus:ring-2 focus:ring-ring"
+                        >
+                          {selectedRegionalHead ? (
+                            <span className="font-medium">
+                              {regionalHeads.find((h) => h.id === selectedRegionalHead)?.full_name}
+                              <span className="ml-2 text-xs text-muted-foreground font-normal">
+                                · {regionalHeads.find((h) => h.id === selectedRegionalHead)?.location}
+                              </span>
+                            </span>
+                          ) : (
+                            <span className="text-muted-foreground">Select regional IT head to dispatch to…</span>
+                          )}
+                          <svg className={`h-4 w-4 text-muted-foreground shrink-0 transition-transform ${headDropOpen ? "rotate-180" : ""}`} fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" /></svg>
+                        </button>
+
+                        {headDropOpen && (
+                          <div className="absolute z-50 mt-1 w-full rounded-xl border bg-popover shadow-lg overflow-hidden">
+                            {/* Search input inside dropdown */}
+                            <div className="flex items-center border-b px-3 py-2 gap-2">
+                              <Search className="h-4 w-4 text-muted-foreground shrink-0" />
+                              <input
+                                autoFocus
+                                type="text"
+                                className="flex-1 bg-transparent text-sm outline-none placeholder:text-muted-foreground"
+                                placeholder="Search by name or location…"
+                                value={headSearch}
+                                onChange={(e) => setHeadSearch(e.target.value)}
+                              />
+                              {headSearch && (
+                                <button type="button" onClick={() => setHeadSearch("")} className="text-muted-foreground hover:text-foreground">
+                                  <XCircle className="h-4 w-4" />
+                                </button>
+                              )}
+                            </div>
+                            <div className="max-h-52 overflow-y-auto">
+                              {regionalHeads
+                                .filter((h) =>
+                                  !headSearch ||
+                                  h.full_name.toLowerCase().includes(headSearch.toLowerCase()) ||
+                                  (h.location || "").toLowerCase().includes(headSearch.toLowerCase())
+                                )
+                                .length === 0 ? (
+                                <div className="px-4 py-3 text-sm text-muted-foreground text-center">
+                                  {regionalHeads.length === 0 ? "No regional IT heads found" : "No matches found"}
+                                </div>
+                              ) : (
+                                regionalHeads
+                                  .filter((h) =>
+                                    !headSearch ||
+                                    h.full_name.toLowerCase().includes(headSearch.toLowerCase()) ||
+                                    (h.location || "").toLowerCase().includes(headSearch.toLowerCase())
+                                  )
+                                  .map((head) => (
+                                    <div
+                                      key={head.id}
+                                      onClick={() => {
+                                        setSelectedRegionalHead(head.id)
+                                        if (head.location) setDispatchLocation(head.location)
+                                        setHeadDropOpen(false)
+                                        setHeadSearch("")
+                                      }}
+                                      className={`flex flex-col px-4 py-2.5 cursor-pointer transition-colors hover:bg-green-50 dark:hover:bg-green-950/20 ${
+                                        selectedRegionalHead === head.id ? "bg-green-50 dark:bg-green-950/20" : ""
+                                      }`}
+                                    >
+                                      <span className="text-sm font-medium">{head.full_name}</span>
+                                      <span className="text-xs text-muted-foreground">{head.location}</span>
+                                    </div>
+                                  ))
+                              )}
+                            </div>
+                          </div>
+                        )}
+                      </div>
+
+                      {/* Auto-populated location confirmation */}
+                      {selectedRegionalHead && dispatchLocation && (
+                        <div className="flex items-center gap-2 rounded-lg border border-green-200 bg-green-50 dark:border-green-800 dark:bg-green-950/20 px-3 py-2 text-sm">
+                          <CheckCircle2 className="h-4 w-4 text-green-600 shrink-0" />
+                          <span className="text-green-800 dark:text-green-300">
+                            Dispatching to{" "}
+                            <strong>{regionalHeads.find((h) => h.id === selectedRegionalHead)?.full_name}</strong>
+                            {" · "}
+                            <strong>{dispatchLocation}</strong>
+                          </span>
+                        </div>
+                      )}
+                    </div>
+
+                    {/* Step 2: Stock picker */}
+                    <div className="space-y-2">
+                      <Label className="text-sm font-semibold flex items-center gap-2">
+                        <span className="inline-flex h-5 w-5 items-center justify-center rounded-full bg-green-100 text-green-700 text-[11px] font-bold shrink-0">2</span>
+                        Select Items from Central Store <span className="text-red-500">*</span>
+                      </Label>
+                      <div className="relative">
+                        <Search className="absolute left-3 top-2.5 h-4 w-4 text-muted-foreground pointer-events-none" />
+                        <Input
+                          className="pl-9"
+                          placeholder="Search items…"
+                          value={stockSearch}
+                          onChange={(e) => setStockSearch(e.target.value)}
+                        />
+                      </div>
+                      {stockLoading ? (
+                        <div className="flex items-center justify-center py-8 rounded-xl border bg-muted/20">
+                          <Loader2 className="h-5 w-5 animate-spin mr-2 text-muted-foreground" />
+                          <span className="text-sm text-muted-foreground">Loading central store…</span>
+                        </div>
+                      ) : centralStock.length === 0 ? (
+                        <div className="flex flex-col items-center py-8 rounded-xl border bg-muted/20 text-muted-foreground text-sm gap-2">
+                          <Package className="h-8 w-8 opacity-30" />
+                          No items available in central store.
+                        </div>
+                      ) : (
+                        <div className="rounded-xl border divide-y overflow-hidden max-h-52 overflow-y-auto shadow-sm">
+                          {centralStock
+                            .filter(
+                              (item) =>
+                                !stockSearch ||
+                                item.name.toLowerCase().includes(stockSearch.toLowerCase()) ||
+                                (item.category || "").toLowerCase().includes(stockSearch.toLowerCase())
+                            )
+                            .map((item) => (
+                              <div
+                                key={item.id}
+                                className={`flex items-center gap-3 px-4 py-3 cursor-pointer transition-colors ${
+                                  item.selected ? "bg-green-50 dark:bg-green-950/20" : "hover:bg-muted/40"
+                                }`}
+                                onClick={() => toggleDispatchItem(item.id)}
+                              >
+                                <input
+                                  type="checkbox"
+                                  checked={item.selected}
+                                  onChange={() => toggleDispatchItem(item.id)}
+                                  onClick={(e) => e.stopPropagation()}
+                                  className="h-4 w-4 rounded accent-green-600 shrink-0"
+                                />
+                                <div className="flex-1 min-w-0">
+                                  <p className="text-sm font-medium truncate">{item.name}</p>
+                                  <p className="text-xs text-muted-foreground">
+                                    {item.category} · Available:{" "}
+                                    <span className={item.quantity <= 5 ? "text-orange-600 font-semibold" : "text-emerald-600 font-semibold"}>
+                                      {item.quantity} {item.unit}
+                                    </span>
+                                  </p>
+                                </div>
+                                {item.selected && (
+                                  <div
+                                    className="flex items-center gap-1 shrink-0"
+                                    onClick={(e) => e.stopPropagation()}
+                                  >
+                                    <Button
+                                      type="button" variant="outline" size="icon"
+                                      className="h-7 w-7 rounded-lg"
+                                      onClick={() => setDispatchQty(item.id, item.dispatchQty - 1)}
+                                      disabled={item.dispatchQty <= 1}
+                                    >
+                                      <Minus className="h-3 w-3" />
+                                    </Button>
+                                    <Input
+                                      type="number"
+                                      min={1}
+                                      max={item.quantity}
+                                      value={item.dispatchQty}
+                                      onChange={(e) => setDispatchQty(item.id, parseInt(e.target.value) || 1)}
+                                      className="h-7 w-14 text-center text-sm p-1 rounded-lg"
+                                    />
+                                    <Button
+                                      type="button" variant="outline" size="icon"
+                                      className="h-7 w-7 rounded-lg"
+                                      onClick={() => setDispatchQty(item.id, item.dispatchQty + 1)}
+                                      disabled={item.dispatchQty >= item.quantity}
+                                    >
+                                      <Plus className="h-3 w-3" />
+                                    </Button>
+                                  </div>
+                                )}
+                              </div>
+                            ))}
+                        </div>
+                      )}
+
+                      {/* Dispatch summary */}
+                      {centralStock.some((i) => i.selected) && (
+                        <div className="rounded-xl border border-green-200 bg-green-50 dark:border-green-800 dark:bg-green-950/20 px-4 py-3 text-xs space-y-1.5">
+                          <p className="font-semibold text-green-800 dark:text-green-300 mb-1">Dispatch summary:</p>
+                          {centralStock.filter((i) => i.selected).map((i) => (
+                            <div key={i.id} className="flex justify-between text-green-700 dark:text-green-400">
+                              <span>{i.name}</span>
+                              <span className="font-semibold">{i.dispatchQty} {i.unit}</span>
+                            </div>
+                          ))}
+                        </div>
+                      )}
+                    </div>
+                  </>
+                )}
+
+                {/* Supplier + Notes — numbered for dispatch, plain for direct */}
+                <div className="space-y-4">
+                  <div className="space-y-1.5">
+                    <Label htmlFor="it-supplier" className="text-sm font-semibold flex items-center gap-2">
+                      {!isHeadOfficeReq(selectedItReq) && (
+                        <span className="inline-flex h-5 w-5 items-center justify-center rounded-full bg-green-100 text-green-700 text-[11px] font-bold shrink-0">3</span>
+                      )}
+                      Supplier Name <span className="text-red-500">*</span>
+                    </Label>
+                    <Input
+                      id="it-supplier"
+                      placeholder="e.g. Sievert, Electromart…"
+                      value={itSupplierName}
+                      onChange={(e) => setItSupplierName(e.target.value)}
+                      className="h-10"
+                    />
+                  </div>
+                  <div className="space-y-1.5">
+                    <Label htmlFor="it-notes" className="text-sm font-semibold flex items-center gap-2">
+                      {!isHeadOfficeReq(selectedItReq) && (
+                        <span className="inline-flex h-5 w-5 items-center justify-center rounded-full bg-green-100 text-green-700 text-[11px] font-bold shrink-0">4</span>
+                      )}
+                      Issuance Notes <span className="text-red-500">*</span>
+                    </Label>
+                    <textarea
+                      id="it-notes"
+                      className="flex min-h-[84px] w-full rounded-lg border border-input bg-background px-3 py-2 text-sm ring-offset-background placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+                      placeholder={
+                        !isHeadOfficeReq(selectedItReq)
+                          ? "Dispatch purpose, handling instructions…"
+                          : "Serial numbers, quantities, collection details…"
+                      }
+                      value={itIssueNotes}
+                      onChange={(e) => setItIssueNotes(e.target.value)}
+                    />
+                    <p className="text-xs text-muted-foreground">Item S/N will be auto-generated on confirmation.</p>
+                  </div>
+                </div>
+              </>
+            )}
+          </div>
+
+          {/* ── Footer actions ── */}
+          <div className="px-6 py-4 border-t bg-muted/20 flex items-center justify-between gap-3">
+            <Button variant="outline" className="w-24" onClick={() => setItIssueDialogOpen(false)}>
+              Cancel
+            </Button>
+            <Button
+              onClick={submitItIssuance}
+              disabled={
+                !itIssueNotes.trim() ||
+                !itSupplierName.trim() ||
+                issuingItReq === selectedItReq?.id ||
+                (selectedItReq &&
+                  !isHeadOfficeReq(selectedItReq) &&
+                  (!selectedRegionalHead || !centralStock.some((i) => i.selected)))
+              }
+              className={`flex-1 h-10 text-white ${
+                selectedItReq && !isHeadOfficeReq(selectedItReq)
+                  ? "bg-green-600 hover:bg-green-700"
+                  : "bg-emerald-600 hover:bg-emerald-700"
+              }`}
+            >
+              {issuingItReq === selectedItReq?.id && <Loader2 className="h-4 w-4 mr-2 animate-spin" />}
+              {selectedItReq && !isHeadOfficeReq(selectedItReq)
+                ? `Dispatch to ${dispatchLocation || "Regional Stock"}`
+                : "Confirm Issuance"}
+            </Button>
+          </div>
         </DialogContent>
       </Dialog>
     </div>

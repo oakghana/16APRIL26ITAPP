@@ -67,15 +67,19 @@ export function StoreHeadIssuanceModule() {
   const fetchRequisitions = async () => {
     try {
       setLoading(true)
-      const statusFilter = isRegionalHead ? "pending_regional_store" : "ready_for_issuance"
-      const params = new URLSearchParams({ status: statusFilter })
+      const statusFilter = isRegionalHead ? "pending_regional_store,issued" : "pending_store,issued"
+      const params = new URLSearchParams({ status: "all" })
       if (user?.location) {
         params.set("officeUseLocation", user.location)
         params.set("officeUseRole", user.role || "")
       }
       const response = await fetch(`/api/it-forms/requisitions?${params.toString()}`)
       const data = await response.json()
-      setRequisitions(data.requisitions || [])
+      // Filter client-side: pending queue + already-issued ones
+      const targetStatuses = isRegionalHead
+        ? ["pending_regional_store", "issued"]
+        : ["pending_store", "issued"]
+      setRequisitions((data.requisitions || []).filter((r: any) => targetStatuses.includes(r.status)))
     } catch (error) {
       console.error("[v0] Error:", error)
       toast({
@@ -92,9 +96,11 @@ export function StoreHeadIssuanceModule() {
     let filtered = requisitions
 
     if (filterTab === "pending") {
-      filtered = filtered.filter((req) => !req.store_head_approved)
+      filtered = filtered.filter((req) =>
+        isRegionalHead ? req.status === "pending_regional_store" : req.status === "pending_store"
+      )
     } else if (filterTab === "issued") {
-      filtered = filtered.filter((req) => req.store_head_approved)
+      filtered = filtered.filter((req) => req.status === "issued")
     }
 
     filtered = filtered.filter(
@@ -166,7 +172,9 @@ export function StoreHeadIssuanceModule() {
 
       toast({
         title: "Success",
-        description: "Items issued successfully",
+        description: data.dispatched
+          ? `Items dispatched to ${data.requesterLocation || "regional"} stock`
+          : "Items issued successfully",
       })
 
       fetchRequisitions()
@@ -183,8 +191,15 @@ export function StoreHeadIssuanceModule() {
     }
   }
 
-  const pendingCount = requisitions.filter((r) => !r.store_head_approved).length
-  const issuedCount = requisitions.filter((r) => r.store_head_approved).length
+  const pendingCount = isRegionalHead
+    ? requisitions.filter((r) => r.status === "pending_regional_store").length
+    : requisitions.filter((r) => r.status === "pending_store").length
+  const issuedCount = requisitions.filter((r) => r.status === "issued").length
+
+  const isHeadOfficeReq = (req: ITRequisition) => {
+    const loc = (req.requester_location || req.location || "").toLowerCase().replace(/[\s_-]+/g, "_").trim()
+    return loc === "head_office" || loc === "head_office_accra" || loc === "headoffice" || loc === "accra" || loc.startsWith("head_office") || loc === "ho"
+  }
 
   return (
     <div className="space-y-6">
@@ -299,14 +314,18 @@ export function StoreHeadIssuanceModule() {
                           <Eye className="h-4 w-4 mr-1" />
                           View
                         </Button>
-                        {!req.store_head_approved && (
+                        {(req.status === "pending_store" || req.status === "pending_regional_store") && (
                           <Button
                             size="sm"
-                            className="bg-green-600 hover:bg-green-700"
+                            className={isRegionalHead
+                              ? "bg-green-600 hover:bg-green-700"
+                              : isHeadOfficeReq(req)
+                                ? "bg-green-600 hover:bg-green-700"
+                                : "bg-blue-600 hover:bg-blue-700"}
                             onClick={() => handleIssue(req)}
                           >
                             <CheckCircle2 className="h-4 w-4 mr-1" />
-                            {isRegionalHead ? "Assign" : "Issue"}
+                            {isRegionalHead ? "Assign to Staff" : isHeadOfficeReq(req) ? "Issue Directly" : "Dispatch to Region"}
                           </Button>
                         )}
                       </div>
@@ -360,7 +379,9 @@ export function StoreHeadIssuanceModule() {
       <Dialog open={isIssueDialogOpen} onOpenChange={setIsIssueDialogOpen}>
         <DialogContent className="max-w-md">
           <DialogHeader>
-            <DialogTitle>Issue Items — {selectedRequisition?.requisition_number}</DialogTitle>
+            <DialogTitle>
+              {isRegionalHead ? "Assign to Staff" : selectedRequisition && !isHeadOfficeReq(selectedRequisition) ? "Dispatch to Regional Stock" : "Issue Directly"} — {selectedRequisition?.requisition_number}
+            </DialogTitle>
           </DialogHeader>
           <div className="space-y-4">
             {selectedRequisition && (
@@ -399,10 +420,14 @@ export function StoreHeadIssuanceModule() {
             <Button
               onClick={submitIssuance}
               disabled={isSubmitting || (!isRegionalHead && !supplierName.trim()) || !issueNotes.trim()}
-              className="bg-green-600 hover:bg-green-700"
+              className={isRegionalHead
+                ? "bg-green-600 hover:bg-green-700"
+                : selectedRequisition && !isHeadOfficeReq(selectedRequisition)
+                  ? "bg-blue-600 hover:bg-blue-700"
+                  : "bg-green-600 hover:bg-green-700"}
             >
               {isSubmitting ? <Loader2 className="h-4 w-4 mr-2 animate-spin" /> : null}
-              Issue Items
+              {isRegionalHead ? "Assign to Staff" : selectedRequisition && !isHeadOfficeReq(selectedRequisition) ? "Dispatch to Regional Stock" : "Issue Directly"}
             </Button>
           </DialogFooter>
         </DialogContent>

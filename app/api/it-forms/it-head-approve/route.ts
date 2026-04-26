@@ -101,9 +101,10 @@ export async function POST(request: NextRequest) {
       requesterLocation = nameProfiles?.[0]?.location || null
     }
     const isHeadOfficeReq = isHeadOfficeLocation(requesterLocation)
-    // Head Office → pending_store (store head issues directly)
-    // Regional     → pending_regional_store (regional IT head adds to local stock, then assigns)
-    const approvedStoreStatus = isHeadOfficeReq ? "pending_store" : "pending_regional_store"
+    // ALL approvals go to pending_store (IT Store Head at Head Office).
+    // The IT Store Head then decides: issue directly (Head Office requester) OR
+    // dispatch to regional stock (regional requester), after which the Regional IT Head assigns.
+    const approvedStoreStatus = "pending_store"
 
     const actingAsAdmin = normalizedApproverRole === "admin"
     const approvedByUuid = isUuidLike(approvedById) ? approvedById : null
@@ -169,7 +170,7 @@ export async function POST(request: NextRequest) {
           updateData.admin_signature = approverSignature
         }
         updateData.status = approvedStoreStatus
-        // Flag for UI — only set if column exists in schema
+        // Store requester location so store head knows where to dispatch
         if (hasColumn("regional_fulfillment")) {
           updateData.regional_fulfillment = !isHeadOfficeReq
         }
@@ -249,44 +250,42 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: updateError.message || "Failed to update request" }, { status: 500 })
     }
 
-    // Notify relevant parties
-    if (action === "approve" && !isHeadOfficeReq) {
-      // Regional approval: notify regional IT heads at the requester's location
-      const { data: regionalHeads } = await supabaseAdmin
+    // Notify IT Store Head about new pending issuance
+    if (action === "approve") {
+      const { data: storeHeads } = await supabaseAdmin
         .from("profiles")
         .select("id")
-        .eq("role", "regional_it_head")
+        .eq("role", "it_store_head")
         .eq("is_active", true)
-      if (regionalHeads && regionalHeads.length > 0) {
-        const regionalNotifications = regionalHeads.map((rh: any) => ({
-          user_id: rh.id,
-          title: "Regional IT Equipment Requisition Ready",
-          message: `Requisition ${requisition.requisition_number} has been approved by IT Head and is ready for regional stock assignment at ${requesterLocation || "your location"}.`,
+      if (storeHeads && storeHeads.length > 0) {
+        const storeNotifications = storeHeads.map((sh: any) => ({
+          user_id: sh.id,
+          title: "New Requisition Ready for Issuance",
+          message: `Requisition ${requisition.requisition_number} approved by IT Head — pending store issuance${isHeadOfficeReq ? " (Head Office)" : ` → dispatch to ${requesterLocation || "regional"} stock`}.`,
           type: "info",
           category: "approval",
           reference_type: "it_equipment_requisition",
           reference_id: requisitionId,
           is_read: false,
         }))
-        await supabaseAdmin.from("notifications").insert(regionalNotifications).then(() => {}).catch((e: any) => console.error("[v0] Regional notification error:", e?.message || e))
+        await supabaseAdmin.from("notifications").insert(storeNotifications)
+          .then(() => {}).catch((e: any) => console.error("[v0] Store notification error:", e?.message))
       }
     } else {
-      // Head Office approval or rejection — notify requester or admin
-      const notifyUserId = action === "approve"
-        ? null  // admin notification not needed for head office (store head handles next)
-        : (isUuidLike(requisition.requested_by_id) ? requisition.requested_by_id
-            : isUuidLike(requisition.created_by_id) ? requisition.created_by_id : null)
+      // Rejected — notify requester
+      const notifyUserId = isUuidLike(requisition.requested_by_id) ? requisition.requested_by_id
+        : isUuidLike(requisition.created_by_id) ? requisition.created_by_id : null
       if (notifyUserId) {
         await supabaseAdmin.from("notifications").insert({
           user_id: notifyUserId,
-          title: `IT Head ${action === "approve" ? "Approved" : "Rejected"} Your Requisition`,
-          message: `Your requisition ${requisition.requisition_number || requisitionId} was ${action === "approve" ? "approved and forwarded to the store for issuance" : "rejected by the IT Head"}.`,
-          type: action === "approve" ? "success" : "warning",
+          title: "IT Head Rejected Your Requisition",
+          message: `Your requisition ${requisition.requisition_number || requisitionId} was rejected by the IT Head.`,
+          type: "warning",
           category: "approval",
           reference_type: "it_equipment_requisition",
           reference_id: requisitionId,
           is_read: false,
-        }).catch((e: any) => console.error("[v0] Notification error:", e))
+        }).then(() => {}).catch((e: any) => console.error("[v0] Notification error:", e?.message))
       }
     }
 

@@ -155,6 +155,7 @@ export function ModernLayout({ children, className }: ModernLayoutProps) {
         { name: "IT Staff", href: "/dashboard/it-staff-status", icon: Users },
         { name: "Devices", href: "/dashboard/devices", icon: Monitor },
         { name: "Repairs", href: "/dashboard/repairs", icon: Wrench },
+        { name: "Issue Items", href: "/dashboard/it-forms/store-issuance", icon: Package },
         { name: "Reports", href: "/dashboard/it-reports", icon: BarChart3 },
         { name: "HOD Linking", href: "/dashboard/admin/department-heads", icon: Link2 },
       ]
