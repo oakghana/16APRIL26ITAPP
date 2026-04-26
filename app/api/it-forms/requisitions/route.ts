@@ -535,6 +535,7 @@ export async function GET(request: NextRequest) {
 
       if (!canSeeNationwide) {
         requisitions = requisitions.filter((r: any) => {
+          const currentStatus = String(r.status || "").toLowerCase().trim()
           const requesterLocation = String(r.requester_location || "")
           const dispatchTargetLocation = String(r.regional_dispatch_location || "")
           const filterLocation = dispatchTargetLocation || requesterLocation
@@ -544,7 +545,15 @@ export async function GET(request: NextRequest) {
             return assignedRegionalHeadId === officeUseUserId
           }
 
-          if (!filterLocation) return false
+          if (!filterLocation) {
+            // Legacy fallback: some previously dispatched rows were saved without
+            // requester/dispatch location metadata. Keep them visible for regional
+            // confirmation/issuance instead of dropping them.
+            if (officeUseRole === "regional_it_head" && ["awaiting_regional_confirmation", "pending_regional_store"].includes(currentStatus)) {
+              return true
+            }
+            return false
+          }
 
           if (officeUseRole === "regional_it_head" || officeUseRole === "it_staff") {
             return isLocationInSameRegion(filterLocation, officeUseLocation)
