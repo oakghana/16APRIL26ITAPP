@@ -23,33 +23,61 @@ export async function GET(request: NextRequest) {
 
     console.log("[v0] API Service Tickets - location:", location, "canSeeAll:", canSeeAll, "role:", userRole)
 
-    // Start with the minimum payload needed by the dashboard to keep responses fast.
-    let query = supabaseAdmin
-      .from("service_tickets")
-      .select("id,ticket_number,title,category,priority,status,location,requested_by,requester_department,requester_room_number,requester_room,created_at,assigned_to,assigned_to_name")
-      .order("created_at", { ascending: false })
-      .limit(1000)
+    const buildTicketQuery = (selectClause: string) => {
+      let query = supabaseAdmin
+        .from("service_tickets")
+        .select(selectClause)
+        .order("created_at", { ascending: false })
+        .limit(1000)
 
-    // Apply coarse filters in SQL first to avoid loading the entire table.
-    if (userRole === "user" || userRole === "staff") {
-      if (userId) {
-        query = query.or(`requested_by.eq.${userId},assigned_to.eq.${userId}`)
+      // Apply coarse filters in SQL first to avoid loading the entire table.
+      if (userRole === "user" || userRole === "staff") {
+        if (userId) {
+          query = query.or(`requested_by.eq.${userId},assigned_to.eq.${userId}`)
+        }
+      } else if ((userRole === "regional_it_head" || userRole === "service_desk_head") && normalizedLocation) {
+        if (userId) {
+          query = query.or(`location.ilike.%${normalizedLocation}%,assigned_to.eq.${userId}`)
+        } else {
+          query = query.ilike("location", `%${normalizedLocation}%`)
+        }
+      } else if (!canSeeAll && normalizedLocation) {
+        if (userId) {
+          query = query.or(`location.ilike.%${normalizedLocation}%,assigned_to.eq.${userId}`)
+        } else {
+          query = query.ilike("location", `%${normalizedLocation}%`)
+        }
       }
-    } else if ((userRole === "regional_it_head" || userRole === "service_desk_head") && normalizedLocation) {
-      if (userId) {
-        query = query.or(`location.ilike.%${normalizedLocation}%,assigned_to.eq.${userId}`)
-      } else {
-        query = query.ilike("location", `%${normalizedLocation}%`)
-      }
-    } else if (!canSeeAll && normalizedLocation) {
-      if (userId) {
-        query = query.or(`location.ilike.%${normalizedLocation}%,assigned_to.eq.${userId}`)
-      } else {
-        query = query.ilike("location", `%${normalizedLocation}%`)
-      }
+
+      return query
     }
 
-    const { data, error } = await query
+    const selectVariants = [
+      // Newest schema (room number + legacy room)
+      "id,ticket_number,title,category,priority,status,location,requested_by,requester_department,requester_room_number,requester_room,created_at,assigned_to,assigned_to_name",
+      // Current migration baseline (room number only)
+      "id,ticket_number,title,category,priority,status,location,requested_by,requester_department,requester_room_number,created_at,assigned_to,assigned_to_name",
+      // Older schema fallback (legacy room only)
+      "id,ticket_number,title,category,priority,status,location,requested_by,requester_department,requester_room,created_at,assigned_to,assigned_to_name",
+    ]
+
+    let data: any[] | null = null
+    let error: any = null
+
+    for (const selectClause of selectVariants) {
+      const result = await buildTicketQuery(selectClause)
+      data = result.data
+      error = result.error
+
+      if (!error) break
+
+      const message = String(error.message || "")
+      const missingColumnError =
+        error.code === "42703" ||
+        /column .* does not exist/i.test(message)
+
+      if (!missingColumnError) break
+    }
 
     if (error) {
       console.error("[v0] Error loading service tickets:", error)
