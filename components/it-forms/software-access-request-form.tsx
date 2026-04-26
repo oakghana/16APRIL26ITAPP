@@ -9,9 +9,8 @@ import { Textarea } from "@/components/ui/textarea"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { useAuth } from "@/lib/auth-context"
 import { useToast } from "@/hooks/use-toast"
+import { SOFTWARE_ACCESS_OPTIONS } from "@/lib/app-system-options"
 import { normalizeDepartmentName } from "@/lib/department-options"
-
-const SOFTWARE_OPTIONS = ["Office 365", "ACCPAC", "SharePoint", "PERSOL", "Loan App", "Asset App", "Chemstore App", "Other"]
 
 export function SoftwareAccessRequestForm({ onSubmit }: { onSubmit: () => void }) {
   const { user } = useAuth()
@@ -115,7 +114,7 @@ export function SoftwareAccessRequestForm({ onSubmit }: { onSubmit: () => void }
               <SelectValue placeholder="Select software" />
             </SelectTrigger>
             <SelectContent>
-              {SOFTWARE_OPTIONS.map((software) => (
+              {SOFTWARE_ACCESS_OPTIONS.map((software) => (
                 <SelectItem key={software} value={software}>{software}</SelectItem>
               ))}
             </SelectContent>

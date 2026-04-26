@@ -31,12 +31,11 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ message: "Username or email already exists" }, { status: 409 })
     }
 
-    // Default password for self-registered users is qcc@123
-    // Using fixed hash to ensure consistency across all new users
-    const defaultPassword = "qcc@123"
-    const hashedPassword = "$2b$10$y.4.eCKGm0kI0hXv1rhJtuLYpKJH3R/Pfxvn9AU6DVF5PzYHsnmqm"
+    // Default password for self-registered users
+    const defaultPassword = "password"
+    const hashedPassword = await bcrypt.hash(defaultPassword, 10)
 
-    console.log("[v0] Creating new user profile with default password: qcc@123...")
+    console.log("[v0] Creating new user profile with default password policy")
 
     const { data: newUser, error } = await supabase
       .from("profiles")
@@ -52,6 +51,8 @@ export async function POST(request: NextRequest) {
           role: "user",
           status: "approved",
           is_active: true,
+          must_change_password: true,
+          password_changed_at: null,
           created_at: new Date().toISOString(),
           updated_at: new Date().toISOString(),
         },
@@ -68,9 +69,9 @@ export async function POST(request: NextRequest) {
 
     return NextResponse.json(
       {
-        message: "Registration successful. Your default password is: qcc@123. Please change it after first login.",
+        message: "Registration successful. Your default password is: password. Please change it after first login.",
         userId: newUser.id,
-        defaultPassword: "qcc@123",
+        defaultPassword,
       },
       { status: 201 },
     )

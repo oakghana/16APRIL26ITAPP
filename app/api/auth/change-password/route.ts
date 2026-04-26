@@ -45,6 +45,17 @@ export async function POST(request: NextRequest) {
       params: [newPasswordHash, username],
     })
 
+    // After RPC success, also clear the force-change flag
+    if (!updateError) {
+      await supabase
+        .from("profiles")
+        .update({
+          must_change_password: false,
+          password_changed_at: new Date().toISOString(),
+        })
+        .eq("username", username)
+    }
+
     // If RPC doesn't exist, try direct update with explicit column targeting
     if (updateError) {
       console.log("[v0] RPC failed, trying direct update:", updateError.message)
@@ -57,6 +68,17 @@ export async function POST(request: NextRequest) {
         })
         .eq("username", username)
         .select()
+
+      if (!directUpdateError) {
+        // Clear the force-change flag and record when password was changed
+        await supabase
+          .from("profiles")
+          .update({
+            must_change_password: false,
+            password_changed_at: new Date().toISOString(),
+          })
+          .eq("username", username)
+      }
 
       if (directUpdateError) {
         console.error("[v0] Password update error:", directUpdateError)

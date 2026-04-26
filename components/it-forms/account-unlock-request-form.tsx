@@ -9,12 +9,8 @@ import { Textarea } from "@/components/ui/textarea"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { useAuth } from "@/lib/auth-context"
 import { useToast } from "@/hooks/use-toast"
+import { APP_SYSTEM_OPTIONS } from "@/lib/app-system-options"
 import { normalizeDepartmentName } from "@/lib/department-options"
-
-const SYSTEM_OPTIONS = [
-  "Email System", "PF and Mutual System", "Marketing App", "ACCPAC", "PERSOL",
-  "SharePoint", "Loan App", "Wireless Access", "Asset App", "Chemstore App", "Other",
-] as const
 
 export function AccountUnlockRequestForm({ onSubmit }: { onSubmit: () => void }) {
   const { user } = useAuth()
@@ -114,7 +110,7 @@ export function AccountUnlockRequestForm({ onSubmit }: { onSubmit: () => void })
         <Label>Locked System / Application *</Label>
         <Select value={form.lockedSystem} onValueChange={(v) => set("lockedSystem", v)}>
           <SelectTrigger><SelectValue placeholder="Select system" /></SelectTrigger>
-          <SelectContent>{SYSTEM_OPTIONS.map((s) => <SelectItem key={s} value={s}>{s}</SelectItem>)}</SelectContent>
+          <SelectContent>{APP_SYSTEM_OPTIONS.map((s) => <SelectItem key={s} value={s}>{s}</SelectItem>)}</SelectContent>
         </Select>
       </div>
 

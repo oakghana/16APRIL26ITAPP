@@ -136,9 +136,6 @@ export function ModernSidebar({ isOpen, setIsOpen, className, onCollapseChange }
             name: "IT Forms",
             icon: FileText,
             items: [
-              { name: "Equipment Requisition", href: "/dashboard/it-forms/equipment-requisition", icon: Laptop },
-              { name: "Maintenance & Repairs", href: "/dashboard/it-forms/maintenance-repairs", icon: Wrench },
-              { name: "New Gadget Request", href: "/dashboard/it-forms/new-gadget", icon: Laptop },
               { name: "Approvals", href: "/dashboard/it-forms/approvals", icon: ClipboardList },
             ],
           },
@@ -277,9 +274,6 @@ export function ModernSidebar({ isOpen, setIsOpen, className, onCollapseChange }
             icon: FileText,
             badge: counts.itFormsQueue > 0 ? counts.itFormsQueue : undefined,
             items: [
-              { name: "Equipment Requisition", href: "/dashboard/it-forms/equipment-requisition", icon: Laptop },
-              { name: "Maintenance & Repairs", href: "/dashboard/it-forms/maintenance-repairs", icon: Wrench },
-              { name: "New Gadget Request", href: "/dashboard/it-forms/new-gadget", icon: Laptop },
               { name: "Approvals", href: "/dashboard/it-forms/approvals", icon: ClipboardList },
             ],
           },
@@ -295,11 +289,6 @@ export function ModernSidebar({ isOpen, setIsOpen, className, onCollapseChange }
             href: "/dashboard/assigned-tasks",
             icon: ClipboardList,
             badge: counts.assignedTasks > 0 ? counts.assignedTasks : undefined,
-          },
-          {
-            name: "IT Requisition",
-            href: "/dashboard/it-forms/equipment-requisition",
-            icon: Laptop,
           },
           {
             name: "Repairs",
@@ -320,9 +309,7 @@ export function ModernSidebar({ isOpen, setIsOpen, className, onCollapseChange }
             name: "IT Forms",
             icon: FileText,
             items: [
-              { name: "Equipment Requisition", href: "/dashboard/it-forms/equipment-requisition", icon: Laptop },
-              { name: "Maintenance & Repairs", href: "/dashboard/it-forms/maintenance-repairs", icon: Wrench },
-              { name: "New Gadget Request", href: "/dashboard/it-forms/new-gadget", icon: Laptop },
+              { name: "Approvals", href: "/dashboard/it-forms/approvals", icon: ClipboardList },
             ],
           },
           {
@@ -445,9 +432,6 @@ export function ModernSidebar({ isOpen, setIsOpen, className, onCollapseChange }
             icon: FileText,
             badge: counts.itFormsQueue > 0 ? counts.itFormsQueue : undefined,
             items: [
-              { name: "Equipment Requisition", href: "/dashboard/it-forms/equipment-requisition", icon: Laptop },
-              { name: "Maintenance & Repairs", href: "/dashboard/it-forms/maintenance-repairs", icon: Wrench },
-              { name: "New Gadget Request", href: "/dashboard/it-forms/new-gadget", icon: Laptop },
               { name: "Approvals", href: "/dashboard/it-forms/approvals", icon: ClipboardList },
             ],
           },
@@ -484,9 +468,7 @@ export function ModernSidebar({ isOpen, setIsOpen, className, onCollapseChange }
             icon: FileText,
             badge: counts.itFormsQueue > 0 ? counts.itFormsQueue : undefined,
             items: [
-              { name: "Equipment Requisition", href: "/dashboard/it-forms/equipment-requisition", icon: Laptop },
-              { name: "Maintenance & Repairs", href: "/dashboard/it-forms/maintenance-repairs", icon: Wrench },
-              { name: "New Gadget Request", href: "/dashboard/it-forms/new-gadget", icon: Laptop },
+              { name: "Approvals", href: "/dashboard/it-forms/approvals", icon: ClipboardList },
             ],
           },
           {
@@ -552,9 +534,6 @@ export function ModernSidebar({ isOpen, setIsOpen, className, onCollapseChange }
             name: "IT Forms",
             icon: FileText,
             items: [
-              { name: "Equipment Requisition", href: "/dashboard/it-forms/equipment-requisition", icon: Laptop },
-              { name: "Maintenance & Repairs", href: "/dashboard/it-forms/maintenance-repairs", icon: Wrench },
-              { name: "New Gadget Request", href: "/dashboard/it-forms/new-gadget", icon: Laptop },
               { name: "Approvals", href: "/dashboard/it-forms/approvals", icon: ClipboardList },
             ],
           },
@@ -604,9 +583,6 @@ export function ModernSidebar({ isOpen, setIsOpen, className, onCollapseChange }
             name: "IT Forms",
             icon: FileText,
             items: [
-              { name: "Equipment Requisition", href: "/dashboard/it-forms/equipment-requisition", icon: Laptop },
-              { name: "Maintenance & Repairs", href: "/dashboard/it-forms/maintenance-repairs", icon: Wrench },
-              { name: "New Gadget Request", href: "/dashboard/it-forms/new-gadget", icon: Laptop },
               { name: "Approvals", href: "/dashboard/it-forms/approvals", icon: ClipboardList },
             ],
           },
@@ -637,12 +613,7 @@ export function ModernSidebar({ isOpen, setIsOpen, className, onCollapseChange }
   const navigation = useMemo(() => {
     const base = getNavigationItems()
     const moduleItems: NavigationItem[] = [
-      { name: "Password Reset", href: "/dashboard/it-forms/password-reset", icon: Laptop },
-      { name: "Account Unlock", href: "/dashboard/it-forms/account-unlock", icon: Laptop },
-      { name: "New User Onboarding", href: "/dashboard/it-forms/onboarding", icon: Users },
-      { name: "User Offboarding", href: "/dashboard/it-forms/offboarding", icon: Users },
-      { name: "Software Access", href: "/dashboard/it-forms/software-access", icon: Settings },
-      { name: "Asset Transfer", href: "/dashboard/it-forms/asset-transfer", icon: Send },
+      { name: "Approvals", href: "/dashboard/it-forms/approvals", icon: ClipboardList },
     ]
 
     const itFormsIndex = base.groups.findIndex((group) => group.name === "IT Forms")

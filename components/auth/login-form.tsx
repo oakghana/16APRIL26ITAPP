@@ -69,8 +69,13 @@ export function LoginForm() {
         return
       }
 
-      // Redirect to dashboard
-      window.location.href = data.redirectUrl
+      // Force password change if flagged (new user or quarterly expiry)
+      if (data.forceChangePassword) {
+        window.location.href = `/change-password?reason=${data.forceChangeReason || "required"}`
+      } else {
+        // Redirect to dashboard
+        window.location.href = data.redirectUrl
+      }
     } catch (err) {
       console.error("Login error:", err)
       setError("Authentication failed. Please try again.")

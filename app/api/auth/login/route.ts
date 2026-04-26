@@ -175,6 +175,34 @@ export async function POST(request: Request) {
 
     console.log("[v0] Login successful for:", username, "redirecting to:", redirectUrl)
 
+    // --- Password change enforcement ---
+    const EXEMPT_ROLES = ["admin", "it_head"]
+    const isExempt = EXEMPT_ROLES.includes(user.role)
+
+    // New users: must change default password before accessing dashboard
+    const mustChangePassword = !isExempt && Boolean(user.must_change_password)
+
+    // Quarterly expiry (90 days) for non-exempt roles
+    const QUARTER_DAYS = 90
+    let passwordExpired = false
+    if (!isExempt && !mustChangePassword) {
+      if (!user.password_changed_at) {
+        // Never changed — treat as expired (but not a brand-new account, those use mustChangePassword)
+        passwordExpired = true
+      } else {
+        const daysSinceChange =
+          (Date.now() - new Date(user.password_changed_at).getTime()) / (1000 * 60 * 60 * 24)
+        passwordExpired = daysSinceChange > QUARTER_DAYS
+      }
+    }
+
+    const forceChangePassword = mustChangePassword || passwordExpired
+    const forceChangeReason = mustChangePassword
+      ? "new_user"
+      : passwordExpired
+        ? "password_expired"
+        : null
+
     return NextResponse.json({
       success: true,
       user: {
@@ -185,8 +213,11 @@ export async function POST(request: Request) {
         role: user.role,
         location: user.location,
         department: user.department,
+        phone: user.phone,
       },
       redirectUrl,
+      forceChangePassword,
+      forceChangeReason,
     })
   } catch (error) {
     console.error("[v0] Login error:", error)
