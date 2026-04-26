@@ -39,6 +39,9 @@ function getStatusBadgeVariant(status: string): "default" | "secondary" | "destr
 }
 
 function toLabel(value: string) {
+  const normalized = normalizeStatus(value)
+  if (normalized === "pending_regional_store") return "Pending Regional IT Head Issuance"
+
   return value
     .replace(/_/g, " ")
     .replace(/-/g, " ")

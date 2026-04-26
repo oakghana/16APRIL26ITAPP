@@ -649,7 +649,7 @@ export function RequestStatusTracker({
       pending_admin: { variant: "default", label: "Awaiting Admin" },
       pending_store: { variant: "default", label: "Ready for Issue" },
       awaiting_regional_confirmation: { variant: "default", label: "Awaiting Regional Receipt" },
-      pending_regional_store: { variant: "default", label: "Pending Regional Assignment" },
+      pending_regional_store: { variant: "default", label: "Pending Regional IT Head Issuance" },
       approved: { variant: "default", label: "Approved" },
       issued: { variant: "default", label: "Issued" },
       rejected_department_head: { variant: "destructive", label: "Rejected by HOD" },
@@ -705,7 +705,7 @@ export function RequestStatusTracker({
     if (req.status === "pending_store") return "Ready for store issuance"
     if (req.status === "awaiting_user_confirmation") return "Please confirm you have received the issued item"
     if (req.status === "awaiting_regional_confirmation") return "Awaiting regional IT head to confirm receipt from IT Store"
-    if (req.status === "pending_regional_store") return "Awaiting regional IT head to assign item from local stock"
+    if (req.status === "pending_regional_store") return "Awaiting regional IT head to issue item to staff from confirmed regional stock"
     return "Request completed"
   }
 

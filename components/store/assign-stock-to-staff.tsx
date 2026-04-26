@@ -102,6 +102,19 @@ interface StockAssignment {
   created_at: string
 }
 
+interface RegionalDispatchConfirmation {
+  id: string
+  requisition_number: string
+  requested_by: string
+  requester_location?: string
+  location?: string
+  department?: string
+  items_required: string
+  issuance_notes?: string
+  supplier_name?: string
+  status: string
+}
+
 const categoryIcons: Record<string, any> = {
   "Computers": Laptop,
   "Printers": Printer,
@@ -124,6 +137,9 @@ export function AssignStockToStaff() {
   const [categoryFilter, setCategoryFilter] = useState("all")
   const [assignDialogOpen, setAssignDialogOpen] = useState(false)
   const [selectedItem, setSelectedItem] = useState<StockItem | null>(null)
+  const [regionalPendingConfirmations, setRegionalPendingConfirmations] = useState<RegionalDispatchConfirmation[]>([])
+  const [regionalConfirmLoading, setRegionalConfirmLoading] = useState(false)
+  const [confirmingDispatchId, setConfirmingDispatchId] = useState<string | null>(null)
 
   // Edit assignment state
   const [editDialogOpen, setEditDialogOpen] = useState(false)
@@ -224,8 +240,84 @@ export function AssignStockToStaff() {
       loadStockItems()
       loadStaffList()
       loadAssignments()
+      if (user?.role === "regional_it_head") {
+        loadRegionalPendingConfirmations()
+      }
     }
   }, [user?.location])
+
+  const loadRegionalPendingConfirmations = async () => {
+    if (user?.role !== "regional_it_head") return
+
+    setRegionalConfirmLoading(true)
+    try {
+      const params = new URLSearchParams({
+        status: "awaiting_regional_confirmation",
+        officeUseLocation: user.location || "",
+        officeUseRole: user.role || "",
+      })
+
+      const response = await fetch(`/api/it-forms/requisitions?${params.toString()}`)
+      const result = await response.json()
+
+      if (!response.ok) {
+        toast({ title: "Error", description: result.error || "Failed to load pending confirmations", variant: "destructive" })
+        return
+      }
+
+      setRegionalPendingConfirmations(result.requisitions || [])
+    } catch (error) {
+      console.error("[v0] Error loading regional pending confirmations:", error)
+      toast({ title: "Error", description: "Failed to load pending confirmations", variant: "destructive" })
+    } finally {
+      setRegionalConfirmLoading(false)
+    }
+  }
+
+  const handleConfirmRegionalDispatch = async (requisition: RegionalDispatchConfirmation) => {
+    if (user?.role !== "regional_it_head") return
+
+    setConfirmingDispatchId(requisition.id)
+    try {
+      const response = await fetch("/api/it-forms/store-issue", {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          requisitionId: requisition.id,
+          action: "regional_confirm_receipt",
+          actorId: user?.id,
+          actorName: user?.full_name || user?.name || user?.email,
+          actorEmail: user?.email,
+          actorRole: user?.role,
+          actorLocation: user?.location,
+          confirmation: "approved",
+        }),
+      })
+
+      const result = await response.json()
+      if (!response.ok) {
+        throw new Error(result.error || "Failed to confirm receipt")
+      }
+
+      toast({
+        title: "Dispatch Confirmed",
+        description: "Receipt confirmed. Regional stock is now available for staff assignment.",
+      })
+
+      await Promise.all([
+        loadRegionalPendingConfirmations(),
+        loadStockItems(),
+      ])
+    } catch (error: any) {
+      toast({
+        title: "Confirmation Failed",
+        description: error.message || "Unable to confirm dispatch receipt",
+        variant: "destructive",
+      })
+    } finally {
+      setConfirmingDispatchId(null)
+    }
+  }
 
   const loadStockItems = async () => {
     try {
@@ -759,6 +851,12 @@ export function AssignStockToStaff() {
 
       <Tabs defaultValue="assign" className="space-y-4">
         <TabsList>
+          {user?.role === "regional_it_head" && (
+            <TabsTrigger value="confirmations">
+              <CheckCircle className="h-4 w-4 mr-2" />
+              Confirm Dispatch ({regionalPendingConfirmations.length})
+            </TabsTrigger>
+          )}
           <TabsTrigger value="assign">
             <UserPlus className="h-4 w-4 mr-2" />
             Assign Items
@@ -768,6 +866,64 @@ export function AssignStockToStaff() {
             Assignment History
           </TabsTrigger>
         </TabsList>
+
+        {user?.role === "regional_it_head" && (
+          <TabsContent value="confirmations" className="space-y-4">
+            <Card className="rounded-2xl border-emerald-100 bg-white shadow-sm">
+              <CardHeader>
+                <CardTitle>Regional Dispatch Confirmations</CardTitle>
+                <CardDescription>
+                  Confirm dispatches received from Head Office Store Head before issuing items to regional staff.
+                </CardDescription>
+              </CardHeader>
+              <CardContent className="space-y-4">
+                <div className="flex items-center justify-end">
+                  <Button variant="outline" onClick={loadRegionalPendingConfirmations} className="border-emerald-200 bg-white hover:bg-emerald-50 text-emerald-800">
+                    <RefreshCw className="h-4 w-4 mr-2 text-emerald-800" />
+                    Refresh
+                  </Button>
+                </div>
+
+                {regionalConfirmLoading ? (
+                  <div className="text-center py-8 text-muted-foreground">Loading pending dispatch confirmations...</div>
+                ) : regionalPendingConfirmations.length === 0 ? (
+                  <div className="text-center py-8 text-muted-foreground">
+                    <CheckCircle className="h-12 w-12 mx-auto mb-4 opacity-50" />
+                    <p>No pending dispatch confirmations.</p>
+                  </div>
+                ) : (
+                  <div className="space-y-3">
+                    {regionalPendingConfirmations.map((req) => (
+                      <div key={req.id} className="rounded-lg border p-4 space-y-2">
+                        <div className="flex flex-col md:flex-row md:items-start md:justify-between gap-3">
+                          <div className="space-y-1">
+                            <p className="font-semibold">{req.requisition_number || req.id}</p>
+                            <p className="text-sm text-muted-foreground">
+                              Requested by: {req.requested_by || "Unknown"}
+                              {(req.requester_location || req.location) ? ` • ${req.requester_location || req.location}` : ""}
+                            </p>
+                            <p className="text-sm text-muted-foreground">Department: {req.department || "-"}</p>
+                            <p className="text-sm">Items: {req.items_required}</p>
+                            {req.issuance_notes ? (
+                              <p className="text-xs text-muted-foreground">Store note: {req.issuance_notes}</p>
+                            ) : null}
+                          </div>
+                          <Button
+                            onClick={() => handleConfirmRegionalDispatch(req)}
+                            disabled={confirmingDispatchId === req.id}
+                            className="bg-green-600 hover:bg-green-700"
+                          >
+                            {confirmingDispatchId === req.id ? "Confirming..." : "Confirm Receipt"}
+                          </Button>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                )}
+              </CardContent>
+            </Card>
+          </TabsContent>
+        )}
 
         <TabsContent value="assign" className="space-y-4">
           {/* Info Alert about Central Stores restriction */}
