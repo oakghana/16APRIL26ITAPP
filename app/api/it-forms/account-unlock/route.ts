@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from "next/server"
 import { createClient } from "@supabase/supabase-js"
-import { normalizeDepartmentName } from "@/lib/department-options"
+import { normalizeDepartmentName, isITDDepartment } from "@/lib/department-options"
 
 const supabaseAdmin = createClient(
   process.env.NEXT_PUBLIC_SUPABASE_URL || "",
@@ -16,7 +16,7 @@ function isUuid(v?: string | null) {
 function canManageAsIT(role?: string | null, dept?: string | null) {
   const r = (role || "").toLowerCase()
   if (r === "admin" || r === "it_head") return true
-  return r === "department_head" && (dept || "").toLowerCase().includes("it")
+  return r === "department_head" && isITDDepartment(dept)
 }
 function canWork(role?: string | null, dept?: string | null) {
   const r = (role || "").toLowerCase()

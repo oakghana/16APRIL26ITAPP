@@ -9,6 +9,7 @@ import { Badge } from "@/components/ui/badge"
 import { useAuth } from "@/lib/auth-context"
 import { Laptop, Wrench, ClipboardList, ShieldCheck, Lock, ArrowRight, Users, Loader2, Trash2, LockKeyhole, UserPlus, UserMinus, KeySquare, ArrowLeftRight } from "lucide-react"
 import { useToast } from "@/hooks/use-toast"
+import { isITDDepartment } from "@/lib/department-options"
 import { DepartmentHeadApprovalModule } from "./department-head-approval"
 import { ITServiceDeskProcessingPanel } from "./service-desk-processing"
 import { ITHeadAdminPanel } from "./it-head-admin-panel"
@@ -42,7 +43,7 @@ export function ITFormsApprovalDashboard() {
   const [isDownloadingApprovedBackup, setIsDownloadingApprovedBackup] = useState(false)
 
   // ITD (IT Department) Department Head can act as IT Manager
-  const isITDepartmentHead = role === "department_head" && department?.toLowerCase().includes("it")
+  const isITDepartmentHead = role === "department_head" && isITDDepartment(department)
 
   const canUseHODDesk = ["department_head", "admin"].includes(role)
   const canUseOfficeUseDesk =
@@ -292,7 +293,7 @@ export function ITFormsApprovalDashboard() {
             <TabsTrigger value="request" className="px-3 text-xs">Requests</TabsTrigger>
             <TabsTrigger value="hod" disabled={!canUseHODDesk} className="px-3 text-xs">HOD</TabsTrigger>
             <TabsTrigger value="service-desk" disabled={!canUseOfficeUseDesk} className="px-3 text-xs">IT Office</TabsTrigger>
-            <TabsTrigger value="manager" disabled={!canUseManagerDesk} className="px-3 text-xs">Manager</TabsTrigger>
+            {canUseManagerDesk ? <TabsTrigger value="manager" className="px-3 text-xs">Manager</TabsTrigger> : null}
             <TabsTrigger value="password-work" disabled={!canUsePasswordWorkDesk} className="px-3 text-xs">Resets</TabsTrigger>
             <TabsTrigger value="hod-tracker" disabled={!canUseHODTracker} className="px-3 text-xs">Tracker</TabsTrigger>
             <TabsTrigger value="signature" disabled={!canUseSignatureDesk} className="px-3 text-xs">Signature</TabsTrigger>

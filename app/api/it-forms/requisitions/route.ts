@@ -256,7 +256,24 @@ export async function GET(request: NextRequest) {
       .order("created_at", { ascending: false })
 
     if (status && status !== "all") {
-      query = query.eq("status", status)
+      const requestedStatuses = status
+        .split(",")
+        .map((s) => s.trim())
+        .filter(Boolean)
+
+      const expandedStatuses = new Set<string>()
+      for (const requestedStatus of requestedStatuses) {
+        expandedStatuses.add(requestedStatus)
+        // Backward compatibility: older approvals used ready_for_issuance before pending_store.
+        if (requestedStatus === "pending_store") expandedStatuses.add("ready_for_issuance")
+        if (requestedStatus === "ready_for_issuance") expandedStatuses.add("pending_store")
+      }
+
+      if (expandedStatuses.size === 1) {
+        query = query.eq("status", Array.from(expandedStatuses)[0])
+      } else {
+        query = query.in("status", Array.from(expandedStatuses))
+      }
     }
 
     if (processedBy) {

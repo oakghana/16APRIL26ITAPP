@@ -61,6 +61,10 @@ export function normalizeDepartmentName(value?: string | null): string {
   return DEPARTMENT_ALIASES[canonical] || ""
 }
 
+export function isITDDepartment(value?: string | null): boolean {
+  return normalizeDepartmentName(value) === "ITD"
+}
+
 export function isAllowedDepartment(value?: string | null): boolean {
   return DEPARTMENT_OPTIONS.includes(normalizeDepartmentName(value) as (typeof DEPARTMENT_OPTIONS)[number])
 }

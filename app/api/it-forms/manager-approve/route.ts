@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from "next/server"
 import { createClient } from "@supabase/supabase-js"
+import { isITDDepartment } from "@/lib/department-options"
 
 type FormType = "new-gadget" | "maintenance"
 
@@ -17,7 +18,7 @@ function isAuthorizedManager(userRole: string, userDepartment: string) {
   return (
     userRole === "admin" ||
     userRole === "it_head" ||
-    (userRole === "department_head" && userDepartment?.toLowerCase().includes("it"))
+    (userRole === "department_head" && isITDDepartment(userDepartment))
   )
 }
 

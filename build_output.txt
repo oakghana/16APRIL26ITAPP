@@ -8,7 +8,7 @@
 
    Creating an optimized production build ...
 [baseline-browser-mapping] The data in this module is over two months old.  To ensure accurate Baseline data, please update: `npm i baseline-browser-mapping@latest -D`
- Γ£ô Compiled successfully in 58s
+ Γ£ô Compiled successfully in 25.3s
    Skipping validation of types
    Collecting page data using 11 workers ...
 [baseline-browser-mapping] The data in this module is over two months old.  To ensure accurate Baseline data, please update: `npm i baseline-browser-mapping@latest -D`
@@ -22,7 +22,7 @@
 [baseline-browser-mapping] The data in this module is over two months old.  To ensure accurate Baseline data, please update: `npm i baseline-browser-mapping@latest -D`
 [baseline-browser-mapping] The data in this module is over two months old.  To ensure accurate Baseline data, please update: `npm i baseline-browser-mapping@latest -D`
 [baseline-browser-mapping] The data in this module is over two months old.  To ensure accurate Baseline data, please update: `npm i baseline-browser-mapping@latest -D`
-   Generating static pages using 11 workers (0/231) ...
+   Generating static pages using 11 workers (0/251) ...
 [baseline-browser-mapping] The data in this module is over two months old.  To ensure accurate Baseline data, please update: `npm i baseline-browser-mapping@latest -D`
 [baseline-browser-mapping] The data in this module is over two months old.  To ensure accurate Baseline data, please update: `npm i baseline-browser-mapping@latest -D`
 [baseline-browser-mapping] The data in this module is over two months old.  To ensure accurate Baseline data, please update: `npm i baseline-browser-mapping@latest -D`
@@ -33,10 +33,11 @@
 [baseline-browser-mapping] The data in this module is over two months old.  To ensure accurate Baseline data, please update: `npm i baseline-browser-mapping@latest -D`
 [baseline-browser-mapping] The data in this module is over two months old.  To ensure accurate Baseline data, please update: `npm i baseline-browser-mapping@latest -D`
 [baseline-browser-mapping] The data in this module is over two months old.  To ensure accurate Baseline data, please update: `npm i baseline-browser-mapping@latest -D`
-   Generating static pages using 11 workers (57/231) 
-   Generating static pages using 11 workers (115/231) 
-   Generating static pages using 11 workers (173/231) 
- Γ£ô Generating static pages using 11 workers (231/231) in 11.5s
+[baseline-browser-mapping] The data in this module is over two months old.  To ensure accurate Baseline data, please update: `npm i baseline-browser-mapping@latest -D`
+   Generating static pages using 11 workers (62/251) 
+   Generating static pages using 11 workers (125/251) 
+   Generating static pages using 11 workers (188/251) 
+ Γ£ô Generating static pages using 11 workers (251/251) in 6.1s
    Finalizing page optimization ...
 
 Route (app)
@@ -97,6 +98,7 @@ Route (app)
 Γö£ ╞Æ /api/devices/department-devices
 Γö£ ╞Æ /api/devices/duplicates
 Γö£ ╞Æ /api/devices/location-summary
+Γö£ ╞Æ /api/devices/my-devices
 Γö£ ╞Æ /api/devices/reallocate-locations
 Γö£ ╞Æ /api/devices/summary-report
 Γö£ ╞Æ /api/devices/toner-intelligence
@@ -105,22 +107,33 @@ Route (app)
 Γö£ ╞Æ /api/devices/user-allocation-summary
 Γö£ ╞Æ /api/devices/validate-location
 Γö£ ╞Æ /api/investigate-vr
+Γö£ ╞Æ /api/it-forms/account-unlock
 Γö£ ╞Æ /api/it-forms/admin-clear
+Γö£ ╞Æ /api/it-forms/admin-records
 Γö£ ╞Æ /api/it-forms/approve
+Γö£ ╞Æ /api/it-forms/asset-transfer
 Γö£ ╞Æ /api/it-forms/department-head-approve
 Γö£ ╞Æ /api/it-forms/department-head-requisitions
+Γö£ ╞Æ /api/it-forms/dept-head-pending
 Γö£ ╞Æ /api/it-forms/hod-approval-tracker
+Γö£ ╞Æ /api/it-forms/hod-requests
 Γö£ ╞Æ /api/it-forms/issue
 Γö£ ╞Æ /api/it-forms/it-head-approve
 Γö£ ╞Æ /api/it-forms/maintenance-repairs
+Γö£ ╞Æ /api/it-forms/management-submission
 Γö£ ╞Æ /api/it-forms/manager-approve
+Γö£ ╞Æ /api/it-forms/my-all-requests
 Γö£ ╞Æ /api/it-forms/my-requisitions
 Γö£ ╞Æ /api/it-forms/new-gadget
+Γö£ ╞Æ /api/it-forms/offboarding
 Γö£ ╞Æ /api/it-forms/office-use-edit
+Γö£ ╞Æ /api/it-forms/onboarding
+Γö£ ╞Æ /api/it-forms/password-reset
 Γö£ ╞Æ /api/it-forms/requisitions
 Γö£ ╞Æ /api/it-forms/service-desk-process
 Γö£ ╞Æ /api/it-forms/signature-lookup
 Γö£ ╞Æ /api/it-forms/signature-profile
+Γö£ ╞Æ /api/it-forms/software-access
 Γö£ ╞Æ /api/it-forms/store-issue
 Γö£ ╞Æ /api/knowledge-base
 Γö£ ╞Æ /api/locations
@@ -166,6 +179,7 @@ Route (app)
 Γö£ ╞Æ /api/staff-members
 Γö£ ╞Æ /api/staff/department-members
 Γö£ ╞Æ /api/staff/list
+Γö£ ╞Æ /api/staff/my-hod
 Γö£ ╞Æ /api/staff/my-productivity
 Γö£ ╞Æ /api/staff/productivity-metrics
 Γö£ ╞Æ /api/store/add-stock
@@ -210,6 +224,7 @@ Route (app)
 Γö£ ╞Æ /api/users/list
 Γö£ ╞Æ /api/weekly-internet-reports
 Γö£ ╞Æ /api/weekly-internet-reports/regional-heads
+Γö£ Γùï /change-password
 Γö£ Γùï /create-account
 Γö£ Γùï /dashboard
 Γö£ Γùï /dashboard/admin
@@ -228,14 +243,20 @@ Route (app)
 Γö£ Γùï /dashboard/devices
 Γö£ Γùï /dashboard/help-guide
 Γö£ Γùï /dashboard/it-documents
+Γö£ Γùï /dashboard/it-forms/account-unlock
 Γö£ Γùï /dashboard/it-forms/approvals
+Γö£ Γùï /dashboard/it-forms/asset-transfer
 Γö£ Γùï /dashboard/it-forms/department-head-approvals
 Γö£ Γùï /dashboard/it-forms/equipment-requisition
 Γö£ Γùï /dashboard/it-forms/it-head-admin
 Γö£ Γùï /dashboard/it-forms/maintenance-repairs
 Γö£ Γùï /dashboard/it-forms/my-requisitions
 Γö£ Γùï /dashboard/it-forms/new-gadget
+Γö£ Γùï /dashboard/it-forms/offboarding
+Γö£ Γùï /dashboard/it-forms/onboarding
+Γö£ Γùï /dashboard/it-forms/password-reset
 Γö£ Γùï /dashboard/it-forms/service-desk
+Γö£ Γùï /dashboard/it-forms/software-access
 Γö£ Γùï /dashboard/it-forms/store-issuance
 Γö£ Γùï /dashboard/it-reports
 Γö£ Γùï /dashboard/it-staff-status

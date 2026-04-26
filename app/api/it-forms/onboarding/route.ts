@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from "next/server"
 import { createClient } from "@supabase/supabase-js"
-import { normalizeDepartmentName } from "@/lib/department-options"
+import { normalizeDepartmentName, isITDDepartment } from "@/lib/department-options"
 import { sendItFormEmail } from "@/lib/it-form-email"
 import { generateITFormDeptHeadRequestHTML, generateITFormCompletionHTML } from "@/lib/email-service"
 
@@ -17,7 +17,7 @@ function isUuid(v?: string | null) {
 }
 function canManageAsIT(role?: string | null, dept?: string | null) {
   const r = (role || "").toLowerCase()
-  return r === "admin" || r === "it_head" || (r === "department_head" && (dept || "").toLowerCase().includes("it"))
+  return r === "admin" || r === "it_head" || (r === "department_head" && isITDDepartment(dept))
 }
 function canWork(role?: string | null, dept?: string | null) {
   const r = (role || "").toLowerCase()

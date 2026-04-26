@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from "next/server"
 import { createClient } from "@supabase/supabase-js"
 import { isLocationInSameRegion, normalizeLocation } from "@/lib/location-filter"
-import { normalizeDepartmentName } from "@/lib/department-options"
+import { normalizeDepartmentName, isITDDepartment } from "@/lib/department-options"
 
 const supabaseAdmin = createClient(
   process.env.NEXT_PUBLIC_SUPABASE_URL || "https://example.supabase.co",
@@ -29,7 +29,7 @@ function normalizeText(value?: string | null) {
 function canManageAsIT(role?: string | null, department?: string | null) {
   const normalizedRole = normalizeText(role)
   if (normalizedRole === "admin" || normalizedRole === "it_head") return true
-  return normalizedRole === "department_head" && normalizeText(department).includes("it")
+  return normalizedRole === "department_head" && isITDDepartment(department)
 }
 
 function canSeeNationwide(role?: string | null, location?: string | null) {
@@ -43,7 +43,7 @@ function canSeeNationwide(role?: string | null, location?: string | null) {
 function canWorkPasswordResets(role?: string | null, department?: string | null) {
   const normalizedRole = normalizeText(role)
   if (["admin", "it_head", "it_staff", "regional_it_head"].includes(normalizedRole)) return true
-  return normalizedRole === "department_head" && normalizeText(department).includes("it")
+  return normalizedRole === "department_head" && isITDDepartment(department)
 }
 
 async function generateNextSequentialNumber() {

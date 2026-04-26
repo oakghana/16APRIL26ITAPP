@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from "next/server"
 import { createClient } from "@supabase/supabase-js"
+import { isITDDepartment } from "@/lib/department-options"
 
 const supabaseAdmin = createClient(
   (process.env.NEXT_PUBLIC_SUPABASE_URL ?? "https://placeholder.supabase.co"),
@@ -26,7 +27,7 @@ function isAuthorizedForRole(approverRole: string | undefined, userRole: string,
     // Allow admin, it_head, or department_head from IT department
     return userRole === "admin" || 
            userRole === "it_head" || 
-           (userRole === "department_head" && userDepartment?.toLowerCase().includes("it"))
+           (userRole === "department_head" && isITDDepartment(userDepartment))
   }
   return false
 }

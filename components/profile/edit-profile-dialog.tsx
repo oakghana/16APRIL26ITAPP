@@ -7,6 +7,7 @@ import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } f
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
+import { Separator } from '@/components/ui/separator'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
 import { useToast } from '@/hooks/use-toast'
 import { useAuth } from '@/lib/auth-context'
@@ -22,6 +23,7 @@ export function EditProfileDialog({ isOpen, onClose, onSuccess }: EditProfileDia
   const { user, refreshUser } = useAuth()
   const { toast } = useToast()
   const [loading, setLoading] = useState(false)
+  const [changingPassword, setChangingPassword] = useState(false)
   const [formData, setFormData] = useState({
     full_name: user?.full_name || '',
     phone: user?.phone || '',
@@ -29,6 +31,8 @@ export function EditProfileDialog({ isOpen, onClose, onSuccess }: EditProfileDia
     department: user?.department || '',
     location: user?.location || '',
   })
+  const [newPassword, setNewPassword] = useState('')
+  const [confirmPassword, setConfirmPassword] = useState('')
 
   const handleChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const { name, value } = e.target
@@ -59,14 +63,60 @@ export function EditProfileDialog({ isOpen, onClose, onSuccess }: EditProfileDia
       }
 
       await refreshUser()
-      toast.success('Profile updated successfully')
+      toast({ title: 'Success', description: 'Profile updated successfully' })
       onSuccess?.()
       onClose()
     } catch (error) {
       console.error('[v0] Error updating profile:', error)
-      toast.error('Failed to update profile')
+      toast({ title: 'Update failed', description: 'Failed to update profile', variant: 'destructive' })
     } finally {
       setLoading(false)
+    }
+  }
+
+  const handlePasswordChange = async () => {
+    if (!user?.username) {
+      toast({ title: 'Unable to change password', description: 'User account is missing username.', variant: 'destructive' })
+      return
+    }
+
+    if (newPassword.length < 8) {
+      toast({ title: 'Password too short', description: 'Password must be at least 8 characters long.', variant: 'destructive' })
+      return
+    }
+
+    if (newPassword !== confirmPassword) {
+      toast({ title: 'Password mismatch', description: 'New password and confirmation do not match.', variant: 'destructive' })
+      return
+    }
+
+    setChangingPassword(true)
+    try {
+      const response = await fetch('/api/auth/change-password', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          username: user.username,
+          newPassword,
+        }),
+      })
+
+      const data = await response.json()
+      if (!response.ok) {
+        throw new Error(data.error || 'Failed to change password')
+      }
+
+      setNewPassword('')
+      setConfirmPassword('')
+      toast({ title: 'Password updated', description: 'Your password has been changed successfully.' })
+    } catch (error: any) {
+      toast({
+        title: 'Password update failed',
+        description: error?.message || 'Failed to change password',
+        variant: 'destructive',
+      })
+    } finally {
+      setChangingPassword(false)
     }
   }
 
@@ -148,11 +198,51 @@ export function EditProfileDialog({ isOpen, onClose, onSuccess }: EditProfileDia
             </Select>
           </div>
 
+          <Separator />
+
+          <div className="space-y-3">
+            <p className="text-sm font-medium">Change Password</p>
+            <div>
+              <Label htmlFor="new_password">New Password</Label>
+              <Input
+                id="new_password"
+                type="password"
+                value={newPassword}
+                onChange={(e) => setNewPassword(e.target.value)}
+                placeholder="Enter new password"
+                minLength={8}
+              />
+            </div>
+            <div>
+              <Label htmlFor="confirm_password">Confirm New Password</Label>
+              <Input
+                id="confirm_password"
+                type="password"
+                value={confirmPassword}
+                onChange={(e) => setConfirmPassword(e.target.value)}
+                placeholder="Confirm new password"
+                minLength={8}
+              />
+            </div>
+            <div className="flex justify-end">
+              <Button
+                type="button"
+                variant="secondary"
+                onClick={handlePasswordChange}
+                disabled={changingPassword || !newPassword || !confirmPassword}
+                className="gap-2"
+              >
+                {changingPassword && <Loader2 className="h-4 w-4 animate-spin" />}
+                Update Password
+              </Button>
+            </div>
+          </div>
+
           <div className="flex gap-2 justify-end pt-4">
-            <Button variant="outline" onClick={onClose} disabled={loading}>
+            <Button type="button" variant="outline" onClick={onClose} disabled={loading || changingPassword}>
               Cancel
             </Button>
-            <Button type="submit" disabled={loading} className="gap-2">
+            <Button type="submit" disabled={loading || changingPassword} className="gap-2">
               {loading && <Loader2 className="h-4 w-4 animate-spin" />}
               Save Changes
             </Button>

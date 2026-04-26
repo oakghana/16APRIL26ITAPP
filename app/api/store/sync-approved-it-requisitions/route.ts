@@ -71,7 +71,7 @@ export async function POST(request: NextRequest) {
     const { data: approvedRequisitions, error: requisitionsError } = await supabaseAdmin
       .from("it_equipment_requisitions")
       .select("*")
-      .eq("status", "ready_for_issuance")
+      .in("status", ["pending_store", "ready_for_issuance"])
       .order("created_at", { ascending: false })
 
     if (requisitionsError) {

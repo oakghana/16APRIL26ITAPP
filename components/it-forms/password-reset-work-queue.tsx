@@ -20,6 +20,7 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import { useAuth } from "@/lib/auth-context"
 import { useToast } from "@/hooks/use-toast"
 import { formatDisplayDateTime } from "@/lib/utils"
+import { isITDDepartment } from "@/lib/department-options"
 
 type PasswordResetRequest = {
   id: string
@@ -54,13 +55,13 @@ export function PasswordResetWorkQueue() {
 
   const canUse = useMemo(() => {
     const role = user?.role || ""
-    const isITDeptHead = role === "department_head" && (user?.department || "").toLowerCase().includes("it")
+    const isITDeptHead = role === "department_head" && isITDDepartment(user?.department)
     return ["admin", "it_head", "it_staff", "regional_it_head"].includes(role) || isITDeptHead
   }, [user?.role, user?.department])
 
   const canManageQueue = useMemo(() => {
     const role = user?.role || ""
-    const isITDeptHead = role === "department_head" && (user?.department || "").toLowerCase().includes("it")
+    const isITDeptHead = role === "department_head" && isITDDepartment(user?.department)
     return ["admin", "it_head"].includes(role) || isITDeptHead
   }, [user?.role, user?.department])
 

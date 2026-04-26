@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from "next/server"
 import { createClient } from "@supabase/supabase-js"
+import { isITDDepartment } from "@/lib/department-options"
 
 const supabaseAdmin = createClient(
   process.env.NEXT_PUBLIC_SUPABASE_URL || "https://placeholder.supabase.co",
@@ -32,7 +33,7 @@ export async function GET(request: NextRequest) {
 
     // For department_head, check if they're IT Manager (IT department head)
     let queryRole = role
-    if (role === "department_head" && department && department.toLowerCase().includes("it")) {
+    if (role === "department_head" && isITDDepartment(department)) {
       queryRole = "it_manager"
     }
 
@@ -67,7 +68,7 @@ export async function PUT(request: NextRequest) {
 
     // For department_head, check if they're IT Manager (IT department head)
     let storageRole = role
-    if (role === "department_head" && department && department.toLowerCase().includes("it")) {
+    if (role === "department_head" && isITDDepartment(department)) {
       storageRole = "it_manager"
     }
 

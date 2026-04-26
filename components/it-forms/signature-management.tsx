@@ -11,6 +11,7 @@ import { useAuth } from "@/lib/auth-context"
 import { Loader2, PenLine, Save, RefreshCw, Upload, ImagePlus } from "lucide-react"
 import { useToast } from "@/hooks/use-toast"
 import { formatDisplayDateTime } from "@/lib/utils"
+import { isITDDepartment } from "@/lib/department-options"
 
 type SignatureProfile = {
   id: string
@@ -32,7 +33,7 @@ export function SignatureManagementPanel() {
   const fileInputRef = useRef<HTMLInputElement>(null)
 
   const canManage = ["admin", "department_head", "it_head", "regional_it_head"].includes(user?.role || "")
-  const isITManager = user?.role === "department_head" && user?.department?.toLowerCase().includes("it")
+  const isITManager = user?.role === "department_head" && isITDDepartment(user?.department)
   
   const roleLabel = isITManager
     ? "IT Manager"

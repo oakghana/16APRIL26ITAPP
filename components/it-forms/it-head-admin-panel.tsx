@@ -24,6 +24,7 @@ import { ApprovalTracker } from "./approval-tracker"
 import { SignaturePad } from "@/components/ui/signature-pad"
 import { exportITFormPDF, openITFormPrintView } from "@/lib/export-utils"
 import { formatDisplayDate } from "@/lib/utils"
+import { isITDDepartment } from "@/lib/department-options"
 
 type FormType =
   | "requisition"
@@ -353,7 +354,7 @@ export function ITHeadAdminPanel() {
     let filtered = requisitions
 
     // ITD Department Head can see pending_it_head forms
-    const isITDepartmentHead = user?.role === "department_head" && user?.department?.toLowerCase().includes("it")
+    const isITDepartmentHead = user?.role === "department_head" && isITDDepartment(user?.department)
     const isPendingForManager = (req: ITRequisition) =>
       req.formType === "requisition"
         ? req.status === "pending_it_head" && !req.it_head_approved

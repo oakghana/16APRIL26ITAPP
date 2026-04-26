@@ -333,7 +333,7 @@ export function RequisitionManagement() {
   const loadApprovedItRequisitions = async () => {
     setApprovedItLoading(true)
     try {
-      const response = await fetch("/api/it-forms/requisitions?status=pending_store")
+      const response = await fetch("/api/it-forms/requisitions?status=pending_store,ready_for_issuance")
       const data = await response.json()
       setApprovedItReqs(data.requisitions || [])
     } catch (err) {
@@ -1590,6 +1590,7 @@ export function RequisitionManagement() {
             <div className="space-y-3">
               {approvedItReqs.map((req: any) => {
                 const isHO = isHeadOfficeReq(req)
+                const isLegacyReady = req.status === "ready_for_issuance"
                 return (
                   <div key={req.id} className="border rounded-lg p-4 space-y-2">
                     <div className="flex items-start justify-between gap-4">
@@ -1598,6 +1599,9 @@ export function RequisitionManagement() {
                           <span className="font-semibold text-sm">{req.requisition_number}</span>
                           <Badge variant={isHO ? "default" : "secondary"} className="text-xs">
                             {isHO ? "Head Office" : (req.requester_location || req.location || "Regional")}
+                          </Badge>
+                          <Badge variant="outline" className="text-xs">
+                            {isLegacyReady ? "Legacy: Ready for Issuance" : "Workflow: Pending Store"}
                           </Badge>
                         </div>
                         <p className="text-sm">
