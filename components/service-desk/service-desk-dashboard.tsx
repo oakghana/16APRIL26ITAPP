@@ -6,7 +6,8 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import { Badge } from "@/components/ui/badge"
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from "@/components/ui/dialog"
-import { Plus, Clock, AlertTriangle, Ticket, MapPin, Monitor, Wifi, Smartphone, Printer, UserPlus, Eye, CheckCircle, User, Calendar, FileText, Trash2, UserCheck, Loader2, Repeat2, Pause } from "lucide-react"
+import { Plus, Clock, AlertTriangle, Ticket, MapPin, Monitor, Wifi, Smartphone, Printer, UserPlus, Eye, CheckCircle, User, Calendar, FileText, Trash2, UserCheck, Loader2, Repeat2, Pause, Droplets } from "lucide-react"
+import { MyDeviceTonerPanel } from "@/components/devices/my-device-toner-panel"
 import { NewTicketForm } from "./new-ticket-form"
 import { KnowledgeBase } from "./knowledge-base"
 import { AssignTicketDialog } from "./assign-ticket-dialog"
@@ -495,6 +496,10 @@ export function ServiceDeskDashboard() {
             <CheckCircle className="h-4 w-4 mr-1" />
             Closed ({stats.resolved})
           </TabsTrigger>
+          <TabsTrigger value="my-devices" className="flex items-center gap-1">
+            <Droplets className="h-4 w-4" />
+            My Devices & Toner
+          </TabsTrigger>
           <TabsTrigger value="knowledge">Knowledge Base</TabsTrigger>
         </TabsList>
 
@@ -910,6 +915,10 @@ export function ServiceDeskDashboard() {
               )}
             </CardContent>
           </Card>
+        </TabsContent>
+
+        <TabsContent value="my-devices" className="space-y-4">
+          <MyDeviceTonerPanel />
         </TabsContent>
 
         <TabsContent value="knowledge">

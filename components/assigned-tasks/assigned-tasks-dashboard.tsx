@@ -24,7 +24,9 @@ import {
   Search,
   Download,
   Loader2,
+  Droplets,
 } from "lucide-react"
+import { MyDeviceTonerPanel } from "@/components/devices/my-device-toner-panel"
 import { useAuth } from "@/lib/auth-context"
 import { supabase } from "@/lib/supabase"
 import { useToast } from "@/hooks/use-toast"
@@ -590,7 +592,7 @@ export function AssignedTasksDashboard() {
       </Card>
 
       <Tabs value={activeTab} onValueChange={setActiveTab}>
-        <TabsList className="grid w-full grid-cols-3">
+        <TabsList className="grid w-full grid-cols-4">
           <TabsTrigger value="all" className="flex items-center gap-2">
             <Filter className="h-4 w-4" />
             All Tasks ({stats.total})
@@ -603,7 +605,15 @@ export function AssignedTasksDashboard() {
             <Headphones className="h-4 w-4" />
             Service Desk ({stats.byType.service_desk})
           </TabsTrigger>
+          <TabsTrigger value="my-devices" className="flex items-center gap-2">
+            <Droplets className="h-4 w-4" />
+            My Devices
+          </TabsTrigger>
         </TabsList>
+
+        <TabsContent value="my-devices" className="space-y-4 mt-6">
+          <MyDeviceTonerPanel />
+        </TabsContent>
 
         <TabsContent value={activeTab} className="space-y-4 mt-6">
           {loading ? (

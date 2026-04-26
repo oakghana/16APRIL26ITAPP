@@ -295,6 +295,11 @@ export function DeviceTonerIntelligence() {
 
   useEffect(() => {
     loadData()
+    // Auto-refresh every 60 s so newly associated toners appear in the dropdown without a manual reload
+    const interval = setInterval(() => {
+      loadData()
+    }, 60_000)
+    return () => clearInterval(interval)
   }, [loadData])
 
   useEffect(() => {
