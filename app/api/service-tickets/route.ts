@@ -14,15 +14,42 @@ export async function GET(request: NextRequest) {
     const location = searchParams.get("location") || ""
     const canSeeAll = searchParams.get("canSeeAll") === "true"
     const userId = searchParams.get("userId")
+    const userName = searchParams.get("userName") || ""
+    const userEmail = searchParams.get("userEmail") || ""
     const userRole = searchParams.get("userRole")
+    const normalizedLocation = location.toLowerCase().trim()
+    const normalizedUserName = userName.toLowerCase().trim()
+    const normalizedUserEmail = userEmail.toLowerCase().trim()
 
     console.log("[v0] API Service Tickets - location:", location, "canSeeAll:", canSeeAll, "role:", userRole)
 
-    // Fetch all tickets first, then filter in memory for reliability
-    const { data, error } = await supabaseAdmin
+    // Start with the minimum payload needed by the dashboard to keep responses fast.
+    let query = supabaseAdmin
       .from("service_tickets")
-      .select("*")
+      .select("id,ticket_number,title,category,priority,status,location,requested_by,requester_department,requester_room_number,requester_room,created_at,assigned_to,assigned_to_name")
       .order("created_at", { ascending: false })
+      .limit(1000)
+
+    // Apply coarse filters in SQL first to avoid loading the entire table.
+    if (userRole === "user" || userRole === "staff") {
+      if (userId) {
+        query = query.or(`requested_by.eq.${userId},assigned_to.eq.${userId}`)
+      }
+    } else if ((userRole === "regional_it_head" || userRole === "service_desk_head") && normalizedLocation) {
+      if (userId) {
+        query = query.or(`location.ilike.%${normalizedLocation}%,assigned_to.eq.${userId}`)
+      } else {
+        query = query.ilike("location", `%${normalizedLocation}%`)
+      }
+    } else if (!canSeeAll && normalizedLocation) {
+      if (userId) {
+        query = query.or(`location.ilike.%${normalizedLocation}%,assigned_to.eq.${userId}`)
+      } else {
+        query = query.ilike("location", `%${normalizedLocation}%`)
+      }
+    }
+
+    const { data, error } = await query
 
     if (error) {
       console.error("[v0] Error loading service tickets:", error)
@@ -34,18 +61,24 @@ export async function GET(request: NextRequest) {
     // Apply filters based on user role
     if (userRole === "user" || userRole === "staff") {
       // Regular users only see their own tickets
-      if (userId) {
-        filteredData = filteredData.filter(t => 
-          t.requested_by?.toLowerCase() === userId.toLowerCase()
+      filteredData = filteredData.filter((t) => {
+        const requestedBy = (t.requested_by || "").toLowerCase().trim()
+        const assignedToMe = userId && (t.assigned_to || "").toLowerCase() === userId.toLowerCase()
+
+        return (
+          Boolean(assignedToMe) ||
+          (userId ? requestedBy === userId.toLowerCase() : false) ||
+          (normalizedUserName ? requestedBy === normalizedUserName : false) ||
+          (normalizedUserEmail ? requestedBy === normalizedUserEmail : false)
         )
-      }
+      })
     } else if (userRole === "admin" || userRole === "it_head") {
       // Admin and IT Head see all tickets - no filter
       console.log("[v0] Admin/IT Head - showing all tickets")
     } else if (userRole === "regional_it_head" || userRole === "service_desk_head") {
       // Regional IT Head and Service Desk Head see tickets from their region/location
       // They should see tickets matching their location or locations in the same region
-      const loc = location.toLowerCase().trim()
+      const loc = normalizedLocation
 
       if (loc) {
         filteredData = filteredData.filter(t => {
@@ -61,7 +94,7 @@ export async function GET(request: NextRequest) {
       console.log("[v0] Regional/Service Desk Head - filtered to", filteredData.length, "tickets for", location)
     } else if (!canSeeAll && location) {
       // Other IT staff see tickets for their specific location
-      const loc = location.toLowerCase().trim()
+      const loc = normalizedLocation
       filteredData = filteredData.filter(t => {
         const ticketLoc = (t.location || "").toLowerCase().trim()
         const assignedToMe = userId && t.assigned_to?.toLowerCase() === userId.toLowerCase()

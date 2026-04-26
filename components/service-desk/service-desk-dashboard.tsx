@@ -1,6 +1,6 @@
 "use client"
 
-import { useState, useEffect, useMemo } from "react"
+import { useState, useEffect, useMemo, useCallback } from "react"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
@@ -50,6 +50,7 @@ export function ServiceDeskDashboard() {
   const [selectedTicketForCompletion, setSelectedTicketForCompletion] = useState<any>(null)
   const [isStaffSubmitting, setIsStaffSubmitting] = useState(false)
   const [itStaffList, setItStaffList] = useState<any[]>([])
+  const canSeeAllLocations = canViewAllLocations()
 
   // Check if user can assign tickets (IT Head, Regional IT Head, Admin)
   const canAssignTickets = () => {
@@ -86,32 +87,40 @@ export function ServiceDeskDashboard() {
     }
   }
 
-  useEffect(() => {
-    loadTickets()
-    loadITStaff()
-  }, [])
+  const loadTickets = useCallback(async () => {
+    if (!user?.id) return
+    const controller = new AbortController()
+    const timeoutId = setTimeout(() => controller.abort(), 15000)
 
-  const loadTickets = async () => {
     try {
       setLoading(true)
       const location = getUserLocation() || ""
-      const canSeeAll = canViewAllLocations()
 
-      console.log("[v0] Loading tickets via API for user:", user?.role, "location:", location, "canSeeAll:", canSeeAll)
+      console.log("[v0] Loading tickets via API for user:", user?.role, "location:", location, "canSeeAll:", canSeeAllLocations)
 
-      // Use API endpoint that bypasses RLS
       const params = new URLSearchParams({
         location: location,
-        canSeeAll: String(canSeeAll),
+        canSeeAll: String(canSeeAllLocations),
         userRole: user?.role || "",
         userId: user?.id || "",
+        userName: user?.full_name || user?.name || "",
+        userEmail: user?.email || "",
       })
 
-      const response = await fetch(`/api/service-tickets?${params}`)
+      const response = await fetch(`/api/service-tickets?${params}`, {
+        cache: "no-store",
+        signal: controller.signal,
+      })
       const result = await response.json()
 
       if (!response.ok) {
         console.error("[v0] Error loading tickets:", result.error)
+        toast({
+          title: "Could not load tickets",
+          description: result.error || "Please try again.",
+          variant: "destructive",
+        })
+        setAllTickets([])
         return
       }
 
@@ -138,12 +147,29 @@ export function ServiceDeskDashboard() {
       setAllTickets(mappedTickets)
     } catch (error) {
       console.error("[v0] Error loading tickets:", error)
+
+      const message = error instanceof Error && error.name === "AbortError"
+        ? "Ticket loading timed out. Please refresh."
+        : "Network error while loading tickets."
+
+      toast({
+        title: "Service Desk Unavailable",
+        description: message,
+        variant: "destructive",
+      })
+      setAllTickets([])
     } finally {
+      clearTimeout(timeoutId)
       setLoading(false)
     }
-  }
+  }, [user?.id, user?.role, user?.full_name, user?.name, user?.email, getUserLocation, canSeeAllLocations, toast])
 
-  const loadITStaff = async () => {
+  const loadITStaff = useCallback(async () => {
+    if (!user?.id || !canAssignTickets()) {
+      setItStaffList([])
+      return
+    }
+
     try {
       const response = await fetch("/api/staff-members?roles=it_staff,it_technician,service_desk_head,regional_it_head&onlyActive=true")
       
@@ -159,7 +185,13 @@ export function ServiceDeskDashboard() {
     } catch (error) {
       console.error("[v0] Error loading IT staff:", error)
     }
-  }
+  }, [user?.id, user?.role])
+
+  useEffect(() => {
+    if (!user?.id) return
+    loadTickets()
+    loadITStaff()
+  }, [user?.id, user?.role, user?.location, loadTickets, loadITStaff])
 
   // Handle ticket assignment
   const handleAssignTicket = async (assignment: any) => {
@@ -328,7 +360,7 @@ export function ServiceDeskDashboard() {
     let tickets = allTickets
     
     // Filter by location
-    if (selectedLocation !== 'all' && canViewAllLocations()) {
+    if (selectedLocation !== 'all' && canSeeAllLocations) {
       tickets = tickets.filter(t => t.location === selectedLocation)
     }
 
@@ -340,7 +372,7 @@ export function ServiceDeskDashboard() {
     }
 
     return tickets
-  }, [allTickets, selectedLocation, activeTab, canViewAllLocations()])
+  }, [allTickets, selectedLocation, activeTab, canSeeAllLocations])
 
   // Pagination
   const paginatedTickets = useMemo(() => {
@@ -351,14 +383,26 @@ export function ServiceDeskDashboard() {
 
   const totalPages = Math.ceil(filteredTickets.length / ticketsPerPage)
 
-  const stats = {
-    totalTickets: filteredTickets.length,
-    openTickets: filteredTickets.filter((t) => isOpenStatus(t.status)).length,
-    inProgress: filteredTickets.filter((t) => isInProgressStatus(t.status)).length,
-    resolved: filteredTickets.filter((t) => isResolvedStatus(t.status)).length,
-    avgResolutionTime: "2.3 hours",
-    satisfaction: "94%",
-  }
+  const stats = useMemo(() => {
+    let openTickets = 0
+    let inProgress = 0
+    let resolved = 0
+
+    for (const t of filteredTickets) {
+      if (isOpenStatus(t.status)) openTickets++
+      else if (isInProgressStatus(t.status)) inProgress++
+      else if (isResolvedStatus(t.status)) resolved++
+    }
+
+    return {
+      totalTickets: filteredTickets.length,
+      openTickets,
+      inProgress,
+      resolved,
+      avgResolutionTime: "2.3 hours",
+      satisfaction: "94%",
+    }
+  }, [filteredTickets])
 
   // Get closed/resolved tickets
   const closedTickets = filteredTickets.filter(t => isResolvedStatus(t.status))
@@ -520,7 +564,7 @@ export function ServiceDeskDashboard() {
               </div>
 
               {/* Location Filter */}
-              {canViewAllLocations() && availableLocations.length > 0 && (
+              {canSeeAllLocations && availableLocations.length > 0 && (
                 <div className="mt-4 pt-4 border-t">
                   <div className="flex items-center gap-2 flex-wrap">
                     <span className="text-sm font-medium">Filter by Location:</span>
