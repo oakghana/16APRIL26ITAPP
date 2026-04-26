@@ -128,6 +128,7 @@ export async function GET(request: NextRequest) {
     const officeUseLocation = searchParams.get("officeUseLocation")
     const officeUseRole = searchParams.get("officeUseRole")
     const processedBy = searchParams.get("processedBy")
+    const processedById = searchParams.get("processedById")
 
     console.log("[maintenance-repairs] Loading maintenance requests:", { status, department })
 
@@ -148,7 +149,9 @@ export async function GET(request: NextRequest) {
       query = query.eq("staff_name", staffName)
     }
 
-    if (processedBy) {
+    if (processedById && /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(processedById)) {
+      query = query.eq("confirmed_by", processedById)
+    } else if (processedBy) {
       query = query.eq("confirmed_by", processedBy)
     }
 

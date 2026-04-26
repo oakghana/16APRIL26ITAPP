@@ -204,6 +204,9 @@ export function ITServiceDeskProcessingPanel() {
       if (user?.role !== "admin") {
         const processedByName = user.full_name || user.email || ""
         params.set("processedBy", processedByName)
+        if (user?.id) {
+          params.set("processedById", user.id)
+        }
       }
 
       const [reqRes, gadgetRes, maintRes] = await Promise.all([
@@ -560,9 +563,13 @@ export function ITServiceDeskProcessingPanel() {
 
     setIsSubmitting(true)
     try {
+      const controller = new AbortController()
+      const timeout = setTimeout(() => controller.abort(), 15000)
+
       const response = await fetch("/api/it-forms/service-desk-process", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
+        signal: controller.signal,
         body: JSON.stringify({
           requisitionId: selectedRequisition.id,
           formType: selectedRequisition.formType,
@@ -574,6 +581,8 @@ export function ITServiceDeskProcessingPanel() {
           notes: processingNotes,
         }),
       })
+
+      clearTimeout(timeout)
 
       const data = await response.json()
 
@@ -594,7 +603,7 @@ export function ITServiceDeskProcessingPanel() {
       console.error("[v0] Error processing request:", error)
       toast({
         title: "Error",
-        description: error.message || "Failed to process request",
+        description: error?.name === "AbortError" ? "Request timed out. Please try again." : (error.message || "Failed to process request"),
         variant: "destructive",
       })
     } finally {

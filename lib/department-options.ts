@@ -65,6 +65,16 @@ export function isITDDepartment(value?: string | null): boolean {
   return normalizeDepartmentName(value) === "ITD"
 }
 
+export function isStrictITDDepartment(value?: string | null): boolean {
+  const normalized = String(value || "")
+    .toUpperCase()
+    .replace(/[._-]+/g, " ")
+    .replace(/\s+/g, " ")
+    .trim()
+
+  return normalized === "ITD"
+}
+
 export function isAllowedDepartment(value?: string | null): boolean {
   return DEPARTMENT_OPTIONS.includes(normalizeDepartmentName(value) as (typeof DEPARTMENT_OPTIONS)[number])
 }

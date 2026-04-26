@@ -9,7 +9,7 @@ import { Badge } from "@/components/ui/badge"
 import { useAuth } from "@/lib/auth-context"
 import { Laptop, Wrench, ClipboardList, ShieldCheck, Lock, ArrowRight, Users, Loader2, Trash2, LockKeyhole, UserPlus, UserMinus, KeySquare, ArrowLeftRight } from "lucide-react"
 import { useToast } from "@/hooks/use-toast"
-import { isITDDepartment } from "@/lib/department-options"
+import { isStrictITDDepartment } from "@/lib/department-options"
 import { isHeadOfficeOrAccraLocation } from "@/lib/location-filter"
 import { DepartmentHeadApprovalModule } from "./department-head-approval"
 import { ITServiceDeskProcessingPanel } from "./service-desk-processing"
@@ -88,7 +88,7 @@ export function ITFormsApprovalDashboard() {
   // ITD (IT Department) Department Head can act as IT Manager
   const isITDepartmentHead =
     effectiveRole === "department_head" &&
-    isITDDepartment(effectiveDepartment) &&
+    isStrictITDDepartment(effectiveDepartment) &&
     isHeadOfficeOrAccraLocation(effectiveLocation)
 
   const canUseHODDesk = ["department_head", "admin"].includes(effectiveRole)

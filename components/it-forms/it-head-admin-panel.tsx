@@ -194,14 +194,46 @@ export function ITHeadAdminPanel() {
       const response = await fetch(`${endpoint}?${params.toString()}`)
       const data = await response.json()
       if (!response.ok) throw new Error(data.error || "Failed to load assignees")
-      const options = (data.assignees || []) as AssigneeOption[]
+      let options = (data.assignees || []) as AssigneeOption[]
+
+      if (options.length === 0) {
+        const fallbackParams = new URLSearchParams({
+          role: "staff_roles",
+          userRole: user.role || "",
+          location: user.location || "all",
+        })
+        const fallbackRes = await fetch(`/api/staff/list?${fallbackParams.toString()}`)
+        const fallbackData = await fallbackRes.json()
+        if (fallbackRes.ok) {
+          options = (fallbackData.staff || []).map((staff: any) => ({
+            id: staff.id,
+            full_name: staff.name,
+            email: staff.email,
+            role: staff.role,
+            location: staff.location,
+          }))
+        }
+      }
+
       setAssignees(options)
       if (options.length > 0) {
         setSelectedAssigneeId((prev) => prev || options[0].id)
       }
+      if (options.length === 0) {
+        toast({
+          title: "No IT staff available",
+          description: "No assignees were returned for your role/location.",
+          variant: "destructive",
+        })
+      }
     } catch {
       setAssignees([])
       setSelectedAssigneeId("")
+      toast({
+        title: "Failed to load assignees",
+        description: "Please refresh and try again.",
+        variant: "destructive",
+      })
     } finally {
       setLoadingAssignees(false)
     }
@@ -566,6 +598,22 @@ export function ITHeadAdminPanel() {
       ]
     }
 
+    const managerApprovedRequisition =
+      req.it_head_approved === true ||
+      Boolean(req.it_head_approved_at) ||
+      Boolean(req.it_head_approved_by) ||
+      Boolean(req.it_manager_approved_at) ||
+      Boolean(req.it_manager_approved_by) ||
+      req.status === "pending_store" ||
+      req.status === "pending_regional_store" ||
+      req.status === "approved" ||
+      req.status === "issued" ||
+      req.status === "completed"
+
+    const managerRejectedRequisition =
+      req.status === "rejected_it_head" ||
+      req.status === "rejected_admin"
+
     return [
       {
         stage: "Department Head Review",
@@ -585,11 +633,11 @@ export function ITHeadAdminPanel() {
       {
         stage: "IT Head Review",
         role: "IT Head",
-        status: req.it_head_approved ? "completed" : req.it_head_notes ? "rejected" : "pending",
-        approver: req.it_head_approved_by,
-        timestamp: req.it_head_approved_at,
+        status: managerRejectedRequisition ? "rejected" : managerApprovedRequisition ? "completed" : "pending",
+        approver: req.it_head_approved_by || req.it_manager_approved_by,
+        timestamp: req.it_head_approved_at || req.it_manager_approved_at,
         notes: req.it_head_notes,
-        signatureDataUrl: req.it_head_signature,
+        signatureDataUrl: req.it_head_signature || req.it_manager_signature,
       },
       {
         stage: "Store Head Issuance",

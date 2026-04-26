@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from "next/server"
 import { createClient } from "@supabase/supabase-js"
-import { isITDDepartment } from "@/lib/department-options"
+import { isStrictITDDepartment } from "@/lib/department-options"
 import { isHeadOfficeOrAccraLocation } from "@/lib/location-filter"
 
 type FormType = "new-gadget" | "maintenance"
@@ -16,7 +16,7 @@ function isUuidLike(value?: string | null) {
 }
 
 function isAuthorizedManager(userRole: string, userDepartment: string, userLocation: string) {
-  return userRole === "admin" || (userRole === "department_head" && isITDDepartment(userDepartment) && isHeadOfficeOrAccraLocation(userLocation))
+  return userRole === "admin" || (userRole === "department_head" && isStrictITDDepartment(userDepartment) && isHeadOfficeOrAccraLocation(userLocation))
 }
 
 const FORM_CONFIG: Record<FormType, { table: string; numberField: string; relatedType: string }> = {
@@ -44,7 +44,21 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: "Invalid action" }, { status: 400 })
     }
 
-    if (!isAuthorizedManager(userRole || "", userDepartment || "", userLocation || "")) {
+    if (!isUuidLike(approvedById)) {
+      return NextResponse.json({ error: "Missing or invalid approver identity" }, { status: 400 })
+    }
+
+    const { data: actorProfile } = await supabaseAdmin
+      .from("profiles")
+      .select("id, full_name, email, role, department, location, status")
+      .eq("id", approvedById)
+      .maybeSingle()
+
+    if (!actorProfile || actorProfile.status !== "approved") {
+      return NextResponse.json({ error: "Approver profile not found or not approved" }, { status: 403 })
+    }
+
+    if (!isAuthorizedManager(actorProfile.role || "", actorProfile.department || "", actorProfile.location || "")) {
       return NextResponse.json({ error: "Unauthorized to review in this role" }, { status: 403 })
     }
 
@@ -74,22 +88,24 @@ export async function POST(request: NextRequest) {
     const nowIso = new Date().toISOString()
     const actionLabel = action === "approve" ? "approved" : "rejected"
     const approvedByUuid = isUuidLike(approvedById) ? approvedById : null
+    const approverName = String(actorProfile.full_name || actorProfile.email || approvedBy || "IT Manager")
+    const actorRole = String(actorProfile.role || userRole || "")
 
     const updateData: Record<string, any> = {
       updated_at: nowIso,
       other_comments: [
         reqData.other_comments,
-        `IT Manager ${actionLabel} note: ${notes} (by ${approvedBy} on ${nowIso})`,
+        `IT Manager ${actionLabel} note: ${notes} (by ${approverName} on ${nowIso})`,
       ]
         .filter(Boolean)
         .join("\n"),
     }
 
     if (Object.prototype.hasOwnProperty.call(reqData, "it_manager_approved_by")) {
-      updateData.it_manager_approved_by = approvedBy
+      updateData.it_manager_approved_by = approverName
     }
     if (Object.prototype.hasOwnProperty.call(reqData, "it_manager_approved_by_name")) {
-      updateData.it_manager_approved_by_name = approvedBy
+      updateData.it_manager_approved_by_name = approverName
     }
     if (Object.prototype.hasOwnProperty.call(reqData, "it_manager_approved_at")) {
       updateData.it_manager_approved_at = nowIso
@@ -100,21 +116,21 @@ export async function POST(request: NextRequest) {
 
     // Persist manager identity/signature into available schema columns.
     if (Object.prototype.hasOwnProperty.call(reqData, "it_head_approved_by")) {
-      updateData.it_head_approved_by = approvedBy
+      updateData.it_head_approved_by = approverName
     }
     if (Object.prototype.hasOwnProperty.call(reqData, "it_head_approved_by_name")) {
-      updateData.it_head_approved_by_name = approvedBy
+      updateData.it_head_approved_by_name = approverName
     }
     if (Object.prototype.hasOwnProperty.call(reqData, "it_head_approved_at")) {
       updateData.it_head_approved_at = nowIso
     }
-    if (Object.prototype.hasOwnProperty.call(reqData, "admin_approved_by") && userRole === "admin") {
-      updateData.admin_approved_by = approvedBy
+    if (Object.prototype.hasOwnProperty.call(reqData, "admin_approved_by") && actorRole === "admin") {
+      updateData.admin_approved_by = approverName
     }
-    if (Object.prototype.hasOwnProperty.call(reqData, "admin_approved_by_name") && userRole === "admin") {
-      updateData.admin_approved_by_name = approvedBy
+    if (Object.prototype.hasOwnProperty.call(reqData, "admin_approved_by_name") && actorRole === "admin") {
+      updateData.admin_approved_by_name = approverName
     }
-    if (Object.prototype.hasOwnProperty.call(reqData, "admin_approved_at") && userRole === "admin") {
+    if (Object.prototype.hasOwnProperty.call(reqData, "admin_approved_at") && actorRole === "admin") {
       updateData.admin_approved_at = nowIso
     }
 
@@ -122,7 +138,7 @@ export async function POST(request: NextRequest) {
       if (Object.prototype.hasOwnProperty.call(reqData, "it_head_signature")) {
         updateData.it_head_signature = approverSignature
       }
-      if (Object.prototype.hasOwnProperty.call(reqData, "admin_signature") && userRole === "admin") {
+      if (Object.prototype.hasOwnProperty.call(reqData, "admin_signature") && actorRole === "admin") {
         updateData.admin_signature = approverSignature
       }
     }
@@ -144,7 +160,7 @@ export async function POST(request: NextRequest) {
       updateData.approval_timeline = [
         ...existingTimeline,
         {
-          approver: approvedBy,
+          approver: approverName,
           role: "it_manager",
           action,
           notes,
