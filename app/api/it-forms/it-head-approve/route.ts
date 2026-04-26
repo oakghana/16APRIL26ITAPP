@@ -268,7 +268,7 @@ export async function POST(request: NextRequest) {
           reference_id: requisitionId,
           is_read: false,
         }))
-        await supabaseAdmin.from("notifications").insert(regionalNotifications).catch(console.error)
+        await supabaseAdmin.from("notifications").insert(regionalNotifications).then(() => {}).catch((e: any) => console.error("[v0] Regional notification error:", e?.message || e))
       }
     } else {
       // Head Office approval or rejection — notify requester or admin

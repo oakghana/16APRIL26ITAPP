@@ -21,8 +21,11 @@ interface ITRequisition {
   purpose: string
   requested_by: string
   requested_by_email: string
+  requested_by_id?: string
   department: string
   status: string
+  requester_location?: string
+  location?: string
   admin_approved?: boolean
   store_head_approved?: boolean
   issuance_notes?: string
@@ -30,6 +33,11 @@ interface ITRequisition {
   issued_by?: string
   approval_timeline?: Array<any>
   created_at: string
+  it_head_approved_by_name?: string
+  it_head_approved_by?: string
+  it_head_approved_at?: string
+  service_desk_processed_by?: string
+  department_head_approved_by?: string
 }
 
 export function StoreHeadIssuanceModule() {
@@ -46,10 +54,11 @@ export function StoreHeadIssuanceModule() {
   const [filterTab, setFilterTab] = useState<"pending" | "issued" | "all">("pending")
   const { user } = useAuth()
   const { toast } = useToast()
+  const isRegionalHead = user?.role === "regional_it_head"
 
   useEffect(() => {
-    fetchRequisitions()
-  }, [])
+    if (user) fetchRequisitions()
+  }, [user?.role, user?.location])
 
   useEffect(() => {
     filterRequisitions()
@@ -58,7 +67,13 @@ export function StoreHeadIssuanceModule() {
   const fetchRequisitions = async () => {
     try {
       setLoading(true)
-      const response = await fetch("/api/it-forms/requisitions?status=ready_for_issuance")
+      const statusFilter = isRegionalHead ? "pending_regional_store" : "ready_for_issuance"
+      const params = new URLSearchParams({ status: statusFilter })
+      if (user?.location) {
+        params.set("officeUseLocation", user.location)
+        params.set("officeUseRole", user.role || "")
+      }
+      const response = await fetch(`/api/it-forms/requisitions?${params.toString()}`)
       const data = await response.json()
       setRequisitions(data.requisitions || [])
     } catch (error) {
@@ -114,10 +129,18 @@ export function StoreHeadIssuanceModule() {
   }
 
   const submitIssuance = async () => {
-    if (!selectedRequisition || !issueNotes.trim() || !supplierName.trim()) {
+    if (!selectedRequisition || !issueNotes.trim()) {
       toast({
         title: "Required",
-        description: "Please add supplier name and issuance notes",
+        description: "Please add issuance notes",
+        variant: "destructive",
+      })
+      return
+    }
+    if (!isRegionalHead && !supplierName.trim()) {
+      toast({
+        title: "Required",
+        description: "Please add supplier name",
         variant: "destructive",
       })
       return
@@ -132,7 +155,8 @@ export function StoreHeadIssuanceModule() {
           requisitionId: selectedRequisition.id,
           issuedBy: user?.full_name || "Unknown",
           userRole: user?.role || "",
-          supplierName,
+          userLocation: user?.location || "",
+          supplierName: isRegionalHead ? undefined : supplierName,
           notes: issueNotes,
         }),
       })
@@ -165,9 +189,13 @@ export function StoreHeadIssuanceModule() {
   return (
     <div className="space-y-6">
       <div>
-        <h1 className="text-3xl font-bold tracking-tight">Store Head - Issue Devices & Consumables</h1>
+        <h1 className="text-3xl font-bold tracking-tight">
+          {isRegionalHead ? "Regional IT Head - Assign Items to Staff" : "Store Head - Issue Devices & Consumables"}
+        </h1>
         <p className="text-muted-foreground mt-2">
-          Issue approved IT equipment and consumables to staff
+          {isRegionalHead
+            ? "Issue IT equipment from regional stock to staff in your region"
+            : "Issue approved IT equipment and consumables to staff"}
         </p>
       </div>
 
@@ -245,10 +273,19 @@ export function StoreHeadIssuanceModule() {
                             {req.store_head_approved ? "Issued" : "Ready"}
                           </Badge>
                         </div>
-                        <p className="text-sm text-muted-foreground">
-                          To: {req.requested_by} • {req.department}
+                        <p className="text-sm font-medium">
+                          Assign to: <span className="text-foreground">{req.requested_by || "Unknown"}</span>
+                          {(req.requester_location || req.location) && (
+                            <span className="text-muted-foreground"> &bull; {req.requester_location || req.location}</span>
+                          )}
                         </p>
-                        <p className="text-sm">Items: {req.items_required.substring(0, 80)}...</p>
+                        <p className="text-sm text-muted-foreground">
+                          Dept: {req.department || "—"}
+                          {req.it_head_approved_by_name || req.it_head_approved_by ? (
+                            <span> &bull; Approved by: {req.it_head_approved_by_name || req.it_head_approved_by}</span>
+                          ) : null}
+                        </p>
+                        <p className="text-sm">Items: {req.items_required.substring(0, 80)}{req.items_required.length > 80 ? "..." : ""}</p>
                       </div>
                       <div className="flex gap-2">
                         <Button
@@ -269,7 +306,7 @@ export function StoreHeadIssuanceModule() {
                             onClick={() => handleIssue(req)}
                           >
                             <CheckCircle2 className="h-4 w-4 mr-1" />
-                            Issue
+                            {isRegionalHead ? "Assign" : "Issue"}
                           </Button>
                         )}
                       </div>
@@ -291,12 +328,20 @@ export function StoreHeadIssuanceModule() {
             <div className="space-y-6">
               <div className="grid grid-cols-2 gap-4 text-sm">
                 <div>
-                  <Label className="text-muted-foreground">Staff</Label>
+                  <Label className="text-muted-foreground">Staff / Assign To</Label>
                   <p className="font-medium">{selectedRequisition.requested_by}</p>
+                </div>
+                <div>
+                  <Label className="text-muted-foreground">Location</Label>
+                  <p className="font-medium">{selectedRequisition.requester_location || selectedRequisition.location || "—"}</p>
                 </div>
                 <div>
                   <Label className="text-muted-foreground">Department</Label>
                   <p className="font-medium">{selectedRequisition.department}</p>
+                </div>
+                <div>
+                  <Label className="text-muted-foreground">IT Head Approved By</Label>
+                  <p className="font-medium">{selectedRequisition.it_head_approved_by_name || selectedRequisition.it_head_approved_by || "—"}</p>
                 </div>
               </div>
               <div>
@@ -315,23 +360,33 @@ export function StoreHeadIssuanceModule() {
       <Dialog open={isIssueDialogOpen} onOpenChange={setIsIssueDialogOpen}>
         <DialogContent className="max-w-md">
           <DialogHeader>
-            <DialogTitle>Issue Items</DialogTitle>
+            <DialogTitle>Issue Items — {selectedRequisition?.requisition_number}</DialogTitle>
           </DialogHeader>
           <div className="space-y-4">
-            <div className="space-y-2">
-              <Label htmlFor="supplierName">Supplier Name *</Label>
-              <Input
-                id="supplierName"
-                placeholder="Enter supplier name"
-                value={supplierName}
-                onChange={(e) => setSupplierName(e.target.value)}
-              />
-              <p className="text-xs text-muted-foreground">
-                Item S/N will be auto-generated as a 5-character alphanumeric code when issued.
-              </p>
-            </div>
+            {selectedRequisition && (
+              <div className="rounded-lg bg-muted/50 p-3 text-sm space-y-1">
+                <p><span className="font-medium">Assign to:</span> {selectedRequisition.requested_by}</p>
+                <p><span className="font-medium">Location:</span> {selectedRequisition.requester_location || selectedRequisition.location || "—"}</p>
+                <p><span className="font-medium">Department:</span> {selectedRequisition.department || "—"}</p>
+                <p><span className="font-medium">Items:</span> {selectedRequisition.items_required}</p>
+              </div>
+            )}
+            {!isRegionalHead && (
+              <div className="space-y-2">
+                <Label htmlFor="supplierName">Supplier Name *</Label>
+                <Input
+                  id="supplierName"
+                  placeholder="Enter supplier name"
+                  value={supplierName}
+                  onChange={(e) => setSupplierName(e.target.value)}
+                />
+                <p className="text-xs text-muted-foreground">
+                  Item S/N will be auto-generated as a 5-character alphanumeric code when issued.
+                </p>
+              </div>
+            )}
             <Textarea
-              placeholder="Record issuance details (serial numbers, quantities, etc.)..."
+              placeholder={isRegionalHead ? "Record assignment details (serial number, quantity, etc.)..." : "Record issuance details (serial numbers, quantities, etc.)..."}
               value={issueNotes}
               onChange={(e) => setIssueNotes(e.target.value)}
               className="min-h-24"
@@ -343,7 +398,7 @@ export function StoreHeadIssuanceModule() {
             </Button>
             <Button
               onClick={submitIssuance}
-              disabled={isSubmitting || !supplierName.trim() || !issueNotes.trim()}
+              disabled={isSubmitting || (!isRegionalHead && !supplierName.trim()) || !issueNotes.trim()}
               className="bg-green-600 hover:bg-green-700"
             >
               {isSubmitting ? <Loader2 className="h-4 w-4 mr-2 animate-spin" /> : null}
