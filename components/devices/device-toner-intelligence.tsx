@@ -81,6 +81,28 @@ type TonerResponse = {
   }
   locations: LocationGroup[]
   tonerCatalog: TonerCatalogItem[]
+  assetSummary?: {
+    inventoryTotals: {
+      tonerQty: number
+      upsQty: number
+      computerQty: number
+      totalQty: number
+    }
+    inventoryByLocation: Array<{
+      location: string
+      tonerQty: number
+      upsQty: number
+      computerQty: number
+      totalQty: number
+    }>
+    deviceLocationMetrics: Array<{
+      location: string
+      totalDevices: number
+      inUseDevices: number
+      byType: Record<string, number>
+    }>
+    availableDeviceTypes: string[]
+  }
 }
 
 type SimilarMappingSuggestion = {
@@ -229,10 +251,14 @@ export function DeviceTonerIntelligence() {
   const [execSortField, setExecSortField] = useState<"location" | "devices" | "urgent" | "toners">("location")
   const [execSortDir, setExecSortDir] = useState<"asc" | "desc">("asc")
   const [execExpandedLocation, setExecExpandedLocation] = useState<string | null>(null)
+  const [assetSearch, setAssetSearch] = useState("")
+  const [assetLocationFilter, setAssetLocationFilter] = useState<string>("all")
+  const [assetDeviceTypeFilter, setAssetDeviceTypeFilter] = useState<string>("all")
 
   const locations = data?.locations || []
   const tonerCatalog = data?.tonerCatalog || []
   const summary = data?.summary
+  const assetSummary = data?.assetSummary
 
   const loadData = useCallback(async () => {
     if (!user?.role) return
@@ -417,6 +443,187 @@ export function DeviceTonerIntelligence() {
   const toggleExecSort = (field: typeof execSortField) => {
     if (execSortField === field) setExecSortDir((d) => (d === "asc" ? "desc" : "asc"))
     else { setExecSortField(field); setExecSortDir("asc") }
+  }
+
+  const deviceMetricRows = useMemo(() => {
+    if (!assetSummary) return []
+
+    let rows = assetSummary.deviceLocationMetrics
+
+    if (assetLocationFilter !== "all") {
+      rows = rows.filter((r) => r.location === assetLocationFilter)
+    }
+
+    if (assetSearch.trim()) {
+      const q = assetSearch.trim().toLowerCase()
+      rows = rows.filter((r) => {
+        if (r.location.toLowerCase().includes(q)) return true
+        return Object.keys(r.byType).some((k) => k.toLowerCase().includes(q))
+      })
+    }
+
+    if (assetDeviceTypeFilter !== "all") {
+      rows = rows.filter((r) => (r.byType[assetDeviceTypeFilter] || 0) > 0)
+    }
+
+    return rows
+  }, [assetSummary, assetLocationFilter, assetSearch, assetDeviceTypeFilter])
+
+  const inventoryRows = useMemo(() => {
+    if (!assetSummary) return []
+
+    let rows = assetSummary.inventoryByLocation
+    if (assetLocationFilter !== "all") {
+      rows = rows.filter((r) => r.location === assetLocationFilter)
+    }
+
+    if (assetSearch.trim()) {
+      const q = assetSearch.trim().toLowerCase()
+      rows = rows.filter((r) => r.location.toLowerCase().includes(q))
+    }
+
+    return rows
+  }, [assetSummary, assetLocationFilter, assetSearch])
+
+  const assetExecutiveMetrics = useMemo(() => {
+    const totalLocations = deviceMetricRows.length
+    const totalDevicesInFiltered = deviceMetricRows.reduce((sum, r) => sum + r.totalDevices, 0)
+    const totalInUse = deviceMetricRows.reduce((sum, r) => sum + r.inUseDevices, 0)
+    const utilizationPct = totalDevicesInFiltered > 0 ? Math.round((totalInUse / totalDevicesInFiltered) * 100) : 0
+    const selectedTypeTotal = assetDeviceTypeFilter === "all"
+      ? totalDevicesInFiltered
+      : deviceMetricRows.reduce((sum, r) => sum + (r.byType[assetDeviceTypeFilter] || 0), 0)
+
+    return {
+      totalLocations,
+      totalDevicesInFiltered,
+      totalInUse,
+      utilizationPct,
+      selectedTypeTotal,
+    }
+  }, [deviceMetricRows, assetDeviceTypeFilter])
+
+  const exportAssetExecutivePdf = () => {
+    if (!assetSummary) return
+
+    const typeLabel = assetDeviceTypeFilter === "all" ? "All Device Types" : assetDeviceTypeFilter
+    const locationLabel = assetLocationFilter === "all" ? "All Locations" : assetLocationFilter
+
+    const deviceRowsHtml = deviceMetricRows
+      .map((row) => {
+        const deviceTypeCount = assetDeviceTypeFilter === "all"
+          ? row.totalDevices
+          : (row.byType[assetDeviceTypeFilter] || 0)
+        const inUsePct = row.totalDevices > 0 ? Math.round((row.inUseDevices / row.totalDevices) * 100) : 0
+
+        return `<tr>
+          <td>${row.location}</td>
+          <td style="text-align:right">${row.totalDevices}</td>
+          <td style="text-align:right">${row.inUseDevices}</td>
+          <td style="text-align:right">${inUsePct}%</td>
+          <td style="text-align:right">${deviceTypeCount}</td>
+        </tr>`
+      })
+      .join("")
+
+    const inventoryRowsHtml = inventoryRows
+      .map((row) => `<tr>
+        <td>${row.location}</td>
+        <td style="text-align:right">${row.tonerQty}</td>
+        <td style="text-align:right">${row.upsQty}</td>
+        <td style="text-align:right">${row.computerQty}</td>
+        <td style="text-align:right">${row.totalQty}</td>
+      </tr>`)
+      .join("")
+
+    const printWindow = window.open("", "_blank", "width=1200,height=800")
+    if (!printWindow) {
+      toast({
+        title: "Popup blocked",
+        description: "Please allow popups to export PDF.",
+        variant: "destructive",
+      })
+      return
+    }
+
+    const html = `<!doctype html>
+<html>
+<head>
+  <meta charset="utf-8" />
+  <title>Asset Executive Report</title>
+  <style>
+    body { font-family: Arial, sans-serif; margin: 24px; color: #0f172a; }
+    h1 { font-size: 22px; margin: 0 0 6px 0; }
+    h2 { font-size: 16px; margin: 24px 0 10px 0; }
+    .muted { color: #475569; font-size: 12px; }
+    .kpi-grid { display: grid; grid-template-columns: repeat(5, minmax(0, 1fr)); gap: 10px; margin: 14px 0 8px; }
+    .kpi { border: 1px solid #cbd5e1; border-radius: 8px; padding: 10px; }
+    .kpi .label { font-size: 11px; color: #64748b; text-transform: uppercase; margin-bottom: 6px; }
+    .kpi .value { font-size: 20px; font-weight: 700; }
+    table { border-collapse: collapse; width: 100%; font-size: 12px; }
+    th, td { border: 1px solid #cbd5e1; padding: 7px 8px; }
+    th { background: #f1f5f9; text-align: left; }
+    .right { text-align: right; }
+    @media print {
+      .page-break { page-break-before: always; }
+    }
+  </style>
+</head>
+<body>
+  <h1>Asset Executive Report</h1>
+  <div class="muted">Generated: ${new Date().toLocaleString()}</div>
+  <div class="muted">Filter: ${locationLabel} | Device Type: ${typeLabel} | Search: ${assetSearch || "(none)"}</div>
+
+  <div class="kpi-grid">
+    <div class="kpi"><div class="label">Locations</div><div class="value">${assetExecutiveMetrics.totalLocations}</div></div>
+    <div class="kpi"><div class="label">Devices</div><div class="value">${assetExecutiveMetrics.totalDevicesInFiltered}</div></div>
+    <div class="kpi"><div class="label">In Use</div><div class="value">${assetExecutiveMetrics.totalInUse}</div></div>
+    <div class="kpi"><div class="label">Utilization</div><div class="value">${assetExecutiveMetrics.utilizationPct}%</div></div>
+    <div class="kpi"><div class="label">Selected Type Total</div><div class="value">${assetExecutiveMetrics.selectedTypeTotal}</div></div>
+  </div>
+
+  <h2>Device Metrics by Location</h2>
+  <table>
+    <thead>
+      <tr>
+        <th>Location</th>
+        <th class="right">Total Devices</th>
+        <th class="right">In Use</th>
+        <th class="right">In Use %</th>
+        <th class="right">${typeLabel}</th>
+      </tr>
+    </thead>
+    <tbody>
+      ${deviceRowsHtml || `<tr><td colspan="5">No data found for selected filters.</td></tr>`}
+    </tbody>
+  </table>
+
+  <h2 class="page-break">Inventory Quantities by Location</h2>
+  <table>
+    <thead>
+      <tr>
+        <th>Location</th>
+        <th class="right">Toner Qty</th>
+        <th class="right">UPS Qty</th>
+        <th class="right">Computer Qty</th>
+        <th class="right">Total Qty</th>
+      </tr>
+    </thead>
+    <tbody>
+      ${inventoryRowsHtml || `<tr><td colspan="5">No inventory data found for selected filters.</td></tr>`}
+    </tbody>
+  </table>
+</body>
+</html>`
+
+    printWindow.document.open()
+    printWindow.document.write(html)
+    printWindow.document.close()
+
+    setTimeout(() => {
+      printWindow.focus()
+      printWindow.print()
+    }, 300)
   }
 
   const totalDevices = visibleDevicesAll.length
@@ -796,6 +1003,7 @@ export function DeviceTonerIntelligence() {
           <TabsTrigger value="devices">Devices</TabsTrigger>
           <TabsTrigger value="location-groups">Location Breakdown</TabsTrigger>
           <TabsTrigger value="executive-summary">Executive Summary</TabsTrigger>
+          <TabsTrigger value="asset-power-summary">Assets & Power Summary</TabsTrigger>
         </TabsList>
 
         <TabsContent value="devices" className="space-y-3">
@@ -1261,6 +1469,210 @@ export function DeviceTonerIntelligence() {
                   </div>
                 )
               })()}
+            </CardContent>
+          </Card>
+        </TabsContent>
+
+        <TabsContent value="asset-power-summary" className="space-y-4">
+          <Card>
+            <CardHeader>
+              <div className="flex flex-col gap-3 md:flex-row md:items-start md:justify-between">
+                <div>
+                  <CardTitle>Toner, UPS, and Computer Analysis</CardTitle>
+                  <CardDescription>
+                    Quantities, in-use device metrics, and location comparisons for planning and executive review.
+                  </CardDescription>
+                </div>
+                <Button onClick={exportAssetExecutivePdf} variant="outline" className="gap-2">
+                  <Download className="h-4 w-4" />
+                  Export PDF Report
+                </Button>
+              </div>
+            </CardHeader>
+            <CardContent className="space-y-4">
+              <div className="grid grid-cols-1 gap-3 md:grid-cols-3">
+                <div>
+                  <Label className="text-xs text-muted-foreground">Search</Label>
+                  <div className="relative">
+                    <Search className="h-4 w-4 absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground" />
+                    <Input
+                      value={assetSearch}
+                      onChange={(e) => setAssetSearch(e.target.value)}
+                      placeholder="Search by location or device type"
+                      className="pl-9"
+                    />
+                  </div>
+                </div>
+
+                <div>
+                  <Label className="text-xs text-muted-foreground">Location</Label>
+                  <Select value={assetLocationFilter} onValueChange={setAssetLocationFilter}>
+                    <SelectTrigger>
+                      <SelectValue placeholder="Choose location" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="all">All Locations</SelectItem>
+                      {(assetSummary?.deviceLocationMetrics || []).map((row) => (
+                        <SelectItem key={`asset-loc-${row.location}`} value={row.location}>{row.location}</SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </div>
+
+                <div>
+                  <Label className="text-xs text-muted-foreground">Device Type</Label>
+                  <Select value={assetDeviceTypeFilter} onValueChange={setAssetDeviceTypeFilter}>
+                    <SelectTrigger>
+                      <SelectValue placeholder="Choose device type" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="all">All Device Types</SelectItem>
+                      {(assetSummary?.availableDeviceTypes || []).map((deviceType) => (
+                        <SelectItem key={`asset-device-type-${deviceType}`} value={deviceType}>{deviceType}</SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </div>
+              </div>
+
+              <div className="grid grid-cols-2 gap-3 md:grid-cols-5">
+                <div className="rounded-md border p-3">
+                  <p className="text-xs text-muted-foreground">Locations</p>
+                  <p className="text-2xl font-bold">{assetExecutiveMetrics.totalLocations}</p>
+                </div>
+                <div className="rounded-md border p-3">
+                  <p className="text-xs text-muted-foreground">Devices</p>
+                  <p className="text-2xl font-bold">{assetExecutiveMetrics.totalDevicesInFiltered}</p>
+                </div>
+                <div className="rounded-md border border-emerald-200 bg-emerald-50 p-3">
+                  <p className="text-xs text-emerald-700">Devices In Use</p>
+                  <p className="text-2xl font-bold text-emerald-700">{assetExecutiveMetrics.totalInUse}</p>
+                </div>
+                <div className="rounded-md border p-3">
+                  <p className="text-xs text-muted-foreground">Utilization</p>
+                  <p className="text-2xl font-bold">{assetExecutiveMetrics.utilizationPct}%</p>
+                </div>
+                <div className="rounded-md border p-3">
+                  <p className="text-xs text-muted-foreground">Selected Type Total</p>
+                  <p className="text-2xl font-bold">{assetExecutiveMetrics.selectedTypeTotal}</p>
+                </div>
+              </div>
+            </CardContent>
+          </Card>
+
+          <Card>
+            <CardHeader className="pb-2">
+              <CardTitle className="text-base">Inventory Quantities by Location</CardTitle>
+              <CardDescription>
+                Toner, UPS, and Computer stock quantities across the selected locations.
+              </CardDescription>
+            </CardHeader>
+            <CardContent className="p-0">
+              {inventoryRows.length === 0 ? (
+                <div className="p-6 text-sm text-muted-foreground">No inventory records match the current filters.</div>
+              ) : (
+                <div className="overflow-x-auto">
+                  <Table>
+                    <TableHeader>
+                      <TableRow className="bg-muted/50">
+                        <TableHead>Location</TableHead>
+                        <TableHead className="text-center">Toner Qty</TableHead>
+                        <TableHead className="text-center">UPS Qty</TableHead>
+                        <TableHead className="text-center">Computer Qty</TableHead>
+                        <TableHead className="text-center">Total Qty</TableHead>
+                      </TableRow>
+                    </TableHeader>
+                    <TableBody>
+                      {inventoryRows.map((row) => (
+                        <TableRow key={`inv-row-${row.location}`}>
+                          <TableCell className="font-medium">{row.location}</TableCell>
+                          <TableCell className="text-center tabular-nums">{row.tonerQty}</TableCell>
+                          <TableCell className="text-center tabular-nums">{row.upsQty}</TableCell>
+                          <TableCell className="text-center tabular-nums">{row.computerQty}</TableCell>
+                          <TableCell className="text-center tabular-nums font-semibold">{row.totalQty}</TableCell>
+                        </TableRow>
+                      ))}
+                    </TableBody>
+                  </Table>
+                </div>
+              )}
+            </CardContent>
+          </Card>
+
+          <Card>
+            <CardHeader className="pb-2">
+              <CardTitle className="text-base">Device Utilization by Location</CardTitle>
+              <CardDescription>
+                In-use metrics and device counts by location. Use device type filter for focused analysis.
+              </CardDescription>
+            </CardHeader>
+            <CardContent className="p-0">
+              {deviceMetricRows.length === 0 ? (
+                <div className="p-6 text-sm text-muted-foreground">No device metrics match the current filters.</div>
+              ) : (
+                <div className="overflow-x-auto">
+                  <Table>
+                    <TableHeader>
+                      <TableRow className="bg-muted/50">
+                        <TableHead>Location</TableHead>
+                        <TableHead className="text-center">Total Devices</TableHead>
+                        <TableHead className="text-center">Devices In Use</TableHead>
+                        <TableHead className="text-center">In Use %</TableHead>
+                        <TableHead className="text-center">
+                          {assetDeviceTypeFilter === "all" ? "Selected Type Count" : `${assetDeviceTypeFilter} Count`}
+                        </TableHead>
+                      </TableRow>
+                    </TableHeader>
+                    <TableBody>
+                      {deviceMetricRows.map((row) => {
+                        const typeCount = assetDeviceTypeFilter === "all"
+                          ? row.totalDevices
+                          : (row.byType[assetDeviceTypeFilter] || 0)
+                        const inUsePct = row.totalDevices > 0 ? Math.round((row.inUseDevices / row.totalDevices) * 100) : 0
+
+                        return (
+                          <TableRow key={`dev-metric-${row.location}`}>
+                            <TableCell className="font-medium">{row.location}</TableCell>
+                            <TableCell className="text-center tabular-nums">{row.totalDevices}</TableCell>
+                            <TableCell className="text-center tabular-nums">{row.inUseDevices}</TableCell>
+                            <TableCell className="text-center tabular-nums">{inUsePct}%</TableCell>
+                            <TableCell className="text-center tabular-nums font-semibold">{typeCount}</TableCell>
+                          </TableRow>
+                        )
+                      })}
+                    </TableBody>
+                  </Table>
+                </div>
+              )}
+            </CardContent>
+          </Card>
+
+          <Card>
+            <CardHeader className="pb-2">
+              <CardTitle className="text-base">Global Quantity Snapshot</CardTitle>
+              <CardDescription>
+                Overall stock quantities from the current inventory dataset.
+              </CardDescription>
+            </CardHeader>
+            <CardContent>
+              <div className="grid grid-cols-2 gap-3 md:grid-cols-4">
+                <div className="rounded-md border p-3">
+                  <p className="text-xs text-muted-foreground">Toner Qty</p>
+                  <p className="text-2xl font-bold">{assetSummary?.inventoryTotals.tonerQty || 0}</p>
+                </div>
+                <div className="rounded-md border p-3">
+                  <p className="text-xs text-muted-foreground">UPS Qty</p>
+                  <p className="text-2xl font-bold">{assetSummary?.inventoryTotals.upsQty || 0}</p>
+                </div>
+                <div className="rounded-md border p-3">
+                  <p className="text-xs text-muted-foreground">Computer Qty</p>
+                  <p className="text-2xl font-bold">{assetSummary?.inventoryTotals.computerQty || 0}</p>
+                </div>
+                <div className="rounded-md border p-3">
+                  <p className="text-xs text-muted-foreground">Total Qty</p>
+                  <p className="text-2xl font-bold">{assetSummary?.inventoryTotals.totalQty || 0}</p>
+                </div>
+              </div>
             </CardContent>
           </Card>
         </TabsContent>

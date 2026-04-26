@@ -46,6 +46,21 @@ type TonerCatalogItem = {
   reorderLevel: number
 }
 
+type InventoryLocationMetric = {
+  location: string
+  tonerQty: number
+  upsQty: number
+  computerQty: number
+  totalQty: number
+}
+
+type DeviceLocationMetric = {
+  location: string
+  totalDevices: number
+  inUseDevices: number
+  byType: Record<string, number>
+}
+
 function normalizeToken(value: string | null | undefined): string {
   return String(value || "")
     .toLowerCase()
@@ -76,6 +91,43 @@ function isTonerLikeItem(item: StoreItemRow): boolean {
 
 function getItemQty(item: StoreItemRow): number {
   return toNumber(item.quantity_in_stock ?? item.quantity ?? 0)
+}
+
+function normalizeDeviceType(device: DeviceRow): string {
+  return String(device.device_type || device.type || "unknown")
+    .trim()
+    .toLowerCase()
+}
+
+function isDeviceInUse(device: DeviceRow): boolean {
+  const status = String(device.status || "").trim().toLowerCase()
+  if (!status) return false
+
+  return ["active", "assigned", "in use", "in_use", "deployed", "working", "online"].includes(status)
+}
+
+function getInventoryCategory(item: StoreItemRow): "toner" | "ups" | "computer" | null {
+  const text = `${item.name || item.item_name || ""} ${item.category || ""}`.toLowerCase()
+
+  if (text.includes("toner") || text.includes("cartridge") || text.includes("ink") || text.includes("developer")) {
+    return "toner"
+  }
+
+  if (text.includes("ups") || text.includes("uninterruptible") || text.includes("battery backup")) {
+    return "ups"
+  }
+
+  if (
+    text.includes("computer") ||
+    text.includes("desktop") ||
+    text.includes("laptop") ||
+    text.includes("workstation") ||
+    text.includes("pc")
+  ) {
+    return "computer"
+  }
+
+  return null
 }
 
 function tonerNeedStatus(locationQty: number, reorderLevel: number): "ok" | "low" | "needs_now" {
@@ -146,7 +198,8 @@ export async function GET(request: NextRequest) {
     const allDevices = (devicesData || []) as DeviceRow[]
     const printerLikeDevices = allDevices.filter(isPrinterLikeType)
 
-    const tonerItems = ([...(storeItemsData || []), ...centralItems] as StoreItemRow[]).filter(isTonerLikeItem)
+    const allStoreItems = ([...(storeItemsData || []), ...centralItems] as StoreItemRow[])
+    const tonerItems = allStoreItems.filter(isTonerLikeItem)
 
     const tonerCatalog: TonerCatalogItem[] = tonerItems.map((item) => ({
       id: item.id,
@@ -237,11 +290,82 @@ export async function GET(request: NextRequest) {
       totalLowStock: locations.reduce((sum, loc) => sum + loc.lowStock, 0),
     }
 
+    const inventoryLocationMap = new Map<string, InventoryLocationMetric>()
+    let totalTonerQty = 0
+    let totalUpsQty = 0
+    let totalComputerQty = 0
+
+    allStoreItems.forEach((item) => {
+      const category = getInventoryCategory(item)
+      if (!category) return
+
+      const location = getCanonicalLocationName(item.location || "Unspecified")
+      const qty = getItemQty(item)
+      const existing = inventoryLocationMap.get(location) || {
+        location,
+        tonerQty: 0,
+        upsQty: 0,
+        computerQty: 0,
+        totalQty: 0,
+      }
+
+      if (category === "toner") {
+        existing.tonerQty += qty
+        totalTonerQty += qty
+      } else if (category === "ups") {
+        existing.upsQty += qty
+        totalUpsQty += qty
+      } else if (category === "computer") {
+        existing.computerQty += qty
+        totalComputerQty += qty
+      }
+
+      existing.totalQty = existing.tonerQty + existing.upsQty + existing.computerQty
+      inventoryLocationMap.set(location, existing)
+    })
+
+    const inventoryByLocation = Array.from(inventoryLocationMap.values()).sort((a, b) => a.location.localeCompare(b.location))
+
+    const deviceLocationMap = new Map<string, DeviceLocationMetric>()
+    const typeSet = new Set<string>()
+
+    allDevices.forEach((device) => {
+      const location = getCanonicalLocationName(device.location || "Unspecified")
+      const deviceType = normalizeDeviceType(device)
+      const existing = deviceLocationMap.get(location) || {
+        location,
+        totalDevices: 0,
+        inUseDevices: 0,
+        byType: {},
+      }
+
+      existing.totalDevices += 1
+      if (isDeviceInUse(device)) existing.inUseDevices += 1
+      existing.byType[deviceType] = (existing.byType[deviceType] || 0) + 1
+
+      typeSet.add(deviceType)
+      deviceLocationMap.set(location, existing)
+    })
+
+    const deviceLocationMetrics = Array.from(deviceLocationMap.values()).sort((a, b) => a.location.localeCompare(b.location))
+    const availableDeviceTypes = Array.from(typeSet).sort((a, b) => a.localeCompare(b))
+
     return NextResponse.json({
       success: true,
       summary,
       locations,
       tonerCatalog,
+      assetSummary: {
+        inventoryTotals: {
+          tonerQty: totalTonerQty,
+          upsQty: totalUpsQty,
+          computerQty: totalComputerQty,
+          totalQty: totalTonerQty + totalUpsQty + totalComputerQty,
+        },
+        inventoryByLocation,
+        deviceLocationMetrics,
+        availableDeviceTypes,
+      },
     })
   } catch (error: any) {
     return NextResponse.json({ error: error.message || "Internal server error" }, { status: 500 })
