@@ -35,14 +35,23 @@ async function generateUniqueItemSn() {
 
 export async function POST(request: NextRequest) {
   try {
-    const { requisitionId, issuedBy, notes, supplierName, userRole } = await request.json()
+    const { requisitionId, issuedBy, notes, supplierName, userRole, userLocation } = await request.json()
 
-    if (!requisitionId || !issuedBy || !notes || !supplierName) {
+    if (!requisitionId || !issuedBy || !notes) {
       return NextResponse.json({ error: "Missing required fields" }, { status: 400 })
     }
 
-    if (userRole !== "it_store_head") {
-      return NextResponse.json({ error: "Only IT Store Head can issue and complete supplier details" }, { status: 403 })
+    const isRegionalITHead = userRole === "regional_it_head"
+    const isStoreHead = userRole === "it_store_head"
+    const isAdmin = userRole === "admin"
+
+    if (!isStoreHead && !isRegionalITHead && !isAdmin) {
+      return NextResponse.json({ error: "Only IT Store Head or Regional IT Head can issue items" }, { status: 403 })
+    }
+
+    // Store Head requires supplierName; regional IT head does not need it
+    if (isStoreHead && !supplierName) {
+      return NextResponse.json({ error: "Supplier name is required for Store Head issuance" }, { status: 400 })
     }
 
     const { data: requisition } = await supabaseAdmin
@@ -55,8 +64,18 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: "Not found" }, { status: 404 })
     }
 
+    // Regional IT head can only process pending_regional_store items
+    if (isRegionalITHead && requisition.status !== "pending_regional_store") {
+      return NextResponse.json({ error: "Regional IT Head can only process regionally-assigned requisitions" }, { status: 403 })
+    }
+
+    // Store head can only process pending_store items (Head Office flow)
+    if (isStoreHead && requisition.status !== "pending_store" && !(requisition.it_head_approved || requisition.admin_approved)) {
+      return NextResponse.json({ error: "Requisition must be IT Head approved and in pending_store status" }, { status: 409 })
+    }
+
     if (!(requisition.it_head_approved || requisition.admin_approved)) {
-      return NextResponse.json({ error: "Requisition must be approved by IT Manager/IT Head or Admin before store issuance" }, { status: 409 })
+      return NextResponse.json({ error: "Requisition must be approved by IT Manager/IT Head before store issuance" }, { status: 409 })
     }
 
     if (requisition.store_head_approved) {
@@ -70,11 +89,11 @@ export async function POST(request: NextRequest) {
       issued_by: issuedBy,
       issued_at: new Date().toISOString(),
       issuance_notes: notes,
-      supplier_name: supplierName,
       item_sn: generatedItemSn,
       status: "issued",
       updated_at: new Date().toISOString(),
     }
+    if (supplierName) updateData.supplier_name = supplierName
 
     const approvalChain = requisition.approval_timeline || requisition.approval_chain || []
     approvalChain.push({
@@ -92,6 +111,45 @@ export async function POST(request: NextRequest) {
       .eq("id", requisitionId)
       .select()
       .single()
+
+    // For regional IT head: add the requisitioned item to regional store stock for tracking
+    if (isRegionalITHead) {
+      const itemName = requisition.items_required || requisition.item_description || "IT Equipment"
+      const itemQty = Number(requisition.quantity_required || requisition.quantity || 1)
+      const targetLocation = userLocation || requisition.requester_location || requisition.location || ""
+      if (targetLocation) {
+        // Try to find existing store item at this location
+        const { data: existingItem } = await supabaseAdmin
+          .from("store_items")
+          .select("id, quantity")
+          .ilike("name", itemName)
+          .ilike("location", targetLocation.replace(/[_-]+/g, " ").trim())
+          .maybeSingle()
+
+        if (existingItem) {
+          await supabaseAdmin
+            .from("store_items")
+            .update({ quantity: existingItem.quantity + itemQty, updated_at: new Date().toISOString() })
+            .eq("id", existingItem.id)
+            .catch(console.error)
+        } else {
+          await supabaseAdmin
+            .from("store_items")
+            .insert({
+              name: itemName,
+              category: "IT Equipment",
+              location: targetLocation,
+              quantity: itemQty,
+              unit: "unit",
+              requisition_sourced: true,
+              notes: `Auto-created from requisition ${requisition.requisition_number}`,
+              created_at: new Date().toISOString(),
+              updated_at: new Date().toISOString(),
+            })
+            .catch(console.error)
+        }
+      }
+    }
 
     // Notify staff
     await supabaseAdmin.from("notifications").insert({

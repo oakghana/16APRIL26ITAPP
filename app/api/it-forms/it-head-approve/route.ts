@@ -6,6 +6,13 @@ const supabaseAdmin = createClient(
   (process.env.SUPABASE_SERVICE_ROLE_KEY ?? "placeholder-build-key")
 )
 
+function isHeadOfficeLocation(location: string | null | undefined): boolean {
+  if (!location) return false
+  const n = location.toLowerCase().replace(/[\s_-]+/g, "_").trim()
+  return n === "head_office" || n === "head_office_accra" || n === "headoffice" ||
+         n === "accra" || n.startsWith("head_office") || n === "ho"
+}
+
 function isUuidLike(value?: string | null) {
   if (!value) return false
   return /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(value)
@@ -72,6 +79,32 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: "Not found" }, { status: 404 })
     }
 
+    // Determine requester location to decide routing (Head Office vs regional store)
+    let requesterLocation: string | null = null
+    const requesterId = isUuidLike(requisition.requested_by_id)
+      ? requisition.requested_by_id
+      : isUuidLike(requisition.created_by_id) ? requisition.created_by_id : null
+    if (requesterId) {
+      const { data: rProfile } = await supabaseAdmin
+        .from("profiles")
+        .select("location")
+        .eq("id", requesterId)
+        .single()
+      requesterLocation = rProfile?.location || null
+    }
+    if (!requesterLocation && requisition.requested_by) {
+      const { data: nameProfiles } = await supabaseAdmin
+        .from("profiles")
+        .select("location")
+        .ilike("full_name", requisition.requested_by)
+        .limit(1)
+      requesterLocation = nameProfiles?.[0]?.location || null
+    }
+    const isHeadOfficeReq = isHeadOfficeLocation(requesterLocation)
+    // Head Office → pending_store (store head issues directly)
+    // Regional     → pending_regional_store (regional IT head adds to local stock, then assigns)
+    const approvedStoreStatus = isHeadOfficeReq ? "pending_store" : "pending_regional_store"
+
     const actingAsAdmin = normalizedApproverRole === "admin"
     const approvedByUuid = isUuidLike(approvedById) ? approvedById : null
     const approverIdValue = approvedByUuid || approvedBy
@@ -98,7 +131,7 @@ export async function POST(request: NextRequest) {
       if (action === "approve" && approverSignature && hasColumn("admin_signature")) {
         updateData.admin_signature = approverSignature
       }
-      updateData.status = action === "approve" ? "pending_store" : "rejected_admin"
+      updateData.status = action === "approve" ? approvedStoreStatus : "rejected_admin"
     } else {
       if (hasColumn("it_head_notes")) {
         updateData.it_head_notes = notes
@@ -135,7 +168,12 @@ export async function POST(request: NextRequest) {
         if (approverSignature && hasColumn("admin_signature")) {
           updateData.admin_signature = approverSignature
         }
-        updateData.status = "pending_store"
+        updateData.status = approvedStoreStatus
+        // Flag for UI to render correct approval stages
+        if (hasColumn("regional_fulfillment") || true) {
+          updateData.regional_fulfillment = !isHeadOfficeReq
+          updateData.requester_location = requesterLocation
+        }
       } else {
         updateData.status = "rejected_it_head"
       }
@@ -210,19 +248,38 @@ export async function POST(request: NextRequest) {
     }
 
     // Notify relevant parties
-    const { error: notificationError } = await supabaseAdmin.from("notifications").insert({
-      recipient_id: action === "approve" ? "admin" : requisition.requested_by,
-      recipient_type: action === "approve" ? "admin" : "staff",
-      title: `IT Head ${action === "approve" ? "Approved" : "Rejected"} Requisition`,
-      message: `Requisition ${requisition.requisition_number} was ${action === "approve" ? "approved and forwarded to Store" : "rejected"}`,
-      type: "it_form_update",
-      related_id: requisitionId,
-      related_type: "it_equipment_requisition",
-      read: false,
-    })
-
-    if (notificationError) {
-      console.error("[v0] Notification error:", notificationError)
+    if (action === "approve" && !isHeadOfficeReq) {
+      // Regional approval: notify regional IT heads at the requester's location
+      const { data: regionalHeads } = await supabaseAdmin
+        .from("profiles")
+        .select("id")
+        .eq("role", "regional_it_head")
+        .eq("is_active", true)
+      if (regionalHeads && regionalHeads.length > 0) {
+        const regionalNotifications = regionalHeads.map((rh: any) => ({
+          user_id: rh.id,
+          title: "Regional IT Equipment Requisition Ready",
+          message: `Requisition ${requisition.requisition_number} has been approved by IT Head and is ready for regional stock assignment at ${requesterLocation || "your location"}.`,
+          type: "info",
+          category: "approval",
+          reference_type: "it_equipment_requisition",
+          reference_id: requisitionId,
+          is_read: false,
+        }))
+        await supabaseAdmin.from("notifications").insert(regionalNotifications).catch(console.error)
+      }
+    } else {
+      const { error: notificationError } = await supabaseAdmin.from("notifications").insert({
+        recipient_id: action === "approve" ? "admin" : requisition.requested_by,
+        recipient_type: action === "approve" ? "admin" : "staff",
+        title: `IT Head ${action === "approve" ? "Approved" : "Rejected"} Requisition`,
+        message: `Requisition ${requisition.requisition_number} was ${action === "approve" ? "approved and forwarded to Store" : "rejected"}`,
+        type: "it_form_update",
+        related_id: requisitionId,
+        related_type: "it_equipment_requisition",
+        read: false,
+      })
+      if (notificationError) console.error("[v0] Notification error:", notificationError)
     }
 
     return NextResponse.json({ success: true, requisition: updated })

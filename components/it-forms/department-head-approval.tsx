@@ -191,7 +191,7 @@ export function DepartmentHeadApprovalModule() {
   const isRejected = (req: ITFormRequest) => req.status.includes("rejected") || req.department_head_approved === false
   const isApproved = (req: ITFormRequest) =>
     req.department_head_approved === true ||
-    ["hod_approved", "pending_manager", "recommended", "not_recommended", "gadget_issued", "sent_for_repair", "repaired", "confirmed_working", "pending_it_office_use", "pending_service_desk", "pending_it_head", "pending_admin", "pending_store", "approved", "issued", "completed"].includes(req.status)
+    ["hod_approved", "pending_manager", "recommended", "not_recommended", "gadget_issued", "sent_for_repair", "repaired", "confirmed_working", "pending_it_office_use", "pending_service_desk", "pending_it_head", "pending_admin", "pending_store", "pending_regional_store", "approved", "issued", "completed"].includes(req.status)
 
   const filterRequisitions = () => {
     let filtered = requisitions
@@ -275,20 +275,20 @@ export function DepartmentHeadApprovalModule() {
       {
         stage: "IT Office Use",
         role: "IT Staff",
-        status: ["pending_it_head", "pending_admin", "pending_store", "approved", "issued", "completed"].includes(req.status)
+        status: ["pending_it_head", "pending_admin", "pending_store", "pending_regional_store", "approved", "issued", "completed"].includes(req.status)
           ? "completed"
           : isRejected(req)
             ? "rejected"
             : "pending",
       },
       {
-        stage: "IT Head / Admin Review",
-        role: "IT Head / Admin",
-        status: ["pending_store", "approved", "issued", "completed"].includes(req.status) ? "completed" : isRejected(req) ? "rejected" : "pending",
+        stage: "IT Head Review",
+        role: "IT Head",
+        status: ["pending_store", "pending_regional_store", "approved", "issued", "completed"].includes(req.status) ? "completed" : isRejected(req) ? "rejected" : "pending",
       },
       {
-        stage: "Store / Fulfilment",
-        role: "Store / Operations",
+        stage: "Store / Regional Assignment",
+        role: "Store / Regional IT Head",
         status: ["issued", "completed"].includes(req.status) ? "completed" : isRejected(req) ? "rejected" : "pending",
       },
     ]

@@ -363,7 +363,7 @@ export function ITHeadAdminPanel() {
 
     const isApprovedForManager = (req: ITRequisition) =>
       req.formType === "requisition"
-        ? Boolean(req.it_head_approved || req.admin_approved)
+        ? Boolean(req.it_head_approved || req.admin_approved) || ["pending_store", "pending_regional_store"].includes(req.status)
         : req.formType === "password-reset"
           ? ["assigned", "in_progress", "awaiting_user_confirmation", "completed"].includes(req.status)
           : req.formType === "account-unlock" || req.formType === "software-access"
@@ -528,10 +528,42 @@ export function ITHeadAdminPanel() {
       ]
     }
 
-    const adminStageCompleted =
-      Boolean(req.admin_approved) ||
-      Boolean(req.it_head_approved) ||
-      ["pending_store", "approved", "issued", "completed"].includes(req.status)
+    const isRegional = (req as any).regional_fulfillment === true ||
+      req.status === "pending_regional_store"
+
+    if (isRegional) {
+      return [
+        {
+          stage: "Department Head Review",
+          role: "Department Head",
+          status: "completed",
+          approver: req.department_head_approved_by || req.departmental_head_name || req.sectional_head_name,
+          timestamp: req.department_head_approved_at || req.departmental_head_date || req.sectional_head_date,
+        },
+        {
+          stage: "IT Office Use",
+          role: "IT Staff",
+          status: "completed",
+          approver: req.formType === "requisition" ? req.service_desk_processed_by : req.confirmed_by,
+          timestamp: req.formType === "requisition" ? req.service_desk_processed_at : req.confirmed_date,
+          notes: req.formType === "requisition" ? req.service_desk_notes : req.other_comments,
+        },
+        {
+          stage: "IT Head / Regional IT Review",
+          role: "IT Head / Regional IT Head",
+          status: req.it_head_approved ? "completed" : req.it_head_notes ? "rejected" : "pending",
+          approver: req.it_head_approved_by,
+          timestamp: req.it_head_approved_at,
+          notes: req.it_head_notes,
+          signatureDataUrl: req.it_head_signature,
+        },
+        {
+          stage: "Regional IT Head Assignment",
+          role: "Regional IT Head",
+          status: req.store_head_approved ? "completed" : req.it_head_approved ? "awaiting" : "pending",
+        },
+      ]
+    }
 
     return [
       {
@@ -557,14 +589,6 @@ export function ITHeadAdminPanel() {
         timestamp: req.it_head_approved_at,
         notes: req.it_head_notes,
         signatureDataUrl: req.it_head_signature,
-      },
-      {
-        stage: "Admin Approval",
-        role: "Admin",
-        status: adminStageCompleted ? "completed" : req.status === "rejected_admin" ? "rejected" : "pending",
-        approver: req.admin_approved_by || (adminStageCompleted ? (req.it_head_approved_by || "Auto-completed") : undefined),
-        timestamp: req.admin_approved_at || req.it_head_approved_at,
-        signatureDataUrl: req.admin_signature || req.it_head_signature,
       },
       {
         stage: "Store Head Issuance",

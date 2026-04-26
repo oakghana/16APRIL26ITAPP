@@ -524,10 +524,48 @@ export function RequestStatusTracker({
       ]
     }
 
+    const isRegional = (req as any).regional_fulfillment === true ||
+      req.status === "pending_regional_store"
+
     const adminStageCompleted =
       Boolean(req.admin_approved) ||
       Boolean(req.it_head_approved) ||
-      ["pending_store", "approved", "issued", "completed"].includes(req.status)
+      ["pending_store", "pending_regional_store", "approved", "issued", "completed"].includes(req.status)
+
+    if (isRegional) {
+      return [
+        {
+          stage: "Department Head Review",
+          role: "Department Head",
+          status: req.department_head_approved_by
+            ? (req.department_head_approved ? "completed" : "rejected")
+            : "pending",
+          approver: req.department_head_approved_by,
+          timestamp: req.department_head_approved_at,
+          notes: req.department_head_notes,
+          signatureDataUrl: req.department_head_signature,
+        },
+        {
+          stage: "IT Office Use",
+          role: "IT Staff",
+          status: req.service_desk_approved ? "completed" : "pending",
+        },
+        {
+          stage: "IT Head / Regional IT Review",
+          role: "IT Head / Regional IT Head",
+          status: req.it_head_approved ? "completed" : "pending",
+          approver: req.it_head_approved_by,
+          timestamp: req.it_head_approved_at,
+          signatureDataUrl: req.it_head_signature,
+        },
+        {
+          stage: "Regional IT Head Assignment",
+          role: "Regional IT Head",
+          status: req.store_head_approved ? "completed" : req.it_head_approved ? "awaiting" : "pending",
+          notes: req.it_head_approved ? "Item will be added to your regional store for assignment" : undefined,
+        },
+      ]
+    }
 
     return [
       {
@@ -555,14 +593,6 @@ export function RequestStatusTracker({
         signatureDataUrl: req.it_head_signature,
       },
       {
-        stage: "Admin Approval",
-        role: "Admin",
-        status: adminStageCompleted ? "completed" : "pending",
-        approver: req.admin_approved_by || (adminStageCompleted ? (req.it_head_approved_by || "Auto-completed") : undefined),
-        timestamp: req.admin_approved_at || req.it_head_approved_at,
-        signatureDataUrl: req.admin_signature || req.it_head_signature,
-      },
-      {
         stage: "Store Head Issuance",
         role: "IT Store Head",
         status: req.store_head_approved ? "completed" : "pending",
@@ -582,6 +612,7 @@ export function RequestStatusTracker({
       pending_it_head: { variant: "default", label: "Awaiting IT Head" },
       pending_admin: { variant: "default", label: "Awaiting Admin" },
       pending_store: { variant: "default", label: "Ready for Issue" },
+      pending_regional_store: { variant: "default", label: "Pending Regional Assignment" },
       approved: { variant: "default", label: "Approved" },
       issued: { variant: "default", label: "Issued" },
       rejected_department_head: { variant: "destructive", label: "Rejected by HOD" },
@@ -635,6 +666,7 @@ export function RequestStatusTracker({
     if (!req.service_desk_approved) return "Awaiting IT office-use completion by IT staff"
     if (!req.it_head_approved) return "Awaiting IT Head review"
     if (!req.store_head_approved) return "Ready for store issuance"
+    if (req.status === "pending_regional_store") return "Awaiting regional IT head to assign item from local stock"
     return "Request completed"
   }
 
