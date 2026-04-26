@@ -29,7 +29,7 @@ import {
 import { useAuth } from "@/lib/auth-context"
 import { DataPagination } from "@/components/ui/data-pagination"
 import { SortControls } from "@/components/ui/sort-controls"
-import { canSeeAllLocations, canCreateRepairs, normalizeLocation } from "@/lib/location-filter"
+import { canSeeAllLocations, canCreateRepairs, getCanonicalLocationName, normalizeLocation } from "@/lib/location-filter"
 import { useToast } from "@/hooks/use-toast"
 import { sortItems } from "@/lib/sort-utils"
 import { useRealtimeUpdates } from "@/hooks/use-realtime-updates"
@@ -67,6 +67,8 @@ interface RepairTask {
   serviceProviderAssignedBy?: string
   serviceProviderAssignedDate?: string
   createdBy: string
+  createdByLocation?: string
+  createdByRegion?: string
   createdDate: string
   estimatedCost?: number
   actualCost?: number
@@ -371,7 +373,9 @@ export function ITHeadRepairManagement() {
           priority: item.priority || "medium",
           status: item.status || "draft",
           serviceProvider: serviceProviderData,
-          createdBy: item.requested_by || "",
+          createdBy: item.requested_by_name || item.requested_by || "",
+          createdByLocation: getCanonicalLocationName(item.requester_location || item.location || ""),
+          createdByRegion: getCanonicalLocationName(item.requester_location || item.location || ""),
           createdDate: item.created_at || new Date().toISOString(),
           estimatedCost: item.estimated_cost,
           actualCost: item.actual_cost,
@@ -1296,6 +1300,12 @@ export function ITHeadRepairManagement() {
                                   </p>
                                   <p>
                                     <strong>Created By:</strong> {task.createdBy}
+                                  </p>
+                                  <p>
+                                    <strong>Creator Location:</strong> {task.createdByLocation || "Not captured"}
+                                  </p>
+                                  <p>
+                                    <strong>Creator Region:</strong> {task.createdByRegion || task.createdByLocation || "Not captured"}
                                   </p>
                                   <p>
                                     <strong>Service Provider:</strong>{" "}

@@ -171,7 +171,8 @@ export function DeviceInventory() {
   const [editUseCustomAssignee, setEditUseCustomAssignee] = useState(false)
 
   const supabase = createClient()
-  const canSelectAllLocations = user ? canSeeAllLocations(user) : false
+  const isLocationScopedRole = user?.role === "regional_it_head" || user?.role === "it_staff"
+  const canSelectAllLocations = user ? canSeeAllLocations(user) && !isLocationScopedRole : false
 
   useEffect(() => {
     loadDevices()
@@ -305,7 +306,7 @@ export function DeviceInventory() {
     try {
       setLoading(true)
 
-      const canSeeAll = user ? canSeeAllLocations(user) : false
+      const canSeeAll = user ? canSeeAllLocations(user) && !isLocationScopedRole : false
       console.log("[v0] Loading devices for user:", user?.username, "role:", user?.role, "location:", user?.location)
       console.log("[v0] Can see all locations:", canSeeAll)
 

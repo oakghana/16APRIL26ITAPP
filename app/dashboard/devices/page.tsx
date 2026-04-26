@@ -14,7 +14,11 @@ export default function DevicesPage() {
     user?.role === "regional_it_head" ||
     user?.role === "it_head" ||
     user?.role === "it_staff"
-  const isAdmin = user?.role === "admin"
+  const canSeeTonerIntelligence =
+    user?.role === "admin" ||
+    user?.role === "regional_it_head" ||
+    user?.role === "it_head" ||
+    user?.role === "it_staff"
 
   if (!canSeeDuplicates) {
     return (
@@ -41,7 +45,7 @@ export default function DevicesPage() {
           <Copy className="h-4 w-4" />
           Duplicate Checker
         </TabsTrigger>
-        {isAdmin && (
+        {canSeeTonerIntelligence && (
           <TabsTrigger
             value="toner-intelligence"
             className="flex items-center gap-2 data-[state=active]:bg-green-500 data-[state=active]:text-white"
@@ -60,7 +64,7 @@ export default function DevicesPage() {
         <DuplicateDeviceChecker />
       </TabsContent>
 
-      {isAdmin && (
+      {canSeeTonerIntelligence && (
         <TabsContent value="toner-intelligence" className="mt-0">
           <DeviceTonerIntelligence />
         </TabsContent>

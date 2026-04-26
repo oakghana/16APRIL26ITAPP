@@ -1,6 +1,6 @@
 "use client"
 
-import { useCallback, useEffect, useMemo, useState } from "react"
+import { Fragment, useCallback, useEffect, useMemo, useState } from "react"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
@@ -12,6 +12,7 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table"
 import { Loader2, Printer, Copy, AlertTriangle, CheckCircle2, Droplets, Search, Link2, Download, BarChart3, ChevronDown, ChevronRight, Filter } from "lucide-react"
 import { useAuth } from "@/lib/auth-context"
+import { getCanonicalLocationName } from "@/lib/location-filter"
 import { DataPagination } from "@/components/ui/data-pagination"
 import { useToast } from "@/hooks/use-toast"
 
@@ -248,12 +249,17 @@ export function DeviceTonerIntelligence() {
   const [savingAssociation, setSavingAssociation] = useState(false)
   const [execSearch, setExecSearch] = useState("")
   const [execStatusFilter, setExecStatusFilter] = useState<"all" | "urgent" | "low" | "ok">("all")
+  const [execTonerTypeFilter, setExecTonerTypeFilter] = useState<string>("all")
   const [execSortField, setExecSortField] = useState<"location" | "devices" | "urgent" | "toners">("location")
   const [execSortDir, setExecSortDir] = useState<"asc" | "desc">("asc")
   const [execExpandedLocation, setExecExpandedLocation] = useState<string | null>(null)
   const [assetSearch, setAssetSearch] = useState("")
   const [assetLocationFilter, setAssetLocationFilter] = useState<string>("all")
   const [assetDeviceTypeFilter, setAssetDeviceTypeFilter] = useState<string>("all")
+
+  const canViewTonerIntelligence = ["admin", "it_head", "regional_it_head", "it_staff"].includes(user?.role || "")
+  const isLocationScopedRole = user?.role === "regional_it_head" || user?.role === "it_staff"
+  const scopedUserLocation = getCanonicalLocationName(user?.location || "")
 
   const locations = data?.locations || []
   const tonerCatalog = data?.tonerCatalog || []
@@ -266,7 +272,15 @@ export function DeviceTonerIntelligence() {
     setError("")
 
     try {
-      const response = await fetch(`/api/devices/toner-intelligence?userRole=${encodeURIComponent(user.role)}`)
+      const params = new URLSearchParams({
+        userRole: user.role,
+      })
+
+      if (user.location) {
+        params.set("userLocation", user.location)
+      }
+
+      const response = await fetch(`/api/devices/toner-intelligence?${params.toString()}`)
       const result = await response.json()
       if (!response.ok) {
         throw new Error(result.error || "Failed to load toner intelligence")
@@ -282,6 +296,12 @@ export function DeviceTonerIntelligence() {
   useEffect(() => {
     loadData()
   }, [loadData])
+
+  useEffect(() => {
+    if (isLocationScopedRole && scopedUserLocation !== "Unspecified") {
+      setSelectedLocation(scopedUserLocation)
+    }
+  }, [isLocationScopedRole, scopedUserLocation])
 
   const visibleLocations = useMemo(() => {
     if (selectedLocation === "all") return locations
@@ -414,6 +434,11 @@ export function DeviceTonerIntelligence() {
   const filteredExecData = useMemo(() => {
     let rows = executiveSummary.tonerTypesByLocation
 
+    if (execTonerTypeFilter !== "all") {
+      const tonerToken = normalizeToken(execTonerTypeFilter)
+      rows = rows.filter((loc) => loc.tonerBreakdown.some((t) => normalizeToken(t.tonerType) === tonerToken))
+    }
+
     if (execSearch.trim()) {
       const q = execSearch.trim().toLowerCase()
       rows = rows.filter(
@@ -438,7 +463,59 @@ export function DeviceTonerIntelligence() {
     })
 
     return rows
-  }, [executiveSummary.tonerTypesByLocation, execSearch, execStatusFilter, execSortField, execSortDir])
+  }, [executiveSummary.tonerTypesByLocation, execTonerTypeFilter, execSearch, execStatusFilter, execSortField, execSortDir])
+
+  const execTonerTypeOptions = useMemo(() => {
+    const set = new Set<string>()
+    executiveSummary.tonerTypesByLocation.forEach((loc) => {
+      loc.tonerBreakdown.forEach((t) => {
+        if (t.tonerType?.trim()) set.add(t.tonerType.trim())
+      })
+    })
+    return Array.from(set).sort((a, b) => a.localeCompare(b))
+  }, [executiveSummary.tonerTypesByLocation])
+
+  const selectedTonerMetrics = useMemo(() => {
+    if (execTonerTypeFilter === "all") return null
+
+    const tonerToken = normalizeToken(execTonerTypeFilter)
+    const rows: Array<{
+      location: string
+      printersUsing: number
+      locationQty: number
+      globalQty: number
+      stockStatus: "urgent" | "low" | "ok"
+    }> = []
+
+    executiveSummary.tonerTypesByLocation.forEach((loc) => {
+      const match = loc.tonerBreakdown.find((t) => normalizeToken(t.tonerType) === tonerToken)
+      if (!match) return
+
+      const stockStatus: "urgent" | "low" | "ok" = match.locationQty <= 0 ? "urgent" : match.locationQty <= 2 ? "low" : "ok"
+
+      rows.push({
+        location: loc.location,
+        printersUsing: match.printersUsing,
+        locationQty: match.locationQty,
+        globalQty: match.globalQty,
+        stockStatus,
+      })
+    })
+
+    const locationsWithToner = rows.length
+    const totalPrintersUsing = rows.reduce((sum, row) => sum + row.printersUsing, 0)
+    const totalLocationQty = rows.reduce((sum, row) => sum + row.locationQty, 0)
+    const globalQty = rows.reduce((max, row) => Math.max(max, row.globalQty), 0)
+
+    return {
+      tonerType: execTonerTypeFilter,
+      rows: rows.sort((a, b) => a.location.localeCompare(b.location)),
+      locationsWithToner,
+      totalPrintersUsing,
+      totalLocationQty,
+      globalQty,
+    }
+  }, [executiveSummary.tonerTypesByLocation, execTonerTypeFilter])
 
   const toggleExecSort = (field: typeof execSortField) => {
     if (execSortField === field) setExecSortDir((d) => (d === "asc" ? "desc" : "asc"))
@@ -723,6 +800,7 @@ export function DeviceTonerIntelligence() {
           tonerModel: finalTonerModel || null,
           userId: user.id,
           userRole: user.role,
+          userLocation: user.location,
         }),
       })
 
@@ -886,12 +964,12 @@ export function DeviceTonerIntelligence() {
     URL.revokeObjectURL(url)
   }
 
-  if (user?.role !== "admin") {
+  if (!canViewTonerIntelligence) {
     return (
       <Card>
         <CardHeader>
           <CardTitle>Printer & Photocopier Toner Intelligence</CardTitle>
-          <CardDescription>This section is restricted to Admin users.</CardDescription>
+          <CardDescription>This section is restricted to IT roles.</CardDescription>
         </CardHeader>
       </Card>
     )
@@ -970,12 +1048,15 @@ export function DeviceTonerIntelligence() {
           <div className="grid grid-cols-1 gap-3 md:grid-cols-3">
             <div className="md:col-span-1">
               <Label className="text-xs text-muted-foreground">Location</Label>
-              <Select value={selectedLocation} onValueChange={setSelectedLocation}>
+              <Select value={selectedLocation} onValueChange={setSelectedLocation} disabled={isLocationScopedRole}>
                 <SelectTrigger>
                   <SelectValue placeholder="Select location" />
                 </SelectTrigger>
                 <SelectContent>
-                  <SelectItem value="all">Whole App (All Locations)</SelectItem>
+                  {!isLocationScopedRole && <SelectItem value="all">Whole App (All Locations)</SelectItem>}
+                  {isLocationScopedRole && scopedUserLocation !== "Unspecified" && (
+                    <SelectItem value={scopedUserLocation}>{scopedUserLocation}</SelectItem>
+                  )}
                   {locations.map((loc) => (
                     <SelectItem key={loc.location} value={loc.location}>{loc.location}</SelectItem>
                   ))}
@@ -1220,6 +1301,19 @@ export function DeviceTonerIntelligence() {
                     <SelectItem value="ok">OK / Sufficient</SelectItem>
                   </SelectContent>
                 </Select>
+                <Select value={execTonerTypeFilter} onValueChange={setExecTonerTypeFilter}>
+                  <SelectTrigger className="w-full sm:w-64 h-9">
+                    <SelectValue placeholder="Filter by toner type" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="all">All Toner Types</SelectItem>
+                    {execTonerTypeOptions.map((tonerType) => (
+                      <SelectItem key={`exec-toner-option-${tonerType}`} value={tonerType}>
+                        {tonerType}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
               </div>
             </CardHeader>
             <CardContent className="p-0">
@@ -1270,9 +1364,8 @@ export function DeviceTonerIntelligence() {
                         const isExpanded = execExpandedLocation === loc.location
                         const overallStatus = loc.needsNow > 0 ? "urgent" : loc.lowStock > 0 ? "low" : "ok"
                         return (
-                          <>
+                          <Fragment key={`exec-group-${loc.location}`}>
                             <TableRow
-                              key={`exec-row-${loc.location}`}
                               className="cursor-pointer hover:bg-muted/40"
                               onClick={() => setExecExpandedLocation(isExpanded ? null : loc.location)}
                             >
@@ -1316,7 +1409,7 @@ export function DeviceTonerIntelligence() {
                             </TableRow>
 
                             {isExpanded && (
-                              <TableRow key={`exec-detail-${loc.location}`} className="bg-muted/20 hover:bg-muted/20">
+                              <TableRow className="bg-muted/20 hover:bg-muted/20">
                                 <TableCell colSpan={9} className="px-4 py-4">
                                   <div className="grid grid-cols-1 gap-4 lg:grid-cols-2">
                                     {/* Printer Model Breakdown */}
@@ -1385,7 +1478,7 @@ export function DeviceTonerIntelligence() {
                                 </TableCell>
                               </TableRow>
                             )}
-                          </>
+                          </Fragment>
                         )
                       })}
                     </TableBody>
@@ -1394,6 +1487,74 @@ export function DeviceTonerIntelligence() {
               )}
             </CardContent>
           </Card>
+
+          {selectedTonerMetrics && (
+            <Card>
+              <CardHeader className="pb-3">
+                <CardTitle className="text-base">Selected Toner Analysis: {selectedTonerMetrics.tonerType}</CardTitle>
+                <CardDescription>
+                  Location-by-location metrics for the selected toner type.
+                </CardDescription>
+              </CardHeader>
+              <CardContent className="space-y-4">
+                <div className="grid grid-cols-2 gap-3 md:grid-cols-4">
+                  <div className="rounded-md border p-3">
+                    <p className="text-xs text-muted-foreground">Locations with Toner</p>
+                    <p className="text-2xl font-bold">{selectedTonerMetrics.locationsWithToner}</p>
+                  </div>
+                  <div className="rounded-md border p-3">
+                    <p className="text-xs text-muted-foreground">Printers Using Toner</p>
+                    <p className="text-2xl font-bold">{selectedTonerMetrics.totalPrintersUsing}</p>
+                  </div>
+                  <div className="rounded-md border p-3">
+                    <p className="text-xs text-muted-foreground">Qty Across Locations</p>
+                    <p className="text-2xl font-bold">{selectedTonerMetrics.totalLocationQty}</p>
+                  </div>
+                  <div className="rounded-md border p-3">
+                    <p className="text-xs text-muted-foreground">Global Qty</p>
+                    <p className="text-2xl font-bold">{selectedTonerMetrics.globalQty}</p>
+                  </div>
+                </div>
+
+                <div className="overflow-x-auto">
+                  <Table>
+                    <TableHeader>
+                      <TableRow className="bg-muted/50">
+                        <TableHead>Location</TableHead>
+                        <TableHead className="text-center">Printers Using</TableHead>
+                        <TableHead className="text-center">Qty Here</TableHead>
+                        <TableHead className="text-center">Global Qty</TableHead>
+                        <TableHead className="text-center">Stock Status</TableHead>
+                      </TableRow>
+                    </TableHeader>
+                    <TableBody>
+                      {selectedTonerMetrics.rows.length === 0 ? (
+                        <TableRow>
+                          <TableCell colSpan={5} className="text-center text-muted-foreground">
+                            No rows found for selected toner.
+                          </TableCell>
+                        </TableRow>
+                      ) : (
+                        selectedTonerMetrics.rows.map((row) => (
+                          <TableRow key={`selected-toner-row-${selectedTonerMetrics.tonerType}-${row.location}`}>
+                            <TableCell className="font-medium">{row.location}</TableCell>
+                            <TableCell className="text-center tabular-nums">{row.printersUsing}</TableCell>
+                            <TableCell className="text-center tabular-nums">{row.locationQty}</TableCell>
+                            <TableCell className="text-center tabular-nums">{row.globalQty}</TableCell>
+                            <TableCell className="text-center">
+                              {row.stockStatus === "urgent" && <Badge variant="destructive">Urgent</Badge>}
+                              {row.stockStatus === "low" && <Badge className="bg-amber-500 text-white">Low</Badge>}
+                              {row.stockStatus === "ok" && <Badge className="bg-emerald-600 text-white">OK</Badge>}
+                            </TableCell>
+                          </TableRow>
+                        ))
+                      )}
+                    </TableBody>
+                  </Table>
+                </div>
+              </CardContent>
+            </Card>
+          )}
 
           {/* ── Full Toner Inventory Cross-Table ───────────────────── */}
           <Card>

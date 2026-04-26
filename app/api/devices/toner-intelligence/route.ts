@@ -164,9 +164,12 @@ export async function GET(request: NextRequest) {
   try {
     const { searchParams } = request.nextUrl
     const userRole = searchParams.get("userRole")
+    const userLocation = searchParams.get("userLocation")
 
-    if (userRole !== "admin") {
-      return NextResponse.json({ error: "Forbidden. Admin access required." }, { status: 403 })
+    const canView = userRole === "admin" || userRole === "it_head" || userRole === "regional_it_head" || userRole === "it_staff"
+
+    if (!canView) {
+      return NextResponse.json({ error: "Forbidden. IT access required." }, { status: 403 })
     }
 
     const { data: devicesData, error: devicesError } = await supabaseAdmin
@@ -196,10 +199,17 @@ export async function GET(request: NextRequest) {
     }
 
     const allDevices = (devicesData || []) as DeviceRow[]
-    const printerLikeDevices = allDevices.filter(isPrinterLikeType)
+    const isScopedRole = (userRole === "regional_it_head" || userRole === "it_staff") && Boolean(userLocation)
+    const scopedDevices = isScopedRole
+      ? allDevices.filter((device) => locationsMatch(device.location, userLocation))
+      : allDevices
+    const printerLikeDevices = scopedDevices.filter(isPrinterLikeType)
 
     const allStoreItems = ([...(storeItemsData || []), ...centralItems] as StoreItemRow[])
-    const tonerItems = allStoreItems.filter(isTonerLikeItem)
+    const scopedStoreItems = isScopedRole
+      ? allStoreItems.filter((item) => locationsMatch(item.location, userLocation))
+      : allStoreItems
+    const tonerItems = scopedStoreItems.filter(isTonerLikeItem)
 
     const tonerCatalog: TonerCatalogItem[] = tonerItems.map((item) => ({
       id: item.id,
@@ -295,7 +305,7 @@ export async function GET(request: NextRequest) {
     let totalUpsQty = 0
     let totalComputerQty = 0
 
-    allStoreItems.forEach((item) => {
+    scopedStoreItems.forEach((item) => {
       const category = getInventoryCategory(item)
       if (!category) return
 
@@ -329,7 +339,7 @@ export async function GET(request: NextRequest) {
     const deviceLocationMap = new Map<string, DeviceLocationMetric>()
     const typeSet = new Set<string>()
 
-    allDevices.forEach((device) => {
+    scopedDevices.forEach((device) => {
       const location = getCanonicalLocationName(device.location || "Unspecified")
       const deviceType = normalizeDeviceType(device)
       const existing = deviceLocationMap.get(location) || {

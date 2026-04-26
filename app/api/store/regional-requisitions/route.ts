@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from "next/server"
 import { createClient } from "@supabase/supabase-js"
+import { getCanonicalLocationName, locationsMatch } from "@/lib/location-filter"
 
 // Use service role key to bypass RLS
 const supabaseAdmin = createClient(
@@ -27,13 +28,6 @@ export async function GET(request: NextRequest) {
       query = query.eq("status", status)
     }
 
-    // Apply location filter based on role
-    // Admin, IT Head, Store Head can see all
-    // Regional IT Head can only see their location's requisitions
-    if (userRole === "regional_it_head" && location) {
-      query = query.eq("requesting_location", location)
-    }
-
     const { data, error } = await query
 
     if (error) {
@@ -41,9 +35,17 @@ export async function GET(request: NextRequest) {
       return NextResponse.json({ error: error.message }, { status: 500 })
     }
 
-    console.log("[v0] Loaded regional requisitions:", data?.length || 0)
+    let requisitions = data || []
 
-    return NextResponse.json({ requisitions: data || [] })
+    // Regional IT Heads should only see requisitions for their own location,
+    // even if location values vary in case/spacing.
+    if (userRole === "regional_it_head" && location) {
+      requisitions = requisitions.filter((item: any) => locationsMatch(item.requesting_location, location))
+    }
+
+    console.log("[v0] Loaded regional requisitions:", requisitions.length || 0)
+
+    return NextResponse.json({ requisitions })
   } catch (error) {
     console.error("[v0] API Regional Requisitions GET error:", error)
     return NextResponse.json({ error: "Internal server error" }, { status: 500 })
@@ -242,17 +244,24 @@ export async function PUT(request: NextRequest) {
         )
       }
 
-      // Get or check regional store stock
+      const targetLocation = getCanonicalLocationName(requisition.requesting_location)
+      const itemSku = centralItem.sku || centralItem.item_code || requisition.item_code || null
+      const itemName = centralItem.name || centralItem.item_name || requisition.item_name || "Unknown"
+
+      // Get or check regional store stock using canonical fields and normalized location matching.
       let regionalItem = null
-      const { data: existingRegionalItem, error: regionalError } = await supabaseAdmin
+      const { data: regionalCandidates, error: regionalError } = await supabaseAdmin
         .from("store_items")
         .select("*")
-        .eq("item_code", centralItem.item_code)
-        .eq("location", requisition.requesting_location)
-        .single()
+        .ilike("location", targetLocation)
 
-      if (!regionalError && existingRegionalItem) {
-        regionalItem = existingRegionalItem
+      if (!regionalError && Array.isArray(regionalCandidates)) {
+        regionalItem = regionalCandidates.find((candidate: any) => {
+          const sameLocation = locationsMatch(candidate.location, targetLocation)
+          const sameSku = itemSku ? (candidate.sku || candidate.item_code) === itemSku : false
+          const sameName = String(candidate.name || candidate.item_name || "").toLowerCase().trim() === itemName.toLowerCase().trim()
+          return sameLocation && (sameSku || sameName)
+        }) || null
       }
 
       const centralStockBefore = centralItem.quantity
@@ -265,6 +274,7 @@ export async function PUT(request: NextRequest) {
         .from("store_items")
         .update({
           quantity: centralStockAfter,
+          quantity_in_stock: centralStockAfter,
           updated_at: new Date().toISOString(),
         })
         .eq("id", centralItem.id)
@@ -280,6 +290,7 @@ export async function PUT(request: NextRequest) {
           .from("store_items")
           .update({
             quantity: regionalStockAfter,
+            quantity_in_stock: regionalStockAfter,
             updated_at: new Date().toISOString(),
           })
           .eq("id", regionalItem.id)
@@ -299,12 +310,16 @@ export async function PUT(request: NextRequest) {
         const { error: createError } = await supabaseAdmin
           .from("store_items")
           .insert({
-            item_code: centralItem.item_code,
-            item_name: centralItem.item_name,
+            name: itemName,
+            sku: itemSku || `REG-${Date.now().toString(36).toUpperCase()}`,
+            siv_number: centralItem.siv_number || `AUTO-${Date.now().toString(36).toUpperCase()}`,
             category: centralItem.category,
             quantity: quantityToTransfer,
-            unit_price: centralItem.unit_price,
-            location: requisition.requesting_location,
+            quantity_in_stock: quantityToTransfer,
+            reorder_level: centralItem.reorder_level || 5,
+            unit: centralItem.unit || "pcs",
+            location: targetLocation,
+            supplier: centralItem.supplier || null,
             reorder_level: centralItem.reorder_level || 5,
             created_at: new Date().toISOString(),
             updated_at: new Date().toISOString(),
@@ -332,7 +347,7 @@ export async function PUT(request: NextRequest) {
           item_id: requisition.item_id,
           item_name: requisition.item_name,
           from_location: "Central Stores",
-          to_location: requisition.requesting_location,
+          to_location: targetLocation,
           quantity: quantityToTransfer,
           central_stock_before: centralStockBefore,
           central_stock_after: centralStockAfter,

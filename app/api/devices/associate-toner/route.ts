@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from "next/server"
 import { createClient } from "@supabase/supabase-js"
+import { locationsMatch } from "@/lib/location-filter"
 
 const supabaseAdmin = createClient(
   process.env.NEXT_PUBLIC_SUPABASE_URL || "https://placeholder.supabase.co",
@@ -12,7 +13,7 @@ function canManage(userRole: string | null | undefined) {
 
 export async function PUT(request: NextRequest) {
   try {
-    const { deviceId, tonerType, tonerModel, userId, userRole } = await request.json()
+    const { deviceId, tonerType, tonerModel, userId, userRole, userLocation } = await request.json()
 
     if (!deviceId || !tonerType) {
       return NextResponse.json({ error: "deviceId and tonerType are required" }, { status: 400 })
@@ -24,13 +25,17 @@ export async function PUT(request: NextRequest) {
 
     const { data: current, error: fetchError } = await supabaseAdmin
       .from("devices")
-      .select("id, brand, model, serial_number")
+      .select("id, brand, model, serial_number, location")
       .eq("id", deviceId)
       .single()
 
     if (fetchError || !current) {
       console.error("Device fetch error:", fetchError)
       return NextResponse.json({ error: "Device not found" }, { status: 404 })
+    }
+
+    if ((userRole === "regional_it_head" || userRole === "it_staff") && !locationsMatch(current.location, userLocation)) {
+      return NextResponse.json({ error: "You can only update toner mapping for devices in your location." }, { status: 403 })
     }
 
     const { data, error } = await supabaseAdmin

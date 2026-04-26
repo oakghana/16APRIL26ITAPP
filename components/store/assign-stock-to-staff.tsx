@@ -50,7 +50,7 @@ import {
 } from "lucide-react"
 import { useAuth } from "@/lib/auth-context"
 import { LOCATIONS } from "@/lib/locations"
-import { getCanonicalLocationName } from "@/lib/location-filter"
+import { getCanonicalLocationName, locationsMatch } from "@/lib/location-filter"
 import { downloadCSV } from "@/lib/export-utils"
 import { filterByCategory } from "@/lib/category-utils"
 import { useToast } from "@/hooks/use-toast"
@@ -265,8 +265,7 @@ export function AssignStockToStaff() {
         // Regional IT Head can ONLY see their specific location items
         const userLocation = user.location || ""
         availableItems = availableItems.filter((item: StockItem) => 
-          item.location === userLocation || 
-          item.location?.toLowerCase() === userLocation?.toLowerCase()
+          locationsMatch(item.location, userLocation)
         )
         console.log(`[v0] Regional IT Head - filtered to ${userLocation} items:`, availableItems.length)
       } else if (user?.role === "admin") {
