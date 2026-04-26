@@ -16,33 +16,37 @@ const supabaseAdmin = createClient(
 export async function GET(request: Request) {
   try {
     const { searchParams } = new URL(request.url)
-    const locationFilter = searchParams.get("location") || ""
-
-    let headsQuery = supabaseAdmin
-      .from("profiles")
-      .select("id, full_name, email, department, location, role, is_active, status")
-      .eq("role", "department_head")
-      .or("is_active.eq.true,status.eq.approved")
-    if (locationFilter) headsQuery = headsQuery.ilike("location", locationFilter)
-
-    let profilesQuery = supabaseAdmin
-      .from("profiles")
-      .select("id, department, location, role, is_active, status")
-      .or("is_active.eq.true,status.eq.approved")
-    if (locationFilter) profilesQuery = profilesQuery.ilike("location", locationFilter)
+    const locationFilter = normalizeValue(searchParams.get("location") || "")
 
     const [{ data: heads, error: headsError }, { data: allProfiles, error: profilesError }] = await Promise.all([
-      headsQuery,
-      profilesQuery,
+      supabaseAdmin
+        .from("profiles")
+        .select("id, full_name, email, department, location, role, is_active, status")
+        .eq("role", "department_head")
+        .or("is_active.eq.true,status.eq.approved"),
+      supabaseAdmin
+        .from("profiles")
+        .select("id, department, location, role, is_active, status")
+        .or("is_active.eq.true,status.eq.approved"),
     ])
 
     if (headsError) throw headsError
     if (profilesError) throw profilesError
 
     const excludedRoles = new Set(["admin", "it_head", "regional_it_head", "service_provider", "department_head"])
-    const eligibleUsers = (allProfiles || []).filter((profile: any) => !excludedRoles.has(profile.role))
+    const allEligible = (allProfiles || []).filter((profile: any) => !excludedRoles.has(profile.role))
 
-    const headsWithCounts = (heads || []).map((head: any) => {
+    // Filter heads by location if restricted
+    const filteredHeads = locationFilter
+      ? (heads || []).filter((h: any) => normalizeValue(h.location) === locationFilter)
+      : (heads || [])
+
+    // For staff counts, also scope to location if restricted
+    const eligibleUsers = locationFilter
+      ? allEligible.filter((p: any) => normalizeValue(p.location) === locationFilter)
+      : allEligible
+
+    const headsWithCounts = filteredHeads.map((head: any) => {
       const targetDepartment = normalizeValue(head.department)
       const targetLocation = normalizeValue(head.location)
       const matchedUsers = eligibleUsers.filter((profile: any) => {

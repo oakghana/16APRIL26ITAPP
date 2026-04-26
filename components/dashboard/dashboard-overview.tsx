@@ -6,7 +6,7 @@ import { Button } from "@/components/ui/button"
 import { Monitor, Wrench, CheckCircle, AlertTriangle, Clock, Users, Plus, Settings, Calendar } from "lucide-react"
 import { useRouter } from "next/navigation"
 import { useAuth } from "@/lib/auth-context"
-import { useState, useEffect } from "react"
+import { useState, useEffect, useRef } from "react"
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog"
 import { getRoleColorScheme } from "@/lib/role-colors"
 import { cn } from "@/lib/utils"
@@ -16,12 +16,16 @@ import { IncompleteTasksWidget } from "./incomplete-tasks-widget"
 import { UserNotificationsWidget } from "./user-notifications-widget"
 import { InitialNotificationsToast } from "@/components/notifications/initial-notifications-toast"
 import { WeeklyReportsSummaryWidget } from "./weekly-reports-summary-widget"
+import { HODStatusWidget } from "./hod-status-widget"
+import { useToast } from "@/hooks/use-toast"
 
 export function DashboardOverview() {
   const router = useRouter()
   const { user } = useAuth()
+  const { toast } = useToast()
   const [showAlerts, setShowAlerts] = useState(false)
   const roleColors = user?.role ? getRoleColorScheme(user.role) : null
+  const previousPendingItForms = useRef<number | null>(null)
   const [stats, setStats] = useState({
     totalDevices: 0,
     activeRepairs: 0,
@@ -33,6 +37,7 @@ export function DashboardOverview() {
     pendingReview: 0,
   })
   const [loading, setLoading] = useState(true)
+  const [pendingItFormsCount, setPendingItFormsCount] = useState(0)
 
   useEffect(() => {
     const fetchStats = async () => {
@@ -84,6 +89,84 @@ export function DashboardOverview() {
     return () => clearInterval(interval)
   }, [user])
 
+  useEffect(() => {
+    const fetchPendingItForms = async () => {
+      if (!user?.id || !user?.role) return
+
+      const { role } = user
+      const isApproverRole =
+        role === "department_head" ||
+        role === "it_staff" ||
+        role === "regional_it_head" ||
+        role === "it_head" ||
+        role === "admin" ||
+        role.startsWith("service_desk")
+
+      if (!isApproverRole) {
+        setPendingItFormsCount(0)
+        previousPendingItForms.current = null
+        return
+      }
+
+      try {
+        let count = 0
+
+        if (role === "department_head") {
+          const res = await fetch(`/api/it-forms/hod-requests?hodId=${encodeURIComponent(user.id)}`)
+          const data = res.ok ? await res.json() : null
+          if (data) {
+            const combined = [
+              ...(data.requisitions || []),
+              ...(data.gadgetRequests || []),
+              ...(data.maintenanceRequests || []),
+            ]
+            count = combined.filter((req: any) => ["draft", "pending_department_head", "pending", "pending_hod"].includes(req.status)).length
+          }
+        } else {
+          const [requisitionRes, gadgetRes, maintenanceRes] = await Promise.all([
+            fetch("/api/it-forms/requisitions?status=all"),
+            fetch("/api/it-forms/new-gadget?status=all"),
+            fetch("/api/it-forms/maintenance-repairs?status=all"),
+          ])
+
+          const requisitions = requisitionRes.ok ? (await requisitionRes.json()).requisitions || [] : []
+          const gadgets = gadgetRes.ok ? (await gadgetRes.json()).requests || [] : []
+          const maintenance = maintenanceRes.ok ? (await maintenanceRes.json()).requests || [] : []
+          const combined = [...requisitions, ...gadgets, ...maintenance]
+
+          if (role === "it_staff" || role === "regional_it_head" || role.startsWith("service_desk")) {
+            count = combined.filter((req: any) => req.status === "pending_it_office_use" || req.status === "pending_service_desk" || req.status === "hod_approved").length
+          } else if (role === "it_head") {
+            count = combined.filter((req: any) => req.status === "pending_it_head" || req.status === "pending_manager").length
+          } else if (role === "admin") {
+            count = combined.filter((req: any) => req.status === "pending_admin" || req.status === "pending_it_head" || req.status === "pending_manager").length
+          }
+        }
+
+        setPendingItFormsCount(count)
+
+        if (
+          previousPendingItForms.current !== null &&
+          count > previousPendingItForms.current
+        ) {
+          const delta = count - previousPendingItForms.current
+          toast({
+            title: "New Pending IT Forms",
+            description: `${delta} new IT form request${delta > 1 ? "s" : ""} now require your action.`,
+          })
+        }
+
+        previousPendingItForms.current = count
+      } catch (error) {
+        console.error("[v0] Failed to load pending IT forms:", error)
+      }
+    }
+
+    fetchPendingItForms()
+    const interval = setInterval(fetchPendingItForms, 30000)
+    return () => clearInterval(interval)
+  }, [user, toast])
+
   const handleNewRepairRequest = () => {
     router.push("/dashboard/repairs")
   }
@@ -125,6 +208,14 @@ export function DashboardOverview() {
   ]
 
   const getStats = () => {
+    const isApproverRole =
+      user?.role === "department_head" ||
+      user?.role === "it_staff" ||
+      user?.role === "regional_it_head" ||
+      user?.role === "it_head" ||
+      user?.role === "admin" ||
+      !!user?.role?.startsWith("service_desk")
+
     if (user?.role === "it_staff") {
       return [
         {
@@ -149,9 +240,9 @@ export function DashboardOverview() {
           trend: "",
         },
         {
-          title: "Pending Review",
-          value: loading ? "..." : stats.pendingReview.toString(),
-          description: "Awaiting approval",
+          title: "Pending IT Forms",
+          value: loading ? "..." : pendingItFormsCount.toString(),
+          description: "Awaiting IT office action",
           icon: Calendar,
           trend: "",
         },
@@ -214,9 +305,9 @@ export function DashboardOverview() {
         trend: "",
       },
       {
-        title: "Pending Approvals",
-        value: loading ? "..." : stats.pendingApprovals.toString(),
-        description: "Awaiting IT head review",
+        title: isApproverRole ? "Pending IT Forms" : "Pending Approvals",
+        value: loading ? "..." : (isApproverRole ? pendingItFormsCount.toString() : stats.pendingApprovals.toString()),
+        description: isApproverRole ? "Awaiting your review" : "Awaiting IT head review",
         icon: Clock,
         trend: "",
       },
@@ -263,6 +354,9 @@ export function DashboardOverview() {
       {(user?.role === "it_staff" || user?.role === "it_head" || user?.role === "regional_it_head") && (
         <StaffProductivityWidget />
       )}
+
+      {/* HOD Status Widget - shown for staff and regular users so they know their department head */}
+      {(user?.role === "staff" || user?.role === "user") && <HODStatusWidget />}
 
       {/* Stats Grid - More compact */}
       <div className="grid gap-3 grid-cols-2 lg:grid-cols-4">

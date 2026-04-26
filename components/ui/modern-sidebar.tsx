@@ -30,7 +30,6 @@ import {
   BarChart3,
   Database,
   ClipboardList,
-  Plus,
   ChevronDown,
   ChevronRight,
   Building2,
@@ -84,6 +83,10 @@ export function ModernSidebar({ isOpen, setIsOpen, className, onCollapseChange }
   const [isMounted, setIsMounted] = useState(false)
   const [expandedGroups, setExpandedGroups] = useState<string[]>([])
   const [editProfileOpen, setEditProfileOpen] = useState(false)
+  const [hodLinkStatus, setHodLinkStatus] = useState<{ loading: boolean; linked: boolean; hodName?: string }>({
+    loading: false,
+    linked: false,
+  })
   const prevItWorkQueue = useRef<number>(-1)
 
   useEffect(() => {
@@ -95,6 +98,30 @@ export function ModernSidebar({ isOpen, setIsOpen, className, onCollapseChange }
       onCollapseChange(isCollapsed)
     }
   }, [isCollapsed, onCollapseChange])
+
+  useEffect(() => {
+    const loadHodLinkStatus = async () => {
+      if (!user?.id || (user.role !== "staff" && user.role !== "user")) {
+        setHodLinkStatus({ loading: false, linked: false })
+        return
+      }
+
+      setHodLinkStatus((prev) => ({ ...prev, loading: true }))
+      try {
+        const response = await fetch(`/api/staff/my-hod?userId=${encodeURIComponent(user.id)}`)
+        const data = response.ok ? await response.json() : { hod: null }
+        if (data?.hod?.name) {
+          setHodLinkStatus({ loading: false, linked: true, hodName: data.hod.name })
+        } else {
+          setHodLinkStatus({ loading: false, linked: false })
+        }
+      } catch {
+        setHodLinkStatus({ loading: false, linked: false })
+      }
+    }
+
+    loadHodLinkStatus()
+  }, [user?.id, user?.role])
 
   // Toast notification when IT work queue increases
   useEffect(() => {
@@ -129,6 +156,7 @@ export function ModernSidebar({ isOpen, setIsOpen, className, onCollapseChange }
       return {
         items: [
           { name: "My Complaints", href: "/dashboard/complaints", icon: MessageSquare },
+          { name: "My Requests", href: "/dashboard/my-requests", icon: FileText },
           { name: "IT Store Stock Levels", href: "/dashboard/store-snapshot", icon: Database },
         ],
         groups: [
@@ -920,8 +948,8 @@ export function ModernSidebar({ isOpen, setIsOpen, className, onCollapseChange }
               )}
             </nav>
 
-            {/* Quick Actions - only when not collapsed */}
-            {!isCollapsed && user?.role !== "admin" && (
+            {/* Quick Actions / Linkage Status - only when not collapsed */}
+            {!isCollapsed && (user?.role === "staff" || user?.role === "user") && (
               <div className="mt-6 pt-4 border-t border-gray-100 dark:border-gray-800">
                 <div className="px-3 mb-3">
                   <p className="text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">
@@ -929,21 +957,22 @@ export function ModernSidebar({ isOpen, setIsOpen, className, onCollapseChange }
                   </p>
                 </div>
                 <div className="space-y-2">
-                  <Button
-                    variant="outline"
-                    size="sm"
-                    className="w-full justify-start text-xs bg-blue-50 hover:bg-blue-100 border-blue-200 text-blue-700 dark:bg-blue-950 dark:hover:bg-blue-900/20 text-blue-700 dark:text-blue-300"
-                    onClick={() => {
-                      if (user?.role === "staff") {
-                        router.push("/dashboard/complaints")
-                      } else {
-                        router.push("/dashboard/repairs")
-                      }
-                    }}
-                  >
-                    <Plus className="h-3 w-3 mr-2" />
-                    New Request
-                  </Button>
+                  {(user?.role === "staff" || user?.role === "user") ? (
+                    <div
+                      className={cn(
+                        "w-full rounded-md border px-3 py-2 text-xs",
+                        hodLinkStatus.linked
+                          ? "border-emerald-200 bg-emerald-50 text-emerald-700 dark:border-emerald-800 dark:bg-emerald-950/20 dark:text-emerald-300"
+                          : "border-amber-200 bg-amber-50 text-amber-800 dark:border-amber-800 dark:bg-amber-950/20 dark:text-amber-300"
+                      )}
+                    >
+                      {hodLinkStatus.loading
+                        ? "Checking HOD linkage..."
+                        : hodLinkStatus.linked
+                          ? `Linked HOD: ${hodLinkStatus.hodName || "Assigned"}`
+                          : "No department head linked yet. Contact IT Staff / Regional IT Head."}
+                    </div>
+                  ) : null}
                 </div>
               </div>
             )}

@@ -6,13 +6,77 @@ const supabaseAdmin = createClient(
   (process.env.SUPABASE_SERVICE_ROLE_KEY ?? "placeholder-build-key")
 )
 
+function normalizeValue(value: string | null | undefined) {
+  return (value || "")
+    .trim()
+    .replace(/\s+/g, " ")
+    .toLowerCase()
+}
+
 export async function POST(request: NextRequest) {
   try {
-    const { department_head_id, staff_ids } = await request.json()
+    const { department_head_id, staff_ids, actor_id } = await request.json()
 
     if (!department_head_id || !staff_ids || staff_ids.length === 0) {
       return NextResponse.json(
         { error: "Missing required fields" },
+        { status: 400 }
+      )
+    }
+
+    const { data: headProfile, error: headError } = await supabaseAdmin
+      .from("profiles")
+      .select("id, role, department, location")
+      .eq("id", department_head_id)
+      .eq("role", "department_head")
+      .single()
+
+    if (headError || !headProfile) {
+      return NextResponse.json(
+        { error: "Selected department head not found" },
+        { status: 400 }
+      )
+    }
+
+    if (actor_id) {
+      const { data: actorProfile } = await supabaseAdmin
+        .from("profiles")
+        .select("id, role, location")
+        .eq("id", actor_id)
+        .single()
+
+      const restrictedRoles = new Set(["it_staff", "regional_it_head"])
+      if (actorProfile?.role && restrictedRoles.has(actorProfile.role)) {
+        const actorLocation = normalizeValue(actorProfile.location)
+        const headLocation = normalizeValue(headProfile.location)
+        if (!actorLocation || actorLocation !== headLocation) {
+          return NextResponse.json(
+            { error: "You can only manage HOD links within your assigned location" },
+            { status: 403 }
+          )
+        }
+      }
+    }
+
+    const { data: staffProfiles, error: staffError } = await supabaseAdmin
+      .from("profiles")
+      .select("id, role, department, location")
+      .in("id", staff_ids)
+
+    if (staffError) throw staffError
+
+    const headDept = normalizeValue(headProfile.department)
+    const headLocation = normalizeValue(headProfile.location)
+    const invalidStaff = (staffProfiles || []).filter((profile: any) => {
+      const roleAllowed = profile.role === "staff" || profile.role === "user"
+      const sameDepartment = normalizeValue(profile.department) === headDept
+      const sameLocation = normalizeValue(profile.location) === headLocation
+      return !roleAllowed || !sameDepartment || !sameLocation
+    })
+
+    if (invalidStaff.length > 0) {
+      return NextResponse.json(
+        { error: "Some selected staff are outside the department/location of this department head" },
         { status: 400 }
       )
     }

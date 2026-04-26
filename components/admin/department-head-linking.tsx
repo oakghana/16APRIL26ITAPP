@@ -55,7 +55,7 @@ export function DepartmentHeadLinking() {
   const [activeTab, setActiveTab] = useState("mapping")
 
   // Determine if the current user is restricted to their own location
-  const currentUser = safeJsonParse<{ role?: string; location?: string } | null>(
+  const currentUser = safeJsonParse<{ id?: string; role?: string; location?: string } | null>(
     safeStorage.get("qcc_current_user"),
     null
   )
@@ -115,6 +115,7 @@ export function DepartmentHeadLinking() {
         body: JSON.stringify({
           department_head_id: headId,
           staff_ids: staffIds,
+          actor_id: currentUser?.id,
         }),
       })
 

@@ -88,7 +88,11 @@ export function DepartmentHeadApprovalModule() {
     if (!user?.id || !user?.role) return
 
     try {
-      const params = new URLSearchParams({ userId: user.id, role: user.role })
+      const params = new URLSearchParams({
+        userId: user.id,
+        role: user.role,
+        department: user.department || "",
+      })
       const response = await fetch(`/api/it-forms/signature-profile?${params.toString()}`)
       const data = await response.json()
       if (!response.ok) return
@@ -115,27 +119,41 @@ export function DepartmentHeadApprovalModule() {
         return
       }
 
-      const [requisitionRes, gadgetRes, maintenanceRes] = await Promise.all([
-        fetch("/api/it-forms/requisitions?status=all"),
-        fetch("/api/it-forms/new-gadget?status=all"),
-        fetch("/api/it-forms/maintenance-repairs?status=all"),
-      ])
+      let combined: ITFormRequest[] = []
 
-      const requisitionData = requisitionRes.ok ? await requisitionRes.json() : { requisitions: [] }
-      const gadgetData = gadgetRes.ok ? await gadgetRes.json() : { requests: [] }
-      const maintenanceData = maintenanceRes.ok ? await maintenanceRes.json() : { requests: [] }
+      if (isDepartmentHead && user?.id) {
+        // Department heads only see requests from their explicitly linked staff
+        const hodRes = await fetch(`/api/it-forms/hod-requests?hodId=${user.id}`)
+        if (!hodRes.ok) {
+          throw new Error("Failed to load your linked staff requests")
+        }
+        const hodData = await hodRes.json()
 
-      const combined: ITFormRequest[] = [
-        ...(requisitionData.requisitions || []).map((req: any) => ({ ...req, formType: "requisition" as const })),
-        ...(gadgetData.requests || []).map((req: any) => ({ ...req, formType: "new-gadget" as const })),
-        ...(maintenanceData.requests || []).map((req: any) => ({ ...req, formType: "maintenance" as const })),
-      ].sort((a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime())
+        combined = [
+          ...(hodData.requisitions || []).map((req: any) => ({ ...req, formType: "requisition" as const })),
+          ...(hodData.gadgetRequests || []).map((req: any) => ({ ...req, formType: "new-gadget" as const })),
+          ...(hodData.maintenanceRequests || []).map((req: any) => ({ ...req, formType: "maintenance" as const })),
+        ].sort((a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime())
+      } else {
+        // Non-HOD roles (e.g. admin viewing this module) fetch all requests
+        const [requisitionRes, gadgetRes, maintenanceRes] = await Promise.all([
+          fetch("/api/it-forms/requisitions?status=all"),
+          fetch("/api/it-forms/new-gadget?status=all"),
+          fetch("/api/it-forms/maintenance-repairs?status=all"),
+        ])
 
-      const departmentScoped = isDepartmentHead
-        ? combined.filter((req) => normalizeDepartmentName(req.department || req.department_name) === scopedDepartment)
-        : combined
+        const requisitionData = requisitionRes.ok ? await requisitionRes.json() : { requisitions: [] }
+        const gadgetData = gadgetRes.ok ? await gadgetRes.json() : { requests: [] }
+        const maintenanceData = maintenanceRes.ok ? await maintenanceRes.json() : { requests: [] }
 
-      setRequisitions(departmentScoped)
+        combined = [
+          ...(requisitionData.requisitions || []).map((req: any) => ({ ...req, formType: "requisition" as const })),
+          ...(gadgetData.requests || []).map((req: any) => ({ ...req, formType: "new-gadget" as const })),
+          ...(maintenanceData.requests || []).map((req: any) => ({ ...req, formType: "maintenance" as const })),
+        ].sort((a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime())
+      }
+
+      setRequisitions(combined)
     } catch (error) {
       console.error("[v0] Error fetching requisitions:", error)
       toast({
@@ -146,7 +164,7 @@ export function DepartmentHeadApprovalModule() {
     } finally {
       setLoading(false)
     }
-  }, [isDepartmentHead, scopedDepartment, toast])
+  }, [isDepartmentHead, scopedDepartment, user, toast])
 
   useEffect(() => {
     fetchRequisitions()
@@ -280,7 +298,6 @@ export function DepartmentHeadApprovalModule() {
     setSelectedRequisition(req)
     setApprovalAction("approve")
     setApprovalNotes("")
-    setHodSignature(null)
     setIsApprovalDialogOpen(true)
     loadStoredSignature()
   }
@@ -342,7 +359,6 @@ export function DepartmentHeadApprovalModule() {
       setIsApprovalDialogOpen(false)
       setSelectedRequisition(null)
       setApprovalNotes("")
-      setHodSignature(null)
     } catch (error: any) {
       console.error("[v0] Error submitting approval:", error)
       toast({
