@@ -25,8 +25,8 @@ export async function GET(request: Request) {
       .or("is_active.eq.true,status.eq.approved")
       .order("full_name")
 
-    // Exclude roles that should not be assigned to a department head
-    const excludedRoles = new Set(["admin", "it_head", "regional_it_head", "service_provider"])
+    // Keep admin and top-level IT head excluded; include regional_it_head in directory visibility.
+    const excludedRoles = new Set(["admin", "it_head", "service_provider"])
 
     if (fetchError) throw fetchError
     const staff = (allProfiles || []).filter((u: any) => {

@@ -164,18 +164,29 @@ export async function GET(request: NextRequest) {
     if (requests.length > 0) {
       const { data: profiles } = await supabaseAdmin
         .from("profiles")
-        .select("full_name, username, location")
+        .select("id, full_name, username, email, location")
 
-      const staffLocationMap = new Map<string, string>()
+      const locationByIdentity = new Map<string, string>()
       for (const profile of profiles || []) {
-        if (profile.full_name) staffLocationMap.set(String(profile.full_name).toLowerCase().trim(), String(profile.location || ""))
-        if (profile.username) staffLocationMap.set(String(profile.username).toLowerCase().trim(), String(profile.location || ""))
+        const loc = String(profile.location || "")
+        if (profile.id) locationByIdentity.set(String(profile.id).toLowerCase().trim(), loc)
+        if (profile.email) locationByIdentity.set(String(profile.email).toLowerCase().trim(), loc)
+        if (profile.full_name) locationByIdentity.set(String(profile.full_name).toLowerCase().trim(), loc)
+        if (profile.username) locationByIdentity.set(String(profile.username).toLowerCase().trim(), loc)
       }
 
-      requests = requests.map((req: any) => ({
-        ...req,
-        requester_location: staffLocationMap.get(String(req.staff_name || "").toLowerCase().trim()) || null,
-      }))
+      requests = requests.map((req: any) => {
+        const requesterLocation =
+          locationByIdentity.get(String(req.requested_by_id || req.created_by_id || "").toLowerCase().trim()) ||
+          locationByIdentity.get(String(req.requested_by_email || req.created_by_email || "").toLowerCase().trim()) ||
+          locationByIdentity.get(String(req.staff_name || req.requested_by || req.created_by || "").toLowerCase().trim()) ||
+          null
+
+        return {
+          ...req,
+          requester_location: requesterLocation,
+        }
+      })
 
       if (officeUseLocation) {
         const normalizedOfficeLocation = normalizeLocation(officeUseLocation)
