@@ -10,6 +10,7 @@ import { useAuth } from "@/lib/auth-context"
 import { Laptop, Wrench, ClipboardList, ShieldCheck, Lock, ArrowRight, Users, Loader2, Trash2, LockKeyhole, UserPlus, UserMinus, KeySquare, ArrowLeftRight } from "lucide-react"
 import { useToast } from "@/hooks/use-toast"
 import { isITDDepartment } from "@/lib/department-options"
+import { isHeadOfficeOrAccraLocation } from "@/lib/location-filter"
 import { DepartmentHeadApprovalModule } from "./department-head-approval"
 import { ITServiceDeskProcessingPanel } from "./service-desk-processing"
 import { ITHeadAdminPanel } from "./it-head-admin-panel"
@@ -38,8 +39,10 @@ export function ITFormsApprovalDashboard() {
   const { toast } = useToast()
   const role = user?.role || ""
   const department = user?.department || ""
+  const location = user?.location || ""
   const [verifiedRole, setVerifiedRole] = useState<string | null>(null)
   const [verifiedDepartment, setVerifiedDepartment] = useState<string | null>(null)
+  const [verifiedLocation, setVerifiedLocation] = useState<string | null>(null)
   const [isDeletingAll, setIsDeletingAll] = useState(false)
   const [isDownloadingAllRecords, setIsDownloadingAllRecords] = useState(false)
   const [isDownloadingApprovedBackup, setIsDownloadingApprovedBackup] = useState(false)
@@ -64,6 +67,7 @@ export function ITFormsApprovalDashboard() {
         if (active) {
           setVerifiedRole(String(data?.profile?.role || ""))
           setVerifiedDepartment(String(data?.profile?.department || ""))
+          setVerifiedLocation(String(data?.profile?.location || ""))
         }
       } catch {
         // Keep local auth values as fallback.
@@ -79,9 +83,13 @@ export function ITFormsApprovalDashboard() {
 
   const effectiveRole = verifiedRole || role
   const effectiveDepartment = verifiedDepartment ?? department
+  const effectiveLocation = verifiedLocation ?? location
 
   // ITD (IT Department) Department Head can act as IT Manager
-  const isITDepartmentHead = effectiveRole === "department_head" && isITDDepartment(effectiveDepartment)
+  const isITDepartmentHead =
+    effectiveRole === "department_head" &&
+    isITDDepartment(effectiveDepartment) &&
+    isHeadOfficeOrAccraLocation(effectiveLocation)
 
   const canUseHODDesk = ["department_head", "admin"].includes(effectiveRole)
   const canUseOfficeUseDesk =

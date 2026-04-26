@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server"
 import { createClient } from "@supabase/supabase-js"
 import { isITDDepartment } from "@/lib/department-options"
+import { isHeadOfficeOrAccraLocation } from "@/lib/location-filter"
 
 const supabaseAdmin = createClient(
   (process.env.NEXT_PUBLIC_SUPABASE_URL ?? "https://placeholder.supabase.co"),
@@ -19,9 +20,9 @@ function isUuidLike(value?: string | null) {
   return /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(value)
 }
 
-function isAuthorizedForRole(approverRole: string | undefined, userRole: string, userDepartment: string) {
+function isAuthorizedForRole(approverRole: string | undefined, userRole: string, userDepartment: string, userLocation: string) {
   if (approverRole !== "it_head") return false
-  return userRole === "admin" || (userRole === "department_head" && isITDDepartment(userDepartment))
+  return userRole === "admin" || (userRole === "department_head" && isITDDepartment(userDepartment) && isHeadOfficeOrAccraLocation(userLocation))
 }
 
 function normalizeRole(value?: string | null) {
@@ -40,7 +41,7 @@ function normalizeApproverRole(value?: string | null) {
 
 export async function POST(request: NextRequest) {
   try {
-    const { requisitionId, action, approvedBy, approvedById, approverRole, notes, approverSignature, userRole, userDepartment } = await request.json()
+    const { requisitionId, action, approvedBy, approvedById, approverRole, notes, approverSignature, userRole, userDepartment, userLocation } = await request.json()
 
     const normalizedApproverRole = normalizeApproverRole(approverRole)
     const normalizedUserRole = normalizeRole(userRole)
@@ -54,7 +55,7 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: "Invalid action" }, { status: 400 })
     }
 
-    if (!isAuthorizedForRole(normalizedApproverRole, normalizedUserRole, normalizedUserDepartment)) {
+    if (!isAuthorizedForRole(normalizedApproverRole, normalizedUserRole, normalizedUserDepartment, String(userLocation || ""))) {
       return NextResponse.json({ error: "Unauthorized to approve in this role" }, { status: 403 })
     }
 

@@ -10,6 +10,14 @@ export function normalizeLocation(location: string | null | undefined): string {
 }
 
 /**
+ * True when a user location is Head Office / Accra variant.
+ */
+export function isHeadOfficeOrAccraLocation(location: string | null | undefined): boolean {
+  const normalized = normalizeLocation(location)
+  return normalized === "head_office" || normalized === "head_office_accra" || normalized === "headoffice" || normalized === "accra"
+}
+
+/**
  * Map of normalised keys → canonical display names.
  * Used to merge duplicate / inconsistent location strings coming from the DB
  * into a single entry for reports and charts.

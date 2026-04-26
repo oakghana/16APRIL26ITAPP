@@ -262,7 +262,8 @@ export function RequestStatusTracker({
     return formType === "requisition" && ["draft", "pending_department_head", "pending", "pending_hod"].includes(req.status)
   }
   const canConfirmManagedRequest = (req: ITRequisition) =>
-    ["password-reset", "account-unlock", "software-access"].includes(formType) && req.status === "awaiting_user_confirmation"
+    (["password-reset", "account-unlock", "software-access"].includes(formType) && req.status === "awaiting_user_confirmation") ||
+    (formType === "requisition" && req.status === "awaiting_user_confirmation")
 
   const extractManagerMeta = (req: ITRequisition) => {
     const noteText = req.other_comments || ""
@@ -524,8 +525,12 @@ export function RequestStatusTracker({
       ]
     }
 
+    const hasStorePreparation =
+      Boolean((req as any).store_head_approved_at || req.issued_by || req.issuance_notes) ||
+      ["awaiting_user_confirmation", "awaiting_regional_confirmation", "pending_regional_store", "issued", "completed"].includes(req.status)
+
     const isRegional = (req as any).regional_fulfillment === true ||
-      req.status === "pending_regional_store"
+      ["awaiting_regional_confirmation", "pending_regional_store"].includes(req.status)
 
     const adminStageCompleted =
       Boolean(req.admin_approved) ||
@@ -559,10 +564,32 @@ export function RequestStatusTracker({
           signatureDataUrl: req.it_head_signature,
         },
         {
+          stage: "Store Dispatch",
+          role: "IT Store Head",
+          status: hasStorePreparation ? "completed" : req.it_head_approved ? "awaiting" : "pending",
+          notes: hasStorePreparation ? "Dispatch prepared by IT Store" : undefined,
+        },
+        {
+          stage: "Regional Receipt Confirmation",
+          role: "Regional IT Head",
+          status: req.status === "awaiting_regional_confirmation"
+            ? "awaiting"
+            : ["pending_regional_store", "issued", "completed"].includes(req.status)
+              ? "completed"
+              : "pending",
+          notes: req.status === "awaiting_regional_confirmation"
+            ? "Regional IT Head must confirm receipt before stock is posted locally"
+            : undefined,
+        },
+        {
           stage: "Regional IT Head Assignment",
           role: "Regional IT Head",
-          status: req.store_head_approved ? "completed" : req.it_head_approved ? "awaiting" : "pending",
-          notes: req.it_head_approved ? "Item will be added to your regional store for assignment" : undefined,
+          status: req.status === "pending_regional_store"
+            ? "awaiting"
+            : ["issued", "completed"].includes(req.status)
+              ? "completed"
+              : "pending",
+          notes: req.status === "pending_regional_store" ? "Awaiting assignment from regional stock" : undefined,
         },
       ]
     }
@@ -595,7 +622,16 @@ export function RequestStatusTracker({
       {
         stage: "Store Head Issuance",
         role: "IT Store Head",
-        status: req.store_head_approved ? "completed" : "pending",
+        status: hasStorePreparation ? "completed" : "pending",
+      },
+      {
+        stage: "Requester Confirmation",
+        role: "Requester",
+        status: req.status === "awaiting_user_confirmation"
+          ? "awaiting"
+          : ["issued", "completed"].includes(req.status)
+            ? "completed"
+            : "pending",
       },
     ]
   }
@@ -612,6 +648,7 @@ export function RequestStatusTracker({
       pending_it_head: { variant: "default", label: "Awaiting IT Head" },
       pending_admin: { variant: "default", label: "Awaiting Admin" },
       pending_store: { variant: "default", label: "Ready for Issue" },
+      awaiting_regional_confirmation: { variant: "default", label: "Awaiting Regional Receipt" },
       pending_regional_store: { variant: "default", label: "Pending Regional Assignment" },
       approved: { variant: "default", label: "Approved" },
       issued: { variant: "default", label: "Issued" },
@@ -665,7 +702,9 @@ export function RequestStatusTracker({
     if (req.department_head_approved === false) return "Your request was rejected"
     if (!req.service_desk_approved) return "Awaiting IT office-use completion by IT staff"
     if (!req.it_head_approved) return "Awaiting IT Head review"
-    if (!req.store_head_approved) return "Ready for store issuance"
+    if (req.status === "pending_store") return "Ready for store issuance"
+    if (req.status === "awaiting_user_confirmation") return "Please confirm you have received the issued item"
+    if (req.status === "awaiting_regional_confirmation") return "Awaiting regional IT head to confirm receipt from IT Store"
     if (req.status === "pending_regional_store") return "Awaiting regional IT head to assign item from local stock"
     return "Request completed"
   }
@@ -673,26 +712,34 @@ export function RequestStatusTracker({
   const confirmManagedRequest = async (req: ITRequisition, approved: boolean) => {
     try {
       const notes = window.prompt(
-        approved
-          ? "Add confirmation note (optional):"
-          : "Describe why access is still not working and should be re-opened:"
+        formType === "requisition"
+          ? approved
+            ? "Add receipt confirmation note (optional):"
+            : "Describe why the item has not been received and should be reopened:"
+          : approved
+            ? "Add confirmation note (optional):"
+            : "Describe why access is still not working and should be re-opened:"
       )
 
       const endpoint =
-        formType === "account-unlock"
-          ? "/api/it-forms/account-unlock"
-          : formType === "software-access"
-            ? "/api/it-forms/software-access"
-            : "/api/it-forms/password-reset"
+        formType === "requisition"
+          ? "/api/it-forms/store-issue"
+          : formType === "account-unlock"
+            ? "/api/it-forms/account-unlock"
+            : formType === "software-access"
+              ? "/api/it-forms/software-access"
+              : "/api/it-forms/password-reset"
 
       const response = await fetch(endpoint, {
         method: "PATCH",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           requestId: req.id,
-          action: "user_confirm",
+          requisitionId: req.id,
+          action: formType === "requisition" ? "user_confirm_receipt" : "user_confirm",
           actorId: user?.id,
           actorName: user?.full_name || user?.name || user?.email,
+          actorEmail: user?.email,
           actorRole: user?.role,
           actorDepartment: user?.department,
           actorLocation: user?.location,
@@ -705,10 +752,18 @@ export function RequestStatusTracker({
       if (!response.ok) throw new Error(data.error || "Failed to submit confirmation")
 
       toast({
-        title: approved ? "Confirmation submitted" : "Request reopened",
+        title: approved
+          ? formType === "requisition"
+            ? "Receipt confirmed"
+            : "Confirmation submitted"
+          : "Request reopened",
         description: approved
-          ? "Thank you. This password reset request has been completed."
-          : "The request has been reopened for IT follow-up.",
+          ? formType === "requisition"
+            ? "Thank you. Your IT requisition has been marked as issued."
+            : "Thank you. This password reset request has been completed."
+          : formType === "requisition"
+            ? "The issuance has been reopened for IT Store follow-up."
+            : "The request has been reopened for IT follow-up.",
       })
 
       fetchMyRequisitions()
@@ -858,10 +913,10 @@ export function RequestStatusTracker({
                       {canConfirmManagedRequest(req) && (
                         <>
                           <Button size="sm" className="bg-green-600 hover:bg-green-700" onClick={() => confirmManagedRequest(req, true)}>
-                            Confirm Working
+                            {formType === "requisition" ? "Confirm Receipt" : "Confirm Working"}
                           </Button>
                           <Button size="sm" variant="destructive" onClick={() => confirmManagedRequest(req, false)}>
-                            Reopen
+                            {formType === "requisition" ? "Not Received" : "Reopen"}
                           </Button>
                         </>
                       )}
@@ -939,10 +994,10 @@ export function RequestStatusTracker({
                   {canConfirmManagedRequest(selectedRequisition) && (
                     <>
                       <Button className="bg-green-600 hover:bg-green-700" onClick={() => confirmManagedRequest(selectedRequisition, true)}>
-                        Confirm Working
+                        {formType === "requisition" ? "Confirm Receipt" : "Confirm Working"}
                       </Button>
                       <Button variant="destructive" onClick={() => confirmManagedRequest(selectedRequisition, false)}>
-                        Reopen
+                        {formType === "requisition" ? "Not Received" : "Reopen"}
                       </Button>
                     </>
                   )}

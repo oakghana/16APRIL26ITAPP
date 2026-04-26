@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server"
 import { createClient } from "@supabase/supabase-js"
 import { normalizeDepartmentName, isITDDepartment } from "@/lib/department-options"
+import { isHeadOfficeOrAccraLocation } from "@/lib/location-filter"
 import { sendItFormEmail } from "@/lib/it-form-email"
 import { generateITFormDeptHeadRequestHTML, generateITFormCompletionHTML } from "@/lib/email-service"
 
@@ -15,13 +16,13 @@ const PREFIX = "ON"
 function isUuid(v?: string | null) {
   return !!v && /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(v)
 }
-function canManageAsIT(role?: string | null, dept?: string | null) {
+function canManageAsIT(role?: string | null, dept?: string | null, location?: string | null) {
   const r = (role || "").toLowerCase()
-  return r === "admin" || (r === "department_head" && isITDDepartment(dept))
+  return r === "admin" || (r === "department_head" && isITDDepartment(dept) && isHeadOfficeOrAccraLocation(location))
 }
-function canWork(role?: string | null, dept?: string | null) {
+function canWork(role?: string | null, dept?: string | null, location?: string | null) {
   const r = (role || "").toLowerCase()
-  return ["admin","it_head","it_staff","regional_it_head"].includes(r) || canManageAsIT(r, dept)
+  return ["admin","it_head","it_staff","regional_it_head"].includes(r) || canManageAsIT(r, dept, location)
 }
 function appendTimeline(existing: any, entry: Record<string, any>) {
   return [...(Array.isArray(existing) ? existing : []), entry]
@@ -114,7 +115,7 @@ export async function GET(req: NextRequest) {
       const viewer = viewerId && isUuid(viewerId)
         ? (await supabaseAdmin.from("profiles").select("id,role,department,location").eq("id", viewerId).single()).data
         : null
-      if (!viewer || !canManageAsIT(viewer.role, viewer.department)) {
+      if (!viewer || !canManageAsIT(viewer.role, viewer.department, viewer.location)) {
         return NextResponse.json({ error: "Unauthorized" }, { status: 403 })
       }
       const { data } = await supabaseAdmin.from("profiles")
@@ -152,6 +153,7 @@ export async function PATCH(req: NextRequest) {
       : null
     const role = actorProfile?.role || actorRole
     const dept = actorProfile?.department || actorDepartment
+    const location = actorProfile?.location || body.actorLocation
     const now = new Date().toISOString()
 
     const updateData: Record<string, any> = {
@@ -187,7 +189,7 @@ export async function PATCH(req: NextRequest) {
         dept_head_notes: notes || null,
       })
     } else if (action === "manager_assign") {
-      if (!canManageAsIT(role, dept)) return NextResponse.json({ error: "Unauthorized" }, { status: 403 })
+      if (!canManageAsIT(role, dept, location)) return NextResponse.json({ error: "Unauthorized" }, { status: 403 })
       if (!["pending_manager","reopened"].includes(record.status)) return NextResponse.json({ error: "Not pending" }, { status: 409 })
       if (!assignToName) return NextResponse.json({ error: "Select assignee" }, { status: 400 })
       if (!managerSignature) return NextResponse.json({ error: "Signature required" }, { status: 400 })
@@ -204,7 +206,7 @@ export async function PATCH(req: NextRequest) {
         assigned_at: now,
       })
     } else if (action === "manager_reject") {
-      if (!canManageAsIT(role, dept)) return NextResponse.json({ error: "Unauthorized" }, { status: 403 })
+      if (!canManageAsIT(role, dept, location)) return NextResponse.json({ error: "Unauthorized" }, { status: 403 })
       Object.assign(updateData, {
         status: "rejected",
         manager_approved_by: actorName || actorProfile?.full_name || "IT Manager",

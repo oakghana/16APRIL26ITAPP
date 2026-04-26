@@ -681,6 +681,7 @@ export function ITHeadAdminPanel() {
             approverSignature: approvalAction === "approve" ? approverSignature : undefined,
             userRole: user?.role,
             userDepartment: user?.department,
+            userLocation: user?.location,
           }
         : selectedRequisition.formType === "password-reset"
           ? {
@@ -722,6 +723,7 @@ export function ITHeadAdminPanel() {
             approverSignature: approvalAction === "approve" ? approverSignature : undefined,
             userRole: user?.role,
             userDepartment: user?.department,
+            userLocation: user?.location,
           }
 
       const response = await fetch(endpoint, {

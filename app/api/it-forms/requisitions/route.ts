@@ -261,18 +261,27 @@ export async function GET(request: NextRequest) {
         .map((s) => s.trim())
         .filter(Boolean)
 
-      const expandedStatuses = new Set<string>()
-      for (const requestedStatus of requestedStatuses) {
-        expandedStatuses.add(requestedStatus)
-        // Backward compatibility: older approvals used ready_for_issuance before pending_store.
-        if (requestedStatus === "pending_store") expandedStatuses.add("ready_for_issuance")
-        if (requestedStatus === "ready_for_issuance") expandedStatuses.add("pending_store")
-      }
+      const requestedStoreApprovalFeed = requestedStatuses.some((s) =>
+        ["approved_for_store", "pending_store", "ready_for_issuance"].includes(s)
+      )
 
-      if (expandedStatuses.size === 1) {
-        query = query.eq("status", Array.from(expandedStatuses)[0])
+      if (requestedStoreApprovalFeed) {
+        // Pull candidates then apply approval workflow compatibility in-memory so
+        // older/newer schema variants with different approval columns still work.
       } else {
-        query = query.in("status", Array.from(expandedStatuses))
+        const expandedStatuses = new Set<string>()
+        for (const requestedStatus of requestedStatuses) {
+          expandedStatuses.add(requestedStatus)
+          // Backward compatibility: older approvals used ready_for_issuance before pending_store.
+          if (requestedStatus === "pending_store") expandedStatuses.add("ready_for_issuance")
+          if (requestedStatus === "ready_for_issuance") expandedStatuses.add("pending_store")
+        }
+
+        if (expandedStatuses.size === 1) {
+          query = query.eq("status", Array.from(expandedStatuses)[0])
+        } else {
+          query = query.in("status", Array.from(expandedStatuses))
+        }
       }
     }
 
@@ -293,6 +302,65 @@ export async function GET(request: NextRequest) {
       // Normalize reg_no → requisition_number for UI compatibility.
       requisition_number: r.requisition_number || r.reg_no || null,
     }))
+
+    if (status && status !== "all") {
+      const requestedStatuses = status
+        .split(",")
+        .map((s) => s.trim())
+        .filter(Boolean)
+
+      const requestedStoreApprovalFeed = requestedStatuses.some((s) =>
+        ["approved_for_store", "pending_store", "ready_for_issuance"].includes(s)
+      )
+
+      if (requestedStoreApprovalFeed) {
+        const closedStatuses = new Set([
+          "issued",
+          "rejected",
+          "rejected_it_head",
+          "rejected_admin",
+          "cancelled",
+          "completed",
+        ])
+
+        requisitions = requisitions.filter((r: any) => {
+          const currentStatus = String(r.status || "").toLowerCase().trim()
+          if (closedStatuses.has(currentStatus)) return false
+          if (r.store_head_approved === true) return false
+
+          const statusSaysApproved = [
+            "pending_store",
+            "ready_for_issuance",
+            "pending_regional_store",
+            "pending_admin",
+            "approved",
+            "approved_it_head",
+            "approved_admin",
+            "approved_manager",
+          ].includes(currentStatus)
+
+          const hasApprovalMarker = Boolean(
+            r.it_head_approved === true ||
+            r.admin_approved === true ||
+            r.it_manager_approved === true ||
+            r.it_head_approved_by ||
+            r.it_head_approved_by_name ||
+            r.admin_approved_by ||
+            r.admin_approved_by_name ||
+            r.it_manager_approved_by ||
+            r.it_manager_approved_by_name ||
+            r.manager_approved_by ||
+            r.manager_approved_by_name ||
+            r.it_head_approved_at ||
+            r.admin_approved_at ||
+            r.it_manager_approved_at ||
+            r.manager_approved_at
+          )
+
+          return statusSaysApproved || hasApprovalMarker
+        })
+      }
+    }
 
     if (department && department !== "all") {
       const normalizedDepartment = String(department).toLowerCase().trim()

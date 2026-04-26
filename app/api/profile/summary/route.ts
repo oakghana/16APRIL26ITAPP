@@ -21,7 +21,7 @@ export async function GET(request: NextRequest) {
 
     const { data, error } = await supabaseAdmin
       .from("profiles")
-      .select("id, role, department")
+      .select("id, role, department, location")
       .eq("id", userId)
       .single()
 
@@ -35,6 +35,7 @@ export async function GET(request: NextRequest) {
         id: data.id,
         role: data.role,
         department: data.department,
+        location: data.location,
       },
     })
   } catch (error: any) {

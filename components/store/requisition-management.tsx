@@ -163,6 +163,7 @@ export function RequisitionManagement() {
   const [approvedItOpen, setApprovedItOpen] = useState(false)
   const [approvedItReqs, setApprovedItReqs] = useState<any[]>([])
   const [approvedItLoading, setApprovedItLoading] = useState(false)
+  const [approvedItError, setApprovedItError] = useState<string | null>(null)
   const [issuingItReq, setIssuingItReq] = useState<string | null>(null)
   const [itIssueDialogOpen, setItIssueDialogOpen] = useState(false)
   const [selectedItReq, setSelectedItReq] = useState<any | null>(null)
@@ -332,12 +333,39 @@ export function RequisitionManagement() {
 
   const loadApprovedItRequisitions = async () => {
     setApprovedItLoading(true)
+    setApprovedItError(null)
     try {
-      const response = await fetch("/api/it-forms/requisitions?status=pending_store,ready_for_issuance")
+      const controller = new AbortController()
+      const timeoutId = window.setTimeout(() => controller.abort(), 15000)
+
+      const response = await fetch(`/api/it-forms/requisitions?status=all&t=${Date.now()}`, {
+        cache: "no-store",
+        signal: controller.signal,
+      })
+
+      window.clearTimeout(timeoutId)
+
       const data = await response.json()
-      setApprovedItReqs(data.requisitions || [])
-    } catch (err) {
+      if (!response.ok) {
+        throw new Error(data?.error || "Failed to load approved IT requisitions")
+      }
+
+      const relevantStatuses = [
+        "pending_store",
+        "ready_for_issuance",
+        "awaiting_user_confirmation",
+        "awaiting_regional_confirmation",
+        "issued",
+      ]
+      setApprovedItReqs((data.requisitions || []).filter((req: any) => relevantStatuses.includes(String(req.status || ""))))
+    } catch (err: any) {
+      const message = err?.name === "AbortError"
+        ? "Loading approved IT requisitions timed out. Please refresh and try again."
+        : err?.message || "Failed to load approved IT requisitions"
+      setApprovedItReqs([])
+      setApprovedItError(message)
       console.error("[v0] Failed to load approved IT requisitions:", err)
+      toast({ title: "Failed to load approved IT requisitions", description: message, variant: "destructive" })
     } finally {
       setApprovedItLoading(false)
     }
@@ -375,8 +403,8 @@ export function RequisitionManagement() {
 
   const handleItIssue = (req: any) => {
     setSelectedItReq(req)
-    setItIssueNotes("")
-    setItSupplierName("")
+    setItIssueNotes(req.issuance_notes || "")
+    setItSupplierName(req.supplier_name || "")
     setStockSearch("")
     setSelectedRegionalHead("")
     // Pre-fill dispatch location from requester's location
@@ -417,6 +445,7 @@ export function RequisitionManagement() {
         body: JSON.stringify({
           requisitionId: selectedItReq.id,
           issuedBy: user?.full_name || user?.email || "Store Head",
+          issuedById: user?.id || "",
           userRole: user?.role || "",
           userLocation: user?.location || "",
           supplierName: itSupplierName,
@@ -432,10 +461,20 @@ export function RequisitionManagement() {
       const data = await response.json()
       if (!response.ok) throw new Error(data.error)
       toast({
-        title: isDispatch ? "Dispatched to Regional Stock" : "Items Issued",
-        description: isDispatch
-          ? `${selectedDispatchItems.length} item type(s) dispatched to ${assignedHead?.full_name || "regional IT head"} at ${dispatchLocation || assignedHead?.location || "region"}`
-          : "Items issued successfully to requester",
+        title: data.awaitingConfirmation
+          ? isDispatch
+            ? "Dispatch Prepared"
+            : "Issue Prepared"
+          : isDispatch
+            ? "Dispatched to Regional Stock"
+            : "Items Issued",
+        description: data.awaitingConfirmation
+          ? isDispatch
+            ? `${selectedDispatchItems.length} item type(s) prepared for ${assignedHead?.full_name || "regional IT head"}. Regional receipt confirmation is required before stock moves.`
+            : "The requester must confirm receipt before issuance is finalized."
+          : isDispatch
+            ? `${selectedDispatchItems.length} item type(s) dispatched to ${assignedHead?.full_name || "regional IT head"} at ${dispatchLocation || assignedHead?.location || "region"}`
+            : "Items issued successfully to requester",
       })
       setItIssueDialogOpen(false)
       setSelectedItReq(null)
@@ -1580,17 +1619,32 @@ export function RequisitionManagement() {
             <div className="flex justify-center py-12">
               <Loader2 className="h-8 w-8 animate-spin text-muted-foreground" />
             </div>
+          ) : approvedItError ? (
+            <div className="text-center py-12 text-muted-foreground space-y-2">
+              <p className="font-medium text-destructive">Unable to load approved IT requisitions</p>
+              <p className="text-sm">{approvedItError}</p>
+            </div>
           ) : approvedItReqs.length === 0 ? (
             <div className="text-center py-12 text-muted-foreground">
               <CheckCircle2 className="h-12 w-12 mx-auto mb-3 opacity-40" />
-              <p className="font-medium">No pending IT requisitions</p>
-              <p className="text-sm">All approved IT requisitions have been issued.</p>
+              <p className="font-medium">No IT requisitions waiting for store action</p>
+              <p className="text-sm">Approved, prepared, and issued requisitions will appear here.</p>
             </div>
           ) : (
             <div className="space-y-3">
               {approvedItReqs.map((req: any) => {
                 const isHO = isHeadOfficeReq(req)
                 const isLegacyReady = req.status === "ready_for_issuance"
+                const isAwaitingUser = req.status === "awaiting_user_confirmation"
+                const isAwaitingRegional = req.status === "awaiting_regional_confirmation"
+                const isIssued = req.status === "issued"
+                const actionLabel = isAwaitingUser
+                  ? "Edit Issue"
+                  : isAwaitingRegional
+                    ? "Edit Dispatch"
+                    : isHO
+                      ? "Issue Directly"
+                      : "Dispatch to Region"
                 return (
                   <div key={req.id} className="border rounded-lg p-4 space-y-2">
                     <div className="flex items-start justify-between gap-4">
@@ -1601,7 +1655,15 @@ export function RequisitionManagement() {
                             {isHO ? "Head Office" : (req.requester_location || req.location || "Regional")}
                           </Badge>
                           <Badge variant="outline" className="text-xs">
-                            {isLegacyReady ? "Legacy: Ready for Issuance" : "Workflow: Pending Store"}
+                            {isAwaitingUser
+                              ? "Awaiting User Confirmation"
+                              : isAwaitingRegional
+                                ? "Awaiting Regional Receipt"
+                                : isIssued
+                                  ? "Issued"
+                                  : isLegacyReady
+                                    ? "Legacy: Ready for Issuance"
+                                    : "Workflow: Pending Store"}
                           </Badge>
                         </div>
                         <p className="text-sm">
@@ -1620,21 +1682,23 @@ export function RequisitionManagement() {
                           </p>
                         )}
                       </div>
-                      <Button
-                        size="sm"
-                        className={isHO ? "bg-green-600 hover:bg-green-700 shrink-0" : "bg-blue-600 hover:bg-blue-700 shrink-0"}
-                        onClick={() => handleItIssue(req)}
-                        disabled={issuingItReq === req.id}
-                      >
-                        {issuingItReq === req.id ? (
-                          <Loader2 className="h-4 w-4 animate-spin" />
-                        ) : (
-                          <>
-                            <CheckCircle2 className="h-4 w-4 mr-1" />
-                            {isHO ? "Issue Directly" : "Dispatch to Region"}
-                          </>
-                        )}
-                      </Button>
+                      {!isIssued ? (
+                        <Button
+                          size="sm"
+                          className={isHO ? "bg-green-600 hover:bg-green-700 shrink-0" : "bg-blue-600 hover:bg-blue-700 shrink-0"}
+                          onClick={() => handleItIssue(req)}
+                          disabled={issuingItReq === req.id}
+                        >
+                          {issuingItReq === req.id ? (
+                            <Loader2 className="h-4 w-4 animate-spin" />
+                          ) : (
+                            <>
+                              <CheckCircle2 className="h-4 w-4 mr-1" />
+                              {actionLabel}
+                            </>
+                          )}
+                        </Button>
+                      ) : null}
                     </div>
                   </div>
                 )
@@ -1670,7 +1734,13 @@ export function RequisitionManagement() {
         <DialogContent className="max-w-2xl max-h-[92vh] overflow-hidden flex flex-col p-0 gap-0">
           {/* ── Hidden title for accessibility ── */}
           <DialogTitle className="sr-only">
-            {selectedItReq && !isHeadOfficeReq(selectedItReq) ? "Dispatch to Regional Stock" : "Issue Directly"} — {selectedItReq?.requisition_number}
+            {selectedItReq?.status === "awaiting_user_confirmation"
+              ? "Edit Direct Issue"
+              : selectedItReq?.status === "awaiting_regional_confirmation"
+                ? "Edit Regional Dispatch"
+                : selectedItReq && !isHeadOfficeReq(selectedItReq)
+                  ? "Dispatch to Regional Stock"
+                  : "Issue Directly"} — {selectedItReq?.requisition_number}
           </DialogTitle>
 
           {/* ── Coloured header ── */}
@@ -1687,9 +1757,13 @@ export function RequisitionManagement() {
                 : <CheckCircle2 className="h-5 w-5 opacity-90" />}
               <div>
                 <h2 className="text-base font-semibold leading-tight">
-                  {selectedItReq && !isHeadOfficeReq(selectedItReq)
-                    ? "Dispatch to Regional Stock"
-                    : "Issue Directly to Staff"}
+                  {selectedItReq?.status === "awaiting_user_confirmation"
+                    ? "Edit Direct Issue"
+                    : selectedItReq?.status === "awaiting_regional_confirmation"
+                      ? "Edit Regional Dispatch"
+                      : selectedItReq && !isHeadOfficeReq(selectedItReq)
+                        ? "Dispatch to Regional Stock"
+                        : "Issue Directly to Staff"}
                 </h2>
                 <p className="text-xs opacity-75 mt-0.5">{selectedItReq?.requisition_number}</p>
               </div>
@@ -1718,6 +1792,12 @@ export function RequisitionManagement() {
                     <p className="text-[10px] font-semibold uppercase tracking-widest text-muted-foreground mb-0.5">Items Requested</p>
                     <p className="font-semibold">{selectedItReq.items_required}</p>
                   </div>
+                  {selectedItReq.issuance_notes && (
+                    <div className="col-span-2">
+                      <p className="text-[10px] font-semibold uppercase tracking-widest text-muted-foreground mb-0.5">Current Issuance Notes</p>
+                      <p className="font-semibold">{selectedItReq.issuance_notes}</p>
+                    </div>
+                  )}
                 </div>
 
                 {/* ── REGIONAL DISPATCH ONLY ── */}
@@ -1998,9 +2078,13 @@ export function RequisitionManagement() {
               }`}
             >
               {issuingItReq === selectedItReq?.id && <Loader2 className="h-4 w-4 mr-2 animate-spin" />}
-              {selectedItReq && !isHeadOfficeReq(selectedItReq)
-                ? `Dispatch to ${dispatchLocation || "Regional Stock"}`
-                : "Confirm Issuance"}
+              {selectedItReq?.status === "awaiting_user_confirmation"
+                ? "Save Direct Issue"
+                : selectedItReq?.status === "awaiting_regional_confirmation"
+                  ? "Save Dispatch"
+                  : selectedItReq && !isHeadOfficeReq(selectedItReq)
+                    ? `Dispatch to ${dispatchLocation || "Regional Stock"}`
+                    : "Confirm Issuance"}
             </Button>
           </div>
         </DialogContent>

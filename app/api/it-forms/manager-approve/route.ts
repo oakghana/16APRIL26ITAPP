@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server"
 import { createClient } from "@supabase/supabase-js"
 import { isITDDepartment } from "@/lib/department-options"
+import { isHeadOfficeOrAccraLocation } from "@/lib/location-filter"
 
 type FormType = "new-gadget" | "maintenance"
 
@@ -14,8 +15,8 @@ function isUuidLike(value?: string | null) {
   return /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(value)
 }
 
-function isAuthorizedManager(userRole: string, userDepartment: string) {
-  return userRole === "admin" || (userRole === "department_head" && isITDDepartment(userDepartment))
+function isAuthorizedManager(userRole: string, userDepartment: string, userLocation: string) {
+  return userRole === "admin" || (userRole === "department_head" && isITDDepartment(userDepartment) && isHeadOfficeOrAccraLocation(userLocation))
 }
 
 const FORM_CONFIG: Record<FormType, { table: string; numberField: string; relatedType: string }> = {
@@ -33,7 +34,7 @@ const FORM_CONFIG: Record<FormType, { table: string; numberField: string; relate
 
 export async function POST(request: NextRequest) {
   try {
-    const { requisitionId, formType, action, approvedBy, approvedById, notes, approverSignature, userRole, userDepartment } = await request.json()
+    const { requisitionId, formType, action, approvedBy, approvedById, notes, approverSignature, userRole, userDepartment, userLocation } = await request.json()
 
     if (!requisitionId || !formType || !action || !approvedBy || !notes) {
       return NextResponse.json({ error: "Missing required fields" }, { status: 400 })
@@ -43,7 +44,7 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: "Invalid action" }, { status: 400 })
     }
 
-    if (!isAuthorizedManager(userRole || "", userDepartment || "")) {
+    if (!isAuthorizedManager(userRole || "", userDepartment || "", userLocation || "")) {
       return NextResponse.json({ error: "Unauthorized to review in this role" }, { status: 403 })
     }
 

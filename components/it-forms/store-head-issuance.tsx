@@ -29,6 +29,7 @@ interface ITRequisition {
   admin_approved?: boolean
   store_head_approved?: boolean
   issuance_notes?: string
+  supplier_name?: string
   issued_at?: string
   issued_by?: string
   approval_timeline?: Array<any>
@@ -51,7 +52,7 @@ export function StoreHeadIssuanceModule() {
   const [supplierName, setSupplierName] = useState("")
   const [isSubmitting, setIsSubmitting] = useState(false)
   const [searchQuery, setSearchQuery] = useState("")
-  const [filterTab, setFilterTab] = useState<"pending" | "issued" | "all">("pending")
+  const [filterTab, setFilterTab] = useState<"pending" | "awaiting" | "issued" | "all">("pending")
   const { user } = useAuth()
   const { toast } = useToast()
   const isRegionalHead = user?.role === "regional_it_head"
@@ -67,7 +68,6 @@ export function StoreHeadIssuanceModule() {
   const fetchRequisitions = async () => {
     try {
       setLoading(true)
-      const statusFilter = isRegionalHead ? "pending_regional_store,issued" : "pending_store,issued"
       const params = new URLSearchParams({ status: "all" })
       if (user?.location) {
         params.set("officeUseLocation", user.location)
@@ -77,8 +77,8 @@ export function StoreHeadIssuanceModule() {
       const data = await response.json()
       // Filter client-side: pending queue + already-issued ones
       const targetStatuses = isRegionalHead
-        ? ["pending_regional_store", "issued"]
-        : ["pending_store", "issued"]
+        ? ["awaiting_regional_confirmation", "pending_regional_store", "issued"]
+        : ["pending_store", "awaiting_user_confirmation", "awaiting_regional_confirmation", "issued"]
       setRequisitions((data.requisitions || []).filter((r: any) => targetStatuses.includes(r.status)))
     } catch (error) {
       console.error("[v0] Error:", error)
@@ -99,6 +99,12 @@ export function StoreHeadIssuanceModule() {
       filtered = filtered.filter((req) =>
         isRegionalHead ? req.status === "pending_regional_store" : req.status === "pending_store"
       )
+    } else if (filterTab === "awaiting") {
+      filtered = filtered.filter((req) =>
+        isRegionalHead
+          ? req.status === "awaiting_regional_confirmation"
+          : req.status === "awaiting_user_confirmation" || req.status === "awaiting_regional_confirmation"
+      )
     } else if (filterTab === "issued") {
       filtered = filtered.filter((req) => req.status === "issued")
     }
@@ -114,6 +120,18 @@ export function StoreHeadIssuanceModule() {
   }
 
   const buildApprovalStages = (req: ITRequisition): any[] => {
+    const storeStageStatus = req.status === "pending_store"
+      ? "pending"
+      : ["awaiting_user_confirmation", "awaiting_regional_confirmation", "pending_regional_store", "issued"].includes(req.status)
+        ? "completed"
+        : "pending"
+
+    const confirmationStageStatus = req.status === "awaiting_user_confirmation" || req.status === "awaiting_regional_confirmation"
+      ? "awaiting"
+      : ["pending_regional_store", "issued"].includes(req.status)
+        ? "completed"
+        : "pending"
+
     return [
       { stage: "Department Head", role: "HOD", status: "completed" },
       { stage: "IT Service Desk", role: "Service Desk", status: "completed" },
@@ -122,16 +140,57 @@ export function StoreHeadIssuanceModule() {
       {
         stage: "Store Issuance",
         role: "Store Head",
-        status: req.store_head_approved ? "completed" : "pending",
+        status: storeStageStatus,
+      },
+      {
+        stage: isHeadOfficeReq(req) ? "Requester Confirmation" : "Regional Receipt Confirmation",
+        role: isHeadOfficeReq(req) ? "Requester" : "Regional IT Head",
+        status: confirmationStageStatus,
       },
     ]
   }
 
   const handleIssue = (req: ITRequisition) => {
     setSelectedRequisition(req)
-    setIssueNotes("")
-    setSupplierName("")
+    setIssueNotes(req.issuance_notes || "")
+    setSupplierName(req.supplier_name || "")
     setIsIssueDialogOpen(true)
+  }
+
+  const confirmRegionalReceipt = async (req: ITRequisition) => {
+    setIsSubmitting(true)
+    try {
+      const response = await fetch("/api/it-forms/store-issue", {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          requisitionId: req.id,
+          action: "regional_confirm_receipt",
+          actorId: user?.id,
+          actorName: user?.full_name || user?.name || user?.email,
+          actorRole: user?.role || "",
+          actorLocation: user?.location || "",
+          confirmation: "approved",
+        }),
+      })
+
+      const data = await response.json()
+      if (!response.ok) throw new Error(data.error || "Failed to confirm receipt")
+
+      toast({
+        title: "Receipt confirmed",
+        description: "Regional stock has been updated. You can now assign the item to staff.",
+      })
+      fetchRequisitions()
+    } catch (error: any) {
+      toast({
+        title: "Confirmation failed",
+        description: error.message || "Unable to confirm receipt",
+        variant: "destructive",
+      })
+    } finally {
+      setIsSubmitting(false)
+    }
   }
 
   const submitIssuance = async () => {
@@ -172,8 +231,10 @@ export function StoreHeadIssuanceModule() {
 
       toast({
         title: "Success",
-        description: data.dispatched
-          ? `Items dispatched to ${data.requesterLocation || "regional"} stock`
+        description: data.awaitingConfirmation
+          ? data.confirmationTarget === "regional_it_head"
+            ? `Dispatch prepared for ${data.requesterLocation || "regional"}. Regional IT Head must confirm receipt before stock moves.`
+            : "Issue prepared. The requester must confirm receipt before final issuance."
           : "Items issued successfully",
       })
 
@@ -194,11 +255,36 @@ export function StoreHeadIssuanceModule() {
   const pendingCount = isRegionalHead
     ? requisitions.filter((r) => r.status === "pending_regional_store").length
     : requisitions.filter((r) => r.status === "pending_store").length
+  const awaitingCount = isRegionalHead
+    ? requisitions.filter((r) => r.status === "awaiting_regional_confirmation").length
+    : requisitions.filter((r) => ["awaiting_user_confirmation", "awaiting_regional_confirmation"].includes(r.status)).length
   const issuedCount = requisitions.filter((r) => r.status === "issued").length
 
   const isHeadOfficeReq = (req: ITRequisition) => {
     const loc = (req.requester_location || req.location || "").toLowerCase().replace(/[\s_-]+/g, "_").trim()
     return loc === "head_office" || loc === "head_office_accra" || loc === "headoffice" || loc === "accra" || loc.startsWith("head_office") || loc === "ho"
+  }
+
+  const getStatusLabel = (req: ITRequisition) => {
+    if (req.status === "pending_store") return "Ready"
+    if (req.status === "awaiting_user_confirmation") return "Awaiting User Confirmation"
+    if (req.status === "awaiting_regional_confirmation") return "Awaiting Regional Receipt"
+    if (req.status === "pending_regional_store") return "Ready for Regional Assignment"
+    if (req.status === "issued") return "Issued"
+    return req.status.replace(/_/g, " ")
+  }
+
+  const getPrimaryActionLabel = (req: ITRequisition) => {
+    if (isRegionalHead) {
+      if (req.status === "awaiting_regional_confirmation") return "Confirm Receipt"
+      if (req.status === "pending_regional_store") return "Assign to Staff"
+      return null
+    }
+
+    if (req.status === "awaiting_user_confirmation") return "Edit Issue"
+    if (req.status === "awaiting_regional_confirmation") return "Edit Dispatch"
+    if (req.status === "pending_store") return isHeadOfficeReq(req) ? "Issue Directly" : "Dispatch to Region"
+    return null
   }
 
   return (
@@ -226,19 +312,19 @@ export function StoreHeadIssuanceModule() {
 
         <Card className="bg-gradient-to-br from-green-50 to-green-100/50 dark:from-green-950/30 dark:to-green-900/20">
           <CardHeader className="pb-2">
-            <CardTitle className="text-sm font-medium">Issued</CardTitle>
+            <CardTitle className="text-sm font-medium">Awaiting Confirmation</CardTitle>
           </CardHeader>
           <CardContent>
-            <div className="text-3xl font-bold text-green-600">{issuedCount}</div>
+            <div className="text-3xl font-bold text-green-600">{awaitingCount}</div>
           </CardContent>
         </Card>
 
         <Card className="bg-gradient-to-br from-purple-50 to-purple-100/50 dark:from-purple-950/30 dark:to-purple-900/20">
           <CardHeader className="pb-2">
-            <CardTitle className="text-sm font-medium">Total</CardTitle>
+            <CardTitle className="text-sm font-medium">Issued</CardTitle>
           </CardHeader>
           <CardContent>
-            <div className="text-3xl font-bold text-purple-600">{requisitions.length}</div>
+            <div className="text-3xl font-bold text-purple-600">{issuedCount}</div>
           </CardContent>
         </Card>
       </div>
@@ -264,6 +350,7 @@ export function StoreHeadIssuanceModule() {
           <Tabs value={filterTab} onValueChange={(v) => setFilterTab(v as any)}>
             <TabsList>
               <TabsTrigger value="pending">Pending ({pendingCount})</TabsTrigger>
+              <TabsTrigger value="awaiting">Awaiting ({awaitingCount})</TabsTrigger>
               <TabsTrigger value="issued">Issued ({issuedCount})</TabsTrigger>
               <TabsTrigger value="all">All ({requisitions.length})</TabsTrigger>
             </TabsList>
@@ -284,8 +371,8 @@ export function StoreHeadIssuanceModule() {
                       <div className="flex-1 space-y-2">
                         <div className="flex items-center gap-2">
                           <span className="font-semibold">{req.requisition_number}</span>
-                          <Badge variant={req.store_head_approved ? "secondary" : "default"}>
-                            {req.store_head_approved ? "Issued" : "Ready"}
+                          <Badge variant={req.status === "issued" ? "secondary" : "default"}>
+                            {getStatusLabel(req)}
                           </Badge>
                         </div>
                         <p className="text-sm font-medium">
@@ -314,18 +401,21 @@ export function StoreHeadIssuanceModule() {
                           <Eye className="h-4 w-4 mr-1" />
                           View
                         </Button>
-                        {(req.status === "pending_store" || req.status === "pending_regional_store") && (
+                        {getPrimaryActionLabel(req) && (
                           <Button
                             size="sm"
-                            className={isRegionalHead
-                              ? "bg-green-600 hover:bg-green-700"
-                              : isHeadOfficeReq(req)
+                            className={isRegionalHead && req.status === "awaiting_regional_confirmation"
+                              ? "bg-amber-600 hover:bg-amber-700"
+                              : isRegionalHead
                                 ? "bg-green-600 hover:bg-green-700"
-                                : "bg-blue-600 hover:bg-blue-700"}
-                            onClick={() => handleIssue(req)}
+                                : isHeadOfficeReq(req)
+                                  ? "bg-green-600 hover:bg-green-700"
+                                  : "bg-blue-600 hover:bg-blue-700"}
+                            onClick={() => req.status === "awaiting_regional_confirmation" && isRegionalHead ? confirmRegionalReceipt(req) : handleIssue(req)}
+                            disabled={isSubmitting}
                           >
                             <CheckCircle2 className="h-4 w-4 mr-1" />
-                            {isRegionalHead ? "Assign to Staff" : isHeadOfficeReq(req) ? "Issue Directly" : "Dispatch to Region"}
+                            {getPrimaryActionLabel(req)}
                           </Button>
                         )}
                       </div>
@@ -380,7 +470,15 @@ export function StoreHeadIssuanceModule() {
         <DialogContent className="max-w-md">
           <DialogHeader>
             <DialogTitle>
-              {isRegionalHead ? "Assign to Staff" : selectedRequisition && !isHeadOfficeReq(selectedRequisition) ? "Dispatch to Regional Stock" : "Issue Directly"} — {selectedRequisition?.requisition_number}
+              {isRegionalHead
+                ? "Assign to Staff"
+                : selectedRequisition?.status === "awaiting_user_confirmation"
+                  ? "Edit Direct Issue"
+                  : selectedRequisition?.status === "awaiting_regional_confirmation"
+                    ? "Edit Regional Dispatch"
+                    : selectedRequisition && !isHeadOfficeReq(selectedRequisition)
+                      ? "Dispatch to Regional Stock"
+                      : "Issue Directly"} — {selectedRequisition?.requisition_number}
             </DialogTitle>
           </DialogHeader>
           <div className="space-y-4">
@@ -390,6 +488,9 @@ export function StoreHeadIssuanceModule() {
                 <p><span className="font-medium">Location:</span> {selectedRequisition.requester_location || selectedRequisition.location || "—"}</p>
                 <p><span className="font-medium">Department:</span> {selectedRequisition.department || "—"}</p>
                 <p><span className="font-medium">Items:</span> {selectedRequisition.items_required}</p>
+                {selectedRequisition.issuance_notes && (
+                  <p><span className="font-medium">Current notes:</span> {selectedRequisition.issuance_notes}</p>
+                )}
               </div>
             )}
             {!isRegionalHead && (
@@ -427,7 +528,15 @@ export function StoreHeadIssuanceModule() {
                   : "bg-green-600 hover:bg-green-700"}
             >
               {isSubmitting ? <Loader2 className="h-4 w-4 mr-2 animate-spin" /> : null}
-              {isRegionalHead ? "Assign to Staff" : selectedRequisition && !isHeadOfficeReq(selectedRequisition) ? "Dispatch to Regional Stock" : "Issue Directly"}
+              {isRegionalHead
+                ? "Assign to Staff"
+                : selectedRequisition?.status === "awaiting_user_confirmation"
+                  ? "Save Direct Issue"
+                  : selectedRequisition?.status === "awaiting_regional_confirmation"
+                    ? "Save Dispatch"
+                    : selectedRequisition && !isHeadOfficeReq(selectedRequisition)
+                      ? "Dispatch to Regional Stock"
+                      : "Issue Directly"}
             </Button>
           </DialogFooter>
         </DialogContent>

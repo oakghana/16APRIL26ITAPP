@@ -32,7 +32,7 @@ function getStatusBadgeVariant(status: string): "default" | "secondary" | "destr
   const s = normalizeStatus(status)
   if (s.includes("reject") || s === "not_recommended") return "destructive"
   if (s === "completed" || s === "issued" || s === "resolved" || s === "confirmed_working") return "default"
-  if (s.includes("pending") || s === "draft" || s === "assigned" || s === "in_progress" || s === "awaiting_user_confirmation") {
+  if (s.includes("pending") || s === "draft" || s === "assigned" || s === "in_progress" || s === "awaiting_user_confirmation" || s === "awaiting_regional_confirmation") {
     return "secondary"
   }
   return "outline"
@@ -51,7 +51,10 @@ function getCurrentOwner(status: string, formType: string, assignedTo?: string) 
   if (s === "draft") return "You (Submit Request)"
   if (s === "rejected" || s === "not_recommended") return "Closed"
   if (s === "completed" || s === "issued" || s === "resolved" || s === "confirmed_working") return "Completed"
-  if (s === "awaiting_user_confirmation") return "You (Confirm Completion)"
+  if (s === "awaiting_user_confirmation") {
+    return formType === "requisition" ? "You (Confirm Receipt)" : "You (Confirm Completion)"
+  }
+  if (s === "awaiting_regional_confirmation") return "Regional IT Head (Confirm Receipt)"
   if (s === "assigned" || s === "in_progress") return assignedTo || "Assigned IT Staff"
 
   if (s === "pending_dept_head" || s === "pending_department_head" || s === "pending_hod" || s === "pending") {
@@ -70,6 +73,7 @@ function getCurrentOwner(status: string, formType: string, assignedTo?: string) 
 
   if (s === "pending_admin") return "Admin"
   if (s === "pending_store") return "Store Team"
+  if (s === "pending_regional_store") return "Regional IT Head"
 
   return "In Review"
 }

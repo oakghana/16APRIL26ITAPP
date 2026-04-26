@@ -71,16 +71,51 @@ export async function POST(request: NextRequest) {
     const { data: approvedRequisitions, error: requisitionsError } = await supabaseAdmin
       .from("it_equipment_requisitions")
       .select("*")
-      .in("status", ["pending_store", "ready_for_issuance"])
       .order("created_at", { ascending: false })
 
     if (requisitionsError) {
       return NextResponse.json({ error: requisitionsError.message || "Failed to load approved IT requisitions" }, { status: 500 })
     }
 
-    const approvedList = (approvedRequisitions || []).filter(
-      (req: any) => req.store_head_approved !== true
-    )
+    const approvedList = (approvedRequisitions || []).filter((req: any) => {
+      if (req.store_head_approved === true) return false
+
+      const status = String(req.status || "").toLowerCase().trim()
+      if (["issued", "rejected", "rejected_it_head", "rejected_admin", "cancelled", "completed"].includes(status)) {
+        return false
+      }
+
+      const statusSaysApproved = [
+        "pending_store",
+        "ready_for_issuance",
+        "pending_regional_store",
+        "pending_admin",
+        "approved",
+        "approved_it_head",
+        "approved_admin",
+        "approved_manager",
+      ].includes(status)
+
+      const hasApprovalMarker = Boolean(
+        req.it_head_approved === true ||
+        req.admin_approved === true ||
+        req.it_manager_approved === true ||
+        req.it_head_approved_by ||
+        req.it_head_approved_by_name ||
+        req.admin_approved_by ||
+        req.admin_approved_by_name ||
+        req.it_manager_approved_by ||
+        req.it_manager_approved_by_name ||
+        req.manager_approved_by ||
+        req.manager_approved_by_name ||
+        req.it_head_approved_at ||
+        req.admin_approved_at ||
+        req.it_manager_approved_at ||
+        req.manager_approved_at
+      )
+
+      return statusSaysApproved || hasApprovalMarker
+    })
 
     if (approvedList.length === 0) {
       return NextResponse.json({ success: true, createdCount: 0, skippedCount: 0, message: "No approved IT requisitions are waiting to be synced" })

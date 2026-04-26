@@ -8,7 +8,6 @@ import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { Separator } from '@/components/ui/separator'
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
 import { useToast } from '@/hooks/use-toast'
 import { useAuth } from '@/lib/auth-context'
 import { Loader2 } from 'lucide-react'
@@ -19,60 +18,12 @@ interface EditProfileDialogProps {
   onSuccess?: () => void
 }
 
-export function EditProfileDialog({ isOpen, onClose, onSuccess }: EditProfileDialogProps) {
-  const { user, refreshUser } = useAuth()
+export function EditProfileDialog({ isOpen, onClose }: EditProfileDialogProps) {
+  const { user } = useAuth()
   const { toast } = useToast()
-  const [loading, setLoading] = useState(false)
   const [changingPassword, setChangingPassword] = useState(false)
-  const [formData, setFormData] = useState({
-    full_name: user?.full_name || '',
-    phone: user?.phone || '',
-    email: user?.email || '',
-    department: user?.department || '',
-    location: user?.location || '',
-  })
   const [newPassword, setNewPassword] = useState('')
   const [confirmPassword, setConfirmPassword] = useState('')
-
-  const handleChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-    const { name, value } = e.target
-    setFormData(prev => ({ ...prev, [name]: value }))
-  }
-
-  const handleLocationChange = (value: string) => {
-    setFormData(prev => ({ ...prev, location: value }))
-  }
-
-  const handleSubmit = async (e: React.FormEvent) => {
-    e.preventDefault()
-    if (!user?.id) return
-
-    setLoading(true)
-    try {
-      const response = await fetch('/api/profile/update', {
-        method: 'PUT',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          userId: user.id,
-          ...formData,
-        }),
-      })
-
-      if (!response.ok) {
-        throw new Error('Failed to update profile')
-      }
-
-      await refreshUser()
-      toast({ title: 'Success', description: 'Profile updated successfully' })
-      onSuccess?.()
-      onClose()
-    } catch (error) {
-      console.error('[v0] Error updating profile:', error)
-      toast({ title: 'Update failed', description: 'Failed to update profile', variant: 'destructive' })
-    } finally {
-      setLoading(false)
-    }
-  }
 
   const handlePasswordChange = async () => {
     if (!user?.username) {
@@ -120,31 +71,22 @@ export function EditProfileDialog({ isOpen, onClose, onSuccess }: EditProfileDia
     }
   }
 
-  const locations = [
-    'Head Office',
-    'Kumasi',
-    'Kaase',
-    'Tema Port',
-    'Central Stores',
-  ]
-
   return (
     <Dialog open={isOpen} onOpenChange={onClose}>
       <DialogContent className="max-w-md">
         <DialogHeader>
           <DialogTitle>Edit Your Profile</DialogTitle>
-          <DialogDescription>Update your contact information and location</DialogDescription>
+          <DialogDescription>Profile details are managed by admin. You can change your password here.</DialogDescription>
         </DialogHeader>
 
-        <form onSubmit={handleSubmit} className="space-y-4">
+        <div className="space-y-4">
           <div>
             <Label htmlFor="full_name">Full Name</Label>
             <Input
               id="full_name"
-              name="full_name"
-              value={formData.full_name}
-              onChange={handleChange}
-              placeholder="Enter your full name"
+              value={user?.full_name || ''}
+              disabled
+              readOnly
             />
           </div>
 
@@ -152,11 +94,10 @@ export function EditProfileDialog({ isOpen, onClose, onSuccess }: EditProfileDia
             <Label htmlFor="email">Email</Label>
             <Input
               id="email"
-              name="email"
               type="email"
-              value={formData.email}
-              onChange={handleChange}
-              placeholder="Enter your email"
+              value={user?.email || ''}
+              disabled
+              readOnly
             />
           </div>
 
@@ -164,10 +105,9 @@ export function EditProfileDialog({ isOpen, onClose, onSuccess }: EditProfileDia
             <Label htmlFor="phone">Phone Number</Label>
             <Input
               id="phone"
-              name="phone"
-              value={formData.phone}
-              onChange={handleChange}
-              placeholder="Enter your phone number"
+              value={user?.phone || ''}
+              disabled
+              readOnly
             />
           </div>
 
@@ -175,29 +115,22 @@ export function EditProfileDialog({ isOpen, onClose, onSuccess }: EditProfileDia
             <Label htmlFor="department">Department</Label>
             <Input
               id="department"
-              name="department"
-              value={formData.department}
+              value={user?.department || ''}
               disabled
               readOnly
               placeholder="Department assigned by admin"
             />
-            <p className="mt-1 text-xs text-muted-foreground">Department is managed by Admin.</p>
+            <p className="mt-1 text-xs text-muted-foreground">Profile fields are managed by Admin.</p>
           </div>
 
           <div>
             <Label htmlFor="location">Location</Label>
-            <Select value={formData.location} onValueChange={handleLocationChange}>
-              <SelectTrigger>
-                <SelectValue placeholder="Select your location" />
-              </SelectTrigger>
-              <SelectContent>
-                {locations.map(loc => (
-                  <SelectItem key={loc} value={loc}>
-                    {loc}
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
+            <Input
+              id="location"
+              value={user?.location || ''}
+              disabled
+              readOnly
+            />
           </div>
 
           <Separator />
@@ -241,15 +174,11 @@ export function EditProfileDialog({ isOpen, onClose, onSuccess }: EditProfileDia
           </div>
 
           <div className="flex gap-2 justify-end pt-4">
-            <Button type="button" variant="outline" onClick={onClose} disabled={loading || changingPassword}>
+            <Button type="button" variant="outline" onClick={onClose} disabled={changingPassword}>
               Cancel
             </Button>
-            <Button type="submit" disabled={loading || changingPassword} className="gap-2">
-              {loading && <Loader2 className="h-4 w-4 animate-spin" />}
-              Save Changes
-            </Button>
           </div>
-        </form>
+        </div>
       </DialogContent>
     </Dialog>
   )

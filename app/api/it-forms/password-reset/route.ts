@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server"
 import { createClient } from "@supabase/supabase-js"
 import { isLocationInSameRegion, normalizeLocation } from "@/lib/location-filter"
 import { normalizeDepartmentName, isITDDepartment } from "@/lib/department-options"
+import { isHeadOfficeOrAccraLocation } from "@/lib/location-filter"
 
 const supabaseAdmin = createClient(
   process.env.NEXT_PUBLIC_SUPABASE_URL || "https://example.supabase.co",
@@ -26,10 +27,10 @@ function normalizeText(value?: string | null) {
   return String(value || "").toLowerCase().trim()
 }
 
-function canManageAsIT(role?: string | null, department?: string | null) {
+function canManageAsIT(role?: string | null, department?: string | null, location?: string | null) {
   const normalizedRole = normalizeText(role)
   if (normalizedRole === "admin") return true
-  return normalizedRole === "department_head" && isITDDepartment(department)
+  return normalizedRole === "department_head" && isITDDepartment(department) && isHeadOfficeOrAccraLocation(location)
 }
 
 function canSeeNationwide(role?: string | null, location?: string | null) {
@@ -167,7 +168,7 @@ export async function GET(request: NextRequest) {
     const viewer = await getViewerProfile(viewerId)
 
     if (mode === "assignees") {
-      if (!viewer || !canManageAsIT(viewer.role, viewer.department)) {
+      if (!viewer || !canManageAsIT(viewer.role, viewer.department, viewer.location)) {
         return NextResponse.json({ error: "Only IT manager/admin can load assignees" }, { status: 403 })
       }
 
@@ -241,7 +242,7 @@ export async function GET(request: NextRequest) {
             if (!requesterLocation || !viewer.location) return false
             return isLocationInSameRegion(requesterLocation, viewer.location)
           })
-        } else if (!canManageAsIT(viewer.role, viewer.department)) {
+        } else if (!canManageAsIT(viewer.role, viewer.department, viewer.location)) {
           requests = requests.filter((row: any) => {
             const requesterMatch = row.requested_by_id && row.requested_by_id === viewer.id
             const assigneeMatch = row.assigned_to_id && row.assigned_to_id === viewer.id
@@ -334,7 +335,7 @@ export async function PATCH(request: NextRequest) {
       updateData.urgency = ["low", "medium", "high", "critical"].includes(urgency) ? urgency : record.urgency
       updateData.approval_timeline = timeline
     } else if (action === "manager_assign") {
-      if (!canManageAsIT(effectiveRole, effectiveDepartment)) {
+      if (!canManageAsIT(effectiveRole, effectiveDepartment, effectiveLocation)) {
         return NextResponse.json({ error: "Only IT manager/admin can approve and assign" }, { status: 403 })
       }
       if (!["pending_manager", "reopened"].includes(record.status)) {
@@ -366,7 +367,7 @@ export async function PATCH(request: NextRequest) {
       updateData.assigned_at = now
       updateData.approval_timeline = timeline
     } else if (action === "manager_reject") {
-      if (!canManageAsIT(effectiveRole, effectiveDepartment)) {
+      if (!canManageAsIT(effectiveRole, effectiveDepartment, effectiveLocation)) {
         return NextResponse.json({ error: "Only IT manager/admin can reject" }, { status: 403 })
       }
       if (!["pending_manager", "reopened"].includes(record.status)) {
@@ -381,7 +382,7 @@ export async function PATCH(request: NextRequest) {
       updateData.approval_timeline = timeline
     } else if (action === "assignee_start") {
       const isAssignedActor = isUuidLike(actorId) && record.assigned_to_id && record.assigned_to_id === actorId
-      const canOverride = canManageAsIT(effectiveRole, effectiveDepartment)
+      const canOverride = canManageAsIT(effectiveRole, effectiveDepartment, effectiveLocation)
       if (!isAssignedActor && !canOverride) {
         return NextResponse.json({ error: "Only assigned IT staff can start this work" }, { status: 403 })
       }
@@ -394,7 +395,7 @@ export async function PATCH(request: NextRequest) {
       updateData.approval_timeline = timeline
     } else if (action === "assignee_submit") {
       const isAssignedActor = isUuidLike(actorId) && record.assigned_to_id && record.assigned_to_id === actorId
-      const canOverride = canManageAsIT(effectiveRole, effectiveDepartment)
+      const canOverride = canManageAsIT(effectiveRole, effectiveDepartment, effectiveLocation)
       if (!isAssignedActor && !canOverride) {
         return NextResponse.json({ error: "Only assigned IT staff can submit completion" }, { status: 403 })
       }
