@@ -267,6 +267,7 @@ export function ModernSidebar({ isOpen, setIsOpen, className, onCollapseChange }
           },
           { name: "IT Documents", href: "/dashboard/it-documents", icon: FileText },
           { name: "My Complaints", href: "/dashboard/complaints", icon: MessageSquare },
+          { name: "HOD Staff Linking", href: "/dashboard/admin/department-heads", icon: Users },
         ],
         groups: [
           {
@@ -486,6 +487,7 @@ export function ModernSidebar({ isOpen, setIsOpen, className, onCollapseChange }
               { name: "Weekly Internet Report", href: "/dashboard/weekly-internet-report", icon: Wifi },
               { name: "Reports & Analysis", href: "/dashboard/it-reports", icon: BarChart3 },
               { name: "IT Documents", href: "/dashboard/it-documents", icon: FileText },
+              { name: "HOD Staff Linking", href: "/dashboard/admin/department-heads", icon: Users },
             ],
           },
           {
