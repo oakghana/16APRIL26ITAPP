@@ -4,6 +4,7 @@ import { useEffect, useState } from "react"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { Badge } from "@/components/ui/badge"
+import { safeJsonParse, safeStorage } from "@/lib/utils"
 import { WifiOff, RefreshCw, Smartphone, Monitor, Users, Wrench, AlertTriangle } from "lucide-react"
 
 export default function OfflinePage() {

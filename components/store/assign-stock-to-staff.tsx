@@ -115,6 +115,8 @@ interface RegionalDispatchConfirmation {
   status: string
 }
 
+const REGIONAL_CONFIRMATION_STATUSES = ["awaiting_regional_confirmation", "pending_regional_store"]
+
 const categoryIcons: Record<string, any> = {
   "Computers": Laptop,
   "Printers": Printer,
@@ -252,7 +254,7 @@ export function AssignStockToStaff() {
     setRegionalConfirmLoading(true)
     try {
       const params = new URLSearchParams({
-        status: "awaiting_regional_confirmation",
+        status: REGIONAL_CONFIRMATION_STATUSES.join(","),
         officeUseLocation: user.location || "",
         officeUseRole: user.role || "",
       })
@@ -265,7 +267,11 @@ export function AssignStockToStaff() {
         return
       }
 
-      setRegionalPendingConfirmations(result.requisitions || [])
+      setRegionalPendingConfirmations(
+        (result.requisitions || []).filter((req: RegionalDispatchConfirmation) =>
+          REGIONAL_CONFIRMATION_STATUSES.includes(String(req.status || ""))
+        )
+      )
     } catch (error) {
       console.error("[v0] Error loading regional pending confirmations:", error)
       toast({ title: "Error", description: "Failed to load pending confirmations", variant: "destructive" })
@@ -893,7 +899,9 @@ export function AssignStockToStaff() {
                   </div>
                 ) : (
                   <div className="space-y-3">
-                    {regionalPendingConfirmations.map((req) => (
+                    {regionalPendingConfirmations.map((req) => {
+                      const needsConfirmation = req.status === "awaiting_regional_confirmation"
+                      return (
                       <div key={req.id} className="rounded-lg border p-4 space-y-2">
                         <div className="flex flex-col md:flex-row md:items-start md:justify-between gap-3">
                           <div className="space-y-1">
@@ -907,17 +915,25 @@ export function AssignStockToStaff() {
                             {req.issuance_notes ? (
                               <p className="text-xs text-muted-foreground">Store note: {req.issuance_notes}</p>
                             ) : null}
+                            <p className="text-xs text-muted-foreground">
+                              Status: {req.status === "awaiting_regional_confirmation" ? "Awaiting Receipt Confirmation" : "Ready for Regional IT Head Issuance"}
+                            </p>
                           </div>
                           <Button
                             onClick={() => handleConfirmRegionalDispatch(req)}
-                            disabled={confirmingDispatchId === req.id}
-                            className="bg-green-600 hover:bg-green-700"
+                            disabled={!needsConfirmation || confirmingDispatchId === req.id}
+                            className={needsConfirmation ? "bg-green-600 hover:bg-green-700" : "bg-slate-400 hover:bg-slate-400 cursor-not-allowed"}
                           >
-                            {confirmingDispatchId === req.id ? "Confirming..." : "Confirm Receipt"}
+                            {!needsConfirmation
+                              ? "Already Confirmed"
+                              : confirmingDispatchId === req.id
+                                ? "Confirming..."
+                                : "Confirm Receipt"}
                           </Button>
                         </div>
                       </div>
-                    ))}
+                      )
+                    })}
                   </div>
                 )}
               </CardContent>

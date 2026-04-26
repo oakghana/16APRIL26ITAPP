@@ -203,7 +203,7 @@ export async function POST(request: Request) {
         ? "password_expired"
         : null
 
-    return NextResponse.json({
+    const response = NextResponse.json({
       success: true,
       user: {
         id: user.id,
@@ -219,6 +219,24 @@ export async function POST(request: Request) {
       forceChangePassword,
       forceChangeReason,
     })
+
+    response.cookies.set("qcc_session", JSON.stringify({
+      id: user.id,
+      username: user.username,
+      role: user.role,
+      location: user.location,
+      department: user.department,
+      email: user.email,
+      full_name: user.full_name,
+    }), {
+      httpOnly: true,
+      secure: process.env.NODE_ENV === "production",
+      sameSite: "lax",
+      maxAge: 60 * 60 * 24 * 7,
+      path: "/",
+    })
+
+    return response
   } catch (error) {
     console.error("[v0] Login error:", error)
     return NextResponse.json({ error: "Authentication failed" }, { status: 500 })

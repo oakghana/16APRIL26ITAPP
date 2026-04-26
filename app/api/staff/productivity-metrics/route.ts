@@ -13,7 +13,9 @@ interface ProductivityMetrics {
   location: string
   role: string
   totalTasksAssigned: number
+  totalTicketTasks: number
   completedTasks: number
+  completedTicketTasks: number
   onTimeCompletions: number
   averageCompletionDays: number
   completionRate: number
@@ -337,14 +339,23 @@ export async function GET(request: NextRequest) {
         storeIssuances * 1.5 + serviceDeskDispatches * 1.0 + officeUseProcesses * 1.0,
       )
 
-      // Ticket volume bonus: every IT ticket assigned earns points, even if still open.
-      // Rewards staff who handle a high volume of service requests.
-      const ticketVolumeBonus = Math.min(20, totalTicketTasks * 0.4)
-
-      // Final score: completion + on-time + speed + workload throughput + activity + ticket volume
-      const productivityScore = Math.round(
-        completionRate * 0.4 + onTimeRate * 0.22 + speedBonus * 0.65 + workloadBonus + activityBonus + ticketVolumeBonus
+      // Ticket volume bonus: strongly rewards ticket throughput so staff handling
+      // larger ticket loads can rank higher, while still considering quality metrics.
+      const ticketVolumeBonus = Math.min(
+        40,
+        Math.sqrt(totalTicketTasks) * 5 + Math.sqrt(completedTickets.length) * 4,
       )
+
+      // Final score: keep quality metrics, but lower on-time dominance and boost throughput impact.
+      const productivityScoreRaw =
+        completionRate * 0.45 +
+        onTimeRate * 0.12 +
+        speedBonus * 0.5 +
+        workloadBonus +
+        activityBonus +
+        ticketVolumeBonus
+
+      const productivityScore = Math.round(Math.min(100, productivityScoreRaw))
 
       const sortedIssuances = [...myStoreAssignments]
         .sort((a: any, b: any) => new Date(b.created_at || 0).getTime() - new Date(a.created_at || 0).getTime())
@@ -393,7 +404,13 @@ export async function GET(request: NextRequest) {
 
     // Sort by productivity score and assign ranks
     const rankedMetrics = metrics
-      .sort((a, b) => b.productivityScore - a.productivityScore)
+      .sort((a, b) => {
+        if (b.productivityScore !== a.productivityScore) return b.productivityScore - a.productivityScore
+        if (b.totalTicketTasks !== a.totalTicketTasks) return b.totalTicketTasks - a.totalTicketTasks
+        if (b.completedTicketTasks !== a.completedTicketTasks) return b.completedTicketTasks - a.completedTicketTasks
+        if (b.totalTasksAssigned !== a.totalTasksAssigned) return b.totalTasksAssigned - a.totalTasksAssigned
+        return b.onTimeRate - a.onTimeRate
+      })
       .map((m, index) => ({
         ...m,
         rank: index + 1,

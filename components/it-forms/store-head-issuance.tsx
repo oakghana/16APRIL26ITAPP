@@ -57,6 +57,8 @@ export function StoreHeadIssuanceModule() {
   const { toast } = useToast()
   const isRegionalHead = user?.role === "regional_it_head"
 
+  const asText = (value: unknown) => String(value || "")
+
   useEffect(() => {
     if (user) fetchRequisitions()
   }, [user?.role, user?.location])
@@ -111,9 +113,9 @@ export function StoreHeadIssuanceModule() {
 
     filtered = filtered.filter(
       (req) =>
-        req.requisition_number.toLowerCase().includes(searchQuery.toLowerCase()) ||
-        req.requested_by.toLowerCase().includes(searchQuery.toLowerCase()) ||
-        req.items_required.toLowerCase().includes(searchQuery.toLowerCase())
+        asText(req.requisition_number).toLowerCase().includes(searchQuery.toLowerCase()) ||
+        asText(req.requested_by).toLowerCase().includes(searchQuery.toLowerCase()) ||
+        asText(req.items_required).toLowerCase().includes(searchQuery.toLowerCase())
     )
 
     setFilteredRequisitions(filtered)
@@ -387,7 +389,7 @@ export function StoreHeadIssuanceModule() {
                             <span> &bull; Approved by: {req.it_head_approved_by_name || req.it_head_approved_by}</span>
                           ) : null}
                         </p>
-                        <p className="text-sm">Items: {req.items_required.substring(0, 80)}{req.items_required.length > 80 ? "..." : ""}</p>
+                        <p className="text-sm">Items: {asText(req.items_required).substring(0, 80)}{asText(req.items_required).length > 80 ? "..." : ""}</p>
                       </div>
                       <div className="flex gap-2">
                         <Button

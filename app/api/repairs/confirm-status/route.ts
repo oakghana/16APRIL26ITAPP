@@ -172,7 +172,7 @@ export async function POST(request: NextRequest) {
       // Batch insert notifications
       if (notificationMessages.length > 0) {
         const now = new Date().toISOString()
-        await supabaseAdmin
+        const { error: notificationInsertError } = await supabaseAdmin
           .from("notifications")
           .insert(
             notificationMessages.map((notif) => ({
@@ -180,10 +180,11 @@ export async function POST(request: NextRequest) {
               created_at: now,
             }))
           )
-          .catch((err) => {
-            console.error("[v0] Error creating cross-portal notifications:", err)
-            // Don't fail the status update if notifications fail
-          })
+
+        if (notificationInsertError) {
+          console.error("[v0] Error creating cross-portal notifications:", notificationInsertError)
+          // Don't fail the status update if notifications fail
+        }
       }
     } catch (err) {
       console.error("[v0] Error in notification creation:", err)

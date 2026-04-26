@@ -262,15 +262,20 @@ export async function POST(request: NextRequest) {
           reference_id: requisitionId,
           is_read: false,
         }))
-        await supabaseAdmin.from("notifications").insert(storeNotifications)
-          .then(() => {}).catch((e: any) => console.error("[v0] Store notification error:", e?.message))
+        const { error: storeNotifError } = await supabaseAdmin
+          .from("notifications")
+          .insert(storeNotifications)
+
+        if (storeNotifError) {
+          console.error("[v0] Store notification error:", storeNotifError.message)
+        }
       }
     } else {
       // Rejected — notify requester
       const notifyUserId = isUuidLike(requisition.requested_by_id) ? requisition.requested_by_id
         : isUuidLike(requisition.created_by_id) ? requisition.created_by_id : null
       if (notifyUserId) {
-        await supabaseAdmin.from("notifications").insert({
+        const { error: rejectNotifError } = await supabaseAdmin.from("notifications").insert({
           user_id: notifyUserId,
           title: "IT Head Rejected Your Requisition",
           message: `Your requisition ${requisition.requisition_number || requisitionId} was rejected by the IT Head.`,
@@ -279,7 +284,11 @@ export async function POST(request: NextRequest) {
           reference_type: "it_equipment_requisition",
           reference_id: requisitionId,
           is_read: false,
-        }).then(() => {}).catch((e: any) => console.error("[v0] Notification error:", e?.message))
+        })
+
+        if (rejectNotifError) {
+          console.error("[v0] Notification error:", rejectNotifError.message)
+        }
       }
     }
 

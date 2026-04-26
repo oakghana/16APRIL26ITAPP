@@ -223,14 +223,19 @@ export async function GET(request: NextRequest) {
       storeIssuances * 1.5 + serviceDeskDispatches * 1.0 + officeUseProcesses * 1.0,
     )
 
-    // Ticket volume bonus: every IT ticket assigned counts, even if still open.
-    // Rewards staff who handle a high volume of requests.
+    // Ticket volume bonus: strongly rewards higher ticket throughput.
     const totalTicketCount = (ticketTasks || []).length
-    const ticketVolumeBonus = Math.min(20, totalTicketCount * 0.4)
+    const completedTicketCount = (ticketTasks || []).filter((t: any) =>
+      ["completed", "closed", "resolved", "awaiting_confirmation"].includes((t.status || "").toLowerCase())
+    ).length
+    const ticketVolumeBonus = Math.min(
+      40,
+      Math.sqrt(totalTicketCount) * 5 + Math.sqrt(completedTicketCount) * 4,
+    )
 
-    // Calculate productivity score with volume weighting
-    const baseScore = completionRate * 0.4 + onTimeRate * 0.25 + speedBonus * 0.75
-    const productivityScore = Math.round(baseScore + volumeBonus + activityBonus + ticketVolumeBonus)
+    // Calculate productivity score with stronger ticket throughput influence.
+    const baseScore = completionRate * 0.45 + onTimeRate * 0.12 + speedBonus * 0.5
+    const productivityScore = Math.round(Math.min(100, baseScore + volumeBonus + activityBonus + ticketVolumeBonus))
 
     // Determine grading
     let grading: "Excellent" | "Good" | "Average" | "Below Average" | "Poor"

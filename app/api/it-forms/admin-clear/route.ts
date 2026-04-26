@@ -14,47 +14,69 @@ export async function DELETE(request: NextRequest) {
       return NextResponse.json({ error: "Forbidden" }, { status: 403 })
     }
 
-    const [reqDelete, gadgetDelete, maintenanceDelete, passwordResetDelete] = await Promise.all([
-      supabaseAdmin.from("it_equipment_requisitions").delete().not("id", "is", null),
-      supabaseAdmin.from("new_gadget_requests").delete().not("id", "is", null),
-      supabaseAdmin.from("maintenance_repair_requests").delete().not("id", "is", null),
-      supabaseAdmin.from("password_reset_requests").delete().not("id", "is", null),
-    ])
+    const deletePlan: Array<{ table: string; key: string }> = [
+      { table: "it_equipment_requisitions", key: "requisitions" },
+      { table: "new_gadget_requests", key: "newGadget" },
+      { table: "maintenance_repair_requests", key: "maintenance" },
+      { table: "password_reset_requests", key: "passwordReset" },
+      { table: "account_unlock_requests", key: "accountUnlock" },
+      { table: "software_access_requests", key: "softwareAccess" },
+      { table: "onboarding_requests", key: "onboarding" },
+      { table: "offboarding_requests", key: "offboarding" },
+      { table: "asset_transfer_requests", key: "assetTransfer" },
+    ]
 
-    if (reqDelete.error) {
-      return NextResponse.json({ error: reqDelete.error.message }, { status: 500 })
-    }
-    if (gadgetDelete.error) {
-      return NextResponse.json({ error: gadgetDelete.error.message }, { status: 500 })
-    }
-    if (maintenanceDelete.error) {
-      return NextResponse.json({ error: maintenanceDelete.error.message }, { status: 500 })
-    }
-    if (passwordResetDelete.error) {
-      return NextResponse.json({ error: passwordResetDelete.error.message }, { status: 500 })
+    const deleted: Record<string, number> = {}
+
+    for (const step of deletePlan) {
+      const { error } = await supabaseAdmin
+        .from(step.table)
+        .delete()
+        .not("id", "is", null)
+
+      if (error) {
+        return NextResponse.json({ error: `Failed clearing ${step.table}: ${error.message}` }, { status: 500 })
+      }
+
+      deleted[step.key] = 0
     }
 
-    const deleted = {
-      requisitions: reqDelete.count || 0,
-      newGadget: gadgetDelete.count || 0,
-      maintenance: maintenanceDelete.count || 0,
-      passwordReset: passwordResetDelete.count || 0,
+    const { error: notifError } = await supabaseAdmin
+      .from("notifications")
+      .delete()
+      .in("reference_type", [
+        "it_equipment_requisition",
+        "new_gadget_request",
+        "maintenance_repair_request",
+        "password_reset_request",
+        "account_unlock_request",
+        "software_access_request",
+        "onboarding_request",
+        "offboarding_request",
+        "asset_transfer_request",
+      ])
+
+    if (notifError) {
+      console.error("[admin-clear] notification cleanup warning:", notifError.message)
     }
 
-    const total = deleted.requisitions + deleted.newGadget + deleted.maintenance + deleted.passwordReset
+    const total = Object.values(deleted).reduce((sum, count) => sum + count, 0)
 
-    await supabaseAdmin
+    const { error: auditError } = await supabaseAdmin
       .from("audit_logs")
       .insert({
         username: username || userId || "admin",
         action: "ADMIN_CLEAR_IT_FORMS",
         resource: "it_forms",
-        details: `Deleted all IT forms requests. Total deleted: ${total} (Requisitions: ${deleted.requisitions}, New Gadget: ${deleted.newGadget}, Maintenance: ${deleted.maintenance}, Password Reset: ${deleted.passwordReset})`,
+        details: `Cleared all IT form request tables (and related notifications).`,
         severity: "critical",
         ip_address: request.headers.get("x-forwarded-for") || "unknown",
         user_agent: request.headers.get("user-agent") || "unknown",
       })
-      .catch(() => null)
+
+    if (auditError) {
+      console.error("[admin-clear] audit log warning:", auditError.message)
+    }
 
     return NextResponse.json({
       success: true,
