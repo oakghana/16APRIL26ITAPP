@@ -15,11 +15,7 @@ function isUuidLike(value?: string | null) {
 }
 
 function isAuthorizedManager(userRole: string, userDepartment: string) {
-  return (
-    userRole === "admin" ||
-    userRole === "it_head" ||
-    (userRole === "department_head" && isITDDepartment(userDepartment))
-  )
+  return userRole === "admin" || (userRole === "department_head" && isITDDepartment(userDepartment))
 }
 
 const FORM_CONFIG: Record<FormType, { table: string; numberField: string; relatedType: string }> = {

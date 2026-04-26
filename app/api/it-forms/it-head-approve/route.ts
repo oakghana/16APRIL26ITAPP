@@ -20,16 +20,8 @@ function isUuidLike(value?: string | null) {
 }
 
 function isAuthorizedForRole(approverRole: string | undefined, userRole: string, userDepartment: string) {
-  if (approverRole === "admin") {
-    return userRole === "admin"
-  }
-  if (approverRole === "it_head") {
-    // Allow admin, it_head, or department_head from IT department
-    return userRole === "admin" || 
-           userRole === "it_head" || 
-           (userRole === "department_head" && isITDDepartment(userDepartment))
-  }
-  return false
+  if (approverRole !== "it_head") return false
+  return userRole === "admin" || (userRole === "department_head" && isITDDepartment(userDepartment))
 }
 
 function normalizeRole(value?: string | null) {

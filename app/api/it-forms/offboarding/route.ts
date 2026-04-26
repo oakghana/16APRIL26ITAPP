@@ -15,7 +15,7 @@ function isUuid(v?: string | null) {
 }
 function canManageAsIT(role?: string | null, dept?: string | null) {
   const r = (role || "").toLowerCase()
-  return r === "admin" || r === "it_head" || (r === "department_head" && isITDDepartment(dept))
+  return r === "admin" || (r === "department_head" && isITDDepartment(dept))
 }
 function appendTimeline(existing: any, entry: Record<string, any>) {
   return [...(Array.isArray(existing) ? existing : []), entry]

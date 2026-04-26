@@ -1,7 +1,7 @@
 "use client"
 
 import Link from "next/link"
-import { useMemo, useState } from "react"
+import { useEffect, useMemo, useState } from "react"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
@@ -38,24 +38,62 @@ export function ITFormsApprovalDashboard() {
   const { toast } = useToast()
   const role = user?.role || ""
   const department = user?.department || ""
+  const [verifiedRole, setVerifiedRole] = useState<string | null>(null)
+  const [verifiedDepartment, setVerifiedDepartment] = useState<string | null>(null)
   const [isDeletingAll, setIsDeletingAll] = useState(false)
   const [isDownloadingAllRecords, setIsDownloadingAllRecords] = useState(false)
   const [isDownloadingApprovedBackup, setIsDownloadingApprovedBackup] = useState(false)
 
-  // ITD (IT Department) Department Head can act as IT Manager
-  const isITDepartmentHead = role === "department_head" && isITDDepartment(department)
+  useEffect(() => {
+    let active = true
 
-  const canUseHODDesk = ["department_head", "admin"].includes(role)
+    const loadVerifiedProfile = async () => {
+      if (!user?.id) {
+        if (active) {
+          setVerifiedRole(null)
+          setVerifiedDepartment(null)
+        }
+        return
+      }
+
+      try {
+        const response = await fetch(`/api/profile/summary?userId=${encodeURIComponent(user.id)}`)
+        const data = await response.json()
+        if (!response.ok) return
+
+        if (active) {
+          setVerifiedRole(String(data?.profile?.role || ""))
+          setVerifiedDepartment(String(data?.profile?.department || ""))
+        }
+      } catch {
+        // Keep local auth values as fallback.
+      }
+    }
+
+    void loadVerifiedProfile()
+
+    return () => {
+      active = false
+    }
+  }, [user?.id])
+
+  const effectiveRole = verifiedRole || role
+  const effectiveDepartment = verifiedDepartment ?? department
+
+  // ITD (IT Department) Department Head can act as IT Manager
+  const isITDepartmentHead = effectiveRole === "department_head" && isITDDepartment(effectiveDepartment)
+
+  const canUseHODDesk = ["department_head", "admin"].includes(effectiveRole)
   const canUseOfficeUseDesk =
-    role === "admin" ||
-    role === "it_staff" ||
-    role === "regional_it_head" ||
-    role === "it_store_head" ||
-    role.startsWith("service_desk")
-  const canUseManagerDesk = ["it_head", "admin"].includes(role) || isITDepartmentHead
-  const canUseHODTracker = ["it_head", "admin"].includes(role) || isITDepartmentHead
-  const canUseSignatureDesk = ["department_head", "admin", "it_head", "regional_it_head"].includes(role) || isITDepartmentHead
-  const canUsePasswordWorkDesk = ["it_staff", "it_head", "regional_it_head", "admin"].includes(role) || isITDepartmentHead
+    effectiveRole === "admin" ||
+    effectiveRole === "it_staff" ||
+    effectiveRole === "regional_it_head" ||
+    effectiveRole === "it_store_head" ||
+    effectiveRole.startsWith("service_desk")
+  const canUseManagerDesk = effectiveRole === "admin" || isITDepartmentHead
+  const canUseHODTracker = ["it_head", "admin"].includes(effectiveRole) || isITDepartmentHead
+  const canUseSignatureDesk = ["department_head", "admin", "it_head", "regional_it_head"].includes(effectiveRole) || isITDepartmentHead
+  const canUsePasswordWorkDesk = ["it_staff", "it_head", "regional_it_head", "admin"].includes(effectiveRole) || isITDepartmentHead
 
   const defaultTab = useMemo(() => {
     if (canUseHODDesk) return "hod"
@@ -124,7 +162,7 @@ export function ITFormsApprovalDashboard() {
   ]
 
   const deleteAllITForms = async () => {
-    if (role !== "admin") return
+    if (effectiveRole !== "admin") return
 
     const confirmed = window.confirm(
       "This will permanently delete ALL IT form requests (Requisitions, New Gadget, Maintenance & Repairs, Password Reset). Continue?"
@@ -146,7 +184,7 @@ export function ITFormsApprovalDashboard() {
       const response = await fetch("/api/it-forms/admin-clear", {
         method: "DELETE",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ userRole: role, userId: user?.id, username: user?.full_name || user?.email || user?.username || "admin" }),
+        body: JSON.stringify({ userRole: effectiveRole, userId: user?.id, username: user?.full_name || user?.email || user?.username || "admin" }),
       })
 
       const data = await response.json()
@@ -180,7 +218,7 @@ export function ITFormsApprovalDashboard() {
     try {
       const params = new URLSearchParams({
         mode,
-        userRole: role,
+        userRole: effectiveRole,
         username: user?.full_name || user?.email || user?.username || "admin",
       })
 
@@ -228,7 +266,7 @@ export function ITFormsApprovalDashboard() {
         </p>
       </div>
 
-      {role === "admin" && (
+      {effectiveRole === "admin" && (
         <Card className="border-red-200 bg-red-50/70">
           <CardContent className="p-4 flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
             <div>

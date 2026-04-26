@@ -4,7 +4,7 @@ import { createServerClient } from '@/lib/supabase/server'
 export async function PUT(request: Request) {
   try {
     const body = await request.json()
-    const { userId, full_name, phone, department, location, email } = body
+    const { userId, full_name, phone, location, email } = body
 
     if (!userId) {
       return NextResponse.json({ error: 'User ID is required' }, { status: 400 })
@@ -18,7 +18,6 @@ export async function PUT(request: Request) {
       .update({
         full_name,
         phone,
-        department,
         location,
         email,
         updated_at: new Date().toISOString(),

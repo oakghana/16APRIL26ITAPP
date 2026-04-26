@@ -28,7 +28,7 @@ function normalizeText(value?: string | null) {
 
 function canManageAsIT(role?: string | null, department?: string | null) {
   const normalizedRole = normalizeText(role)
-  if (normalizedRole === "admin" || normalizedRole === "it_head") return true
+  if (normalizedRole === "admin") return true
   return normalizedRole === "department_head" && isITDDepartment(department)
 }
 

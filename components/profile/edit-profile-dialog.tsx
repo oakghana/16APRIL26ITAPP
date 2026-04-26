@@ -177,9 +177,11 @@ export function EditProfileDialog({ isOpen, onClose, onSuccess }: EditProfileDia
               id="department"
               name="department"
               value={formData.department}
-              onChange={handleChange}
-              placeholder="Enter your department"
+              disabled
+              readOnly
+              placeholder="Department assigned by admin"
             />
+            <p className="mt-1 text-xs text-muted-foreground">Department is managed by Admin.</p>
           </div>
 
           <div>
