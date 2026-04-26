@@ -584,7 +584,7 @@ export function ITHeadAdminPanel() {
         {
           stage: "IT Head / Regional IT Review",
           role: "IT Head / Regional IT Head",
-          status: req.it_head_approved ? "completed" : req.it_head_notes ? "rejected" : "pending",
+          status: req.it_head_approved || (req.it_head_approved_by && req.it_head_signature) ? "completed" : req.it_head_notes ? "rejected" : "pending",
           approver: req.it_head_approved_by,
           timestamp: req.it_head_approved_at,
           notes: req.it_head_notes,

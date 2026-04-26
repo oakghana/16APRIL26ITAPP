@@ -558,7 +558,7 @@ export function RequestStatusTracker({
         {
           stage: "IT Head / Regional IT Review",
           role: "IT Head / Regional IT Head",
-          status: req.it_head_approved ? "completed" : "pending",
+          status: req.it_head_approved || (req.it_head_approved_by && req.it_head_signature) ? "completed" : "pending",
           approver: req.it_head_approved_by,
           timestamp: req.it_head_approved_at,
           signatureDataUrl: req.it_head_signature,
@@ -614,7 +614,7 @@ export function RequestStatusTracker({
       {
         stage: "IT Head Review",
         role: "IT Head",
-        status: req.it_head_approved ? "completed" : "pending",
+        status: req.it_head_approved || (req.it_head_approved_by && req.it_head_signature) ? "completed" : "pending",
         approver: req.it_head_approved_by,
         timestamp: req.it_head_approved_at,
         signatureDataUrl: req.it_head_signature,
