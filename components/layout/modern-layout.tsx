@@ -18,7 +18,7 @@ import {
   DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu"
-import { Bell, Search, User, LogOut, ChevronDown, WifiOff, Zap, Loader2, Home, Headphones, Monitor, MessageSquare, Send, Database, Settings, Rss, BookOpen, Wrench, ClipboardList, Users, Package, BarChart3, FileText, Store, Target, Wifi } from "lucide-react"
+import { Bell, Search, User, LogOut, ChevronDown, WifiOff, Zap, Loader2, Home, Headphones, Monitor, MessageSquare, Send, Database, Settings, Rss, BookOpen, Wrench, ClipboardList, Users, Package, BarChart3, FileText, Store, Target, Wifi, Link2 } from "lucide-react"
 import { useAuth } from "@/lib/auth-context"
 import { useNotifications } from "@/lib/notification-context"
 import { useOfflineCache } from "@/lib/offline-cache"
@@ -117,6 +117,7 @@ export function ModernLayout({ children, className }: ModernLayoutProps) {
         { name: "Devices", href: "/dashboard/devices", icon: Monitor },
         { name: "Store", href: "/dashboard/store-snapshot", icon: Package },
         { name: "Complaints", href: "/dashboard/complaints", icon: MessageSquare },
+        { name: "HOD Linking", href: "/dashboard/admin/department-heads", icon: Link2 },
       ]
     }
     if (role === "it_store_head") {
@@ -155,6 +156,7 @@ export function ModernLayout({ children, className }: ModernLayoutProps) {
         { name: "Devices", href: "/dashboard/devices", icon: Monitor },
         { name: "Repairs", href: "/dashboard/repairs", icon: Wrench },
         { name: "Reports", href: "/dashboard/it-reports", icon: BarChart3 },
+        { name: "HOD Linking", href: "/dashboard/admin/department-heads", icon: Link2 },
       ]
     }
     if (role === "department_head") {

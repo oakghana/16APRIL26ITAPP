@@ -18,6 +18,7 @@ import {
 import { Checkbox } from "@/components/ui/checkbox"
 import { Search, Users, Link2, Unlink2, ChevronRight, Zap, Grid3x3 } from "lucide-react"
 import { useToast } from "@/hooks/use-toast"
+import { safeJsonParse, safeStorage } from "@/lib/utils"
 
 interface DepartmentHead {
   id: string
@@ -53,6 +54,19 @@ export function DepartmentHeadLinking() {
   const [isAutoLinkingAll, setIsAutoLinkingAll] = useState(false)
   const [activeTab, setActiveTab] = useState("mapping")
 
+  // Determine if the current user is restricted to their own location
+  const currentUser = safeJsonParse<{ role?: string; location?: string } | null>(
+    safeStorage.get("qcc_current_user"),
+    null
+  )
+  const restrictedRoles = ["it_staff", "regional_it_head"]
+  const isLocationRestricted = currentUser?.role ? restrictedRoles.includes(currentUser.role) : false
+  const userLocation = currentUser?.location || ""
+
+  const locationParam = isLocationRestricted && userLocation
+    ? `?location=${encodeURIComponent(userLocation)}`
+    : ""
+
   useEffect(() => {
     loadDepartmentHeads()
     loadStaff()
@@ -60,7 +74,7 @@ export function DepartmentHeadLinking() {
 
   const loadDepartmentHeads = async () => {
     try {
-      const response = await fetch("/api/admin/department-heads")
+      const response = await fetch(`/api/admin/department-heads${locationParam}`)
       if (!response.ok) throw new Error("Failed to load department heads")
       const data = await response.json()
       setDepartmentHeads(data.department_heads || [])
@@ -76,7 +90,7 @@ export function DepartmentHeadLinking() {
 
   const loadStaff = async () => {
     try {
-      const response = await fetch("/api/admin/staff-list")
+      const response = await fetch(`/api/admin/staff-list${locationParam}`)
       if (!response.ok) throw new Error("Failed to load staff")
       const data = await response.json()
       setStaff(data.staff || [])

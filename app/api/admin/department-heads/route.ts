@@ -13,18 +13,27 @@ const supabaseAdmin = createClient(
   (process.env.SUPABASE_SERVICE_ROLE_KEY ?? "placeholder-build-key")
 )
 
-export async function GET() {
+export async function GET(request: Request) {
   try {
+    const { searchParams } = new URL(request.url)
+    const locationFilter = searchParams.get("location") || ""
+
+    let headsQuery = supabaseAdmin
+      .from("profiles")
+      .select("id, full_name, email, department, location, role, is_active, status")
+      .eq("role", "department_head")
+      .or("is_active.eq.true,status.eq.approved")
+    if (locationFilter) headsQuery = headsQuery.ilike("location", locationFilter)
+
+    let profilesQuery = supabaseAdmin
+      .from("profiles")
+      .select("id, department, location, role, is_active, status")
+      .or("is_active.eq.true,status.eq.approved")
+    if (locationFilter) profilesQuery = profilesQuery.ilike("location", locationFilter)
+
     const [{ data: heads, error: headsError }, { data: allProfiles, error: profilesError }] = await Promise.all([
-      supabaseAdmin
-        .from("profiles")
-        .select("id, full_name, email, department, location, role, is_active, status")
-        .eq("role", "department_head")
-        .or("is_active.eq.true,status.eq.approved"),
-      supabaseAdmin
-        .from("profiles")
-        .select("id, department, location, role, is_active, status")
-        .or("is_active.eq.true,status.eq.approved"),
+      headsQuery,
+      profilesQuery,
     ])
 
     if (headsError) throw headsError

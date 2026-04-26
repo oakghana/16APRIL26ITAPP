@@ -6,15 +6,20 @@ const supabaseAdmin = createClient(
   (process.env.SUPABASE_SERVICE_ROLE_KEY ?? "placeholder-build-key")
 )
 
-export async function GET() {
+export async function GET(request: Request) {
   try {
+    const { searchParams } = new URL(request.url)
+    const locationFilter = searchParams.get("location") || ""
+
     // Get ALL profiles except pure admin/IT management roles
     // Use exclusion so any role not in this list is still included
-    const { data: allProfiles, error: fetchError } = await supabaseAdmin
+    let query = supabaseAdmin
       .from("profiles")
       .select("id, full_name, email, department, location, role, is_active, status")
       .or("is_active.eq.true,status.eq.approved")
       .order("full_name")
+    if (locationFilter) query = query.ilike("location", locationFilter)
+    const { data: allProfiles, error: fetchError } = await query
 
     // Exclude roles that should not be assigned to a department head
     const excludedRoles = new Set(["admin", "it_head", "regional_it_head", "service_provider"])
