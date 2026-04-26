@@ -93,8 +93,9 @@ export async function POST(request: NextRequest) {
       let requesterLocation = ""
 
       if (formType === "requisition") {
+        // Try by UUID id first
         const requesterId = requisition.requested_by_id || requisition.requested_by
-        if (requesterId) {
+        if (isUuidLike(requesterId)) {
           const { data: requesterProfile } = await supabaseAdmin
             .from("profiles")
             .select("location")
@@ -102,12 +103,45 @@ export async function POST(request: NextRequest) {
             .single()
           requesterLocation = String(requesterProfile?.location || "")
         }
+        // Fallback: look up by email
+        if (!requesterLocation) {
+          const requesterEmail = String(requisition.created_by_email || requisition.staff_email || "").trim().toLowerCase()
+          if (requesterEmail) {
+            const { data: profileByEmail } = await supabaseAdmin
+              .from("profiles")
+              .select("location")
+              .eq("email", requesterEmail)
+              .maybeSingle()
+            requesterLocation = String(profileByEmail?.location || "")
+          }
+        }
+        // Fallback: look up by name
+        if (!requesterLocation) {
+          const requesterName = String(requisition.staff_name || requisition.requested_by || "").trim().toLowerCase()
+          if (requesterName) {
+            const { data: profiles } = await supabaseAdmin
+              .from("profiles")
+              .select("full_name, username, location")
+            for (const profile of profiles || []) {
+              const fullName = String(profile.full_name || "").trim().toLowerCase()
+              const username = String(profile.username || "").trim().toLowerCase()
+              if (fullName === requesterName || username === requesterName) {
+                requesterLocation = String(profile.location || "")
+                break
+              }
+            }
+          }
+        }
+        // Last fallback: use the location stored on the requisition itself
+        if (!requesterLocation) {
+          requesterLocation = String(requisition.requester_location || requisition.location || "")
+        }
       } else {
         const requesterName = String(requisition.staff_name || "").trim().toLowerCase()
         if (requesterName) {
           const { data: profiles } = await supabaseAdmin
             .from("profiles")
-            .select("full_name, username, location")
+            .select("full_name, username, location, email")
 
           for (const profile of profiles || []) {
             const fullName = String(profile.full_name || "").trim().toLowerCase()
@@ -118,21 +152,25 @@ export async function POST(request: NextRequest) {
             }
           }
         }
+        // Fallback to location stored on form
+        if (!requesterLocation) {
+          requesterLocation = String(
+            (requisition as any).requester_location ||
+            (requisition as any).location ||
+            (requisition as any).department_location || ""
+          )
+        }
       }
 
-      if (!actorLocation || !requesterLocation) {
-        return NextResponse.json(
-          { error: "You can only process requests from your own region" },
-          { status: 403 }
-        )
-      }
-
-      const inSameRegion = isLocationInSameRegion(requesterLocation, actorLocation)
-      if (!inSameRegion) {
-        return NextResponse.json(
-          { error: "You can only process requests from your own region" },
-          { status: 403 }
-        )
+      // If we still can't determine requester location, fail open (don't block)
+      if (actorLocation && requesterLocation) {
+        const inSameRegion = isLocationInSameRegion(requesterLocation, actorLocation)
+        if (!inSameRegion) {
+          return NextResponse.json(
+            { error: "You can only process requests from your own region" },
+            { status: 403 }
+          )
+        }
       }
     }
 
