@@ -24,12 +24,16 @@ function identityMatch(row: any, identitySet: Set<string>) {
     row.requester_id,
     row.created_by_id,
     row.staff_id,
+    row.assigned_to_id,
     row.requested_by,
     row.staff_name,
     row.created_by,
+    row.assigned_to,
+    row.assigned_to_name,
     row.requested_by_email,
     row.requester_email,
     row.created_by_email,
+    row.assigned_to_email,
   ]
 
   for (const candidate of candidates) {

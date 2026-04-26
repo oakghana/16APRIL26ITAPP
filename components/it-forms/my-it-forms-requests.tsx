@@ -7,6 +7,7 @@ import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { useAuth } from "@/lib/auth-context"
 import { formatDisplayDateTime } from "@/lib/utils"
+import { useToast } from "@/hooks/use-toast"
 import { RefreshCw, Search } from "lucide-react"
 
 type RequestItem = {
@@ -83,7 +84,9 @@ function getCurrentOwner(status: string, formType: string, assignedTo?: string) 
 
 export function MyITFormsRequests() {
   const { user } = useAuth()
+  const { toast } = useToast()
   const [loading, setLoading] = useState(true)
+  const [confirmingId, setConfirmingId] = useState<string | null>(null)
   const [search, setSearch] = useState("")
   const [requests, setRequests] = useState<RequestItem[]>([])
 
@@ -109,6 +112,53 @@ export function MyITFormsRequests() {
   useEffect(() => {
     loadRequests()
   }, [user?.id])
+
+  const handleConfirmReceipt = async (item: RequestItem, confirmation: "approved" | "rejected") => {
+    if (!user?.id) return
+
+    setConfirmingId(item.id)
+    try {
+      const response = await fetch("/api/it-forms/store-issue", {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          requisitionId: item.id,
+          action: "user_confirm_receipt",
+          actorId: user.id,
+          actorName: user.full_name || user.name || user.username || user.email,
+          actorEmail: user.email,
+          actorRole: user.role,
+          actorLocation: user.location,
+          confirmation,
+          notes: confirmation === "approved"
+            ? "Item received and confirmed by user"
+            : "Item not received as expected",
+        }),
+      })
+
+      const data = await response.json()
+      if (!response.ok) {
+        throw new Error(data.error || "Failed to confirm receipt")
+      }
+
+      toast({
+        title: confirmation === "approved" ? "Receipt confirmed" : "Receipt rejected",
+        description: confirmation === "approved"
+          ? "Your requisition has been marked as issued."
+          : "The store team has been notified to review this issuance.",
+      })
+
+      await loadRequests()
+    } catch (error: any) {
+      toast({
+        title: "Action failed",
+        description: error.message || "Unable to confirm this item",
+        variant: "destructive",
+      })
+    } finally {
+      setConfirmingId(null)
+    }
+  }
 
   const filteredRequests = useMemo(() => {
     const q = search.trim().toLowerCase()
@@ -204,6 +254,25 @@ export function MyITFormsRequests() {
                     <p>Created: {formatDisplayDateTime(item.createdAt)}</p>
                     <p>Current Owner: {getCurrentOwner(item.status, item.formType, item.assignedTo)}</p>
                   </div>
+                  {item.formType === "requisition" && normalizeStatus(item.status) === "awaiting_user_confirmation" && (
+                    <div className="mt-3 flex flex-wrap gap-2">
+                      <Button
+                        size="sm"
+                        onClick={() => handleConfirmReceipt(item, "approved")}
+                        disabled={confirmingId === item.id}
+                      >
+                        {confirmingId === item.id ? "Confirming..." : "Confirm Receipt"}
+                      </Button>
+                      <Button
+                        size="sm"
+                        variant="destructive"
+                        onClick={() => handleConfirmReceipt(item, "rejected")}
+                        disabled={confirmingId === item.id}
+                      >
+                        Report Issue
+                      </Button>
+                    </div>
+                  )}
                 </div>
               ))}
             </div>

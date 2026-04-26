@@ -13,6 +13,47 @@ function isUuidLike(value?: string | null) {
   return /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(value)
 }
 
+function getDispatchTargetLocation(record: any): string {
+  const rawTimeline = record?.approval_timeline ?? record?.approval_chain
+  const timeline = Array.isArray(rawTimeline)
+    ? rawTimeline
+    : typeof rawTimeline === "string"
+      ? (() => {
+          try {
+            const parsed = JSON.parse(rawTimeline)
+            return Array.isArray(parsed) ? parsed : []
+          } catch {
+            return []
+          }
+        })()
+      : []
+
+  for (let index = timeline.length - 1; index >= 0; index -= 1) {
+    const entry = timeline[index]
+    if (!entry || typeof entry !== "object") continue
+    const action = String(entry.action || "")
+    if (![
+      "dispatch_prepared",
+      "dispatch_updated",
+      "issue_prepared",
+      "issue_updated",
+    ].includes(action)) {
+      continue
+    }
+
+    const meta = entry.meta && typeof entry.meta === "object" ? entry.meta : entry
+    const targetLocation = String(
+      meta.requesterLocation ||
+      meta.location ||
+      ""
+    ).trim()
+
+    if (targetLocation) return targetLocation
+  }
+
+  return ""
+}
+
 async function generateNextSequentialNumber(attempt = 0): Promise<string> {
   // Try two queries: one for reg_no (the unique-constrained column) and one for requisition_number.
   // Run them independently so a missing column in one doesn't break the other.
@@ -408,6 +449,11 @@ export async function GET(request: NextRequest) {
 
       requisitions = requisitions.map((r: any) => ({
         ...r,
+        regional_dispatch_location: getDispatchTargetLocation(r),
+      }))
+
+      requisitions = requisitions.map((r: any) => ({
+        ...r,
         requester_location:
           (r.requested_by_id ? locationById.get(r.requested_by_id) : "") ||
           locationByName.get(String(r.requested_by || "").toLowerCase().trim()) ||
@@ -428,14 +474,16 @@ export async function GET(request: NextRequest) {
       if (!canSeeNationwide) {
         requisitions = requisitions.filter((r: any) => {
           const requesterLocation = String(r.requester_location || "")
+          const dispatchTargetLocation = String(r.regional_dispatch_location || "")
+          const filterLocation = dispatchTargetLocation || requesterLocation
 
-          if (!requesterLocation) return false
+          if (!filterLocation) return false
 
           if (officeUseRole === "regional_it_head" || officeUseRole === "it_staff") {
-            return isLocationInSameRegion(requesterLocation, officeUseLocation)
+            return isLocationInSameRegion(filterLocation, officeUseLocation)
           }
 
-          return normalizeLocation(requesterLocation) === normalizedOfficeLocation
+          return normalizeLocation(filterLocation) === normalizedOfficeLocation
         })
       }
     }
