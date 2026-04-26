@@ -234,15 +234,11 @@ export function ServiceDeskDashboard() {
     
     try {
       // Get ticket updates/history
-      const { data: updates, error: updatesError } = await supabase
+      const { data: updates } = await supabase
         .from("service_ticket_updates")
         .select("*")
         .eq("ticket_id", ticket.dbId)
         .order("created_at", { ascending: false })
-
-      if (updatesError) {
-        console.error("[v0] Error loading ticket updates:", updatesError)
-      }
 
       // Get full ticket details
       const { data: fullTicket, error: ticketError } = await supabase

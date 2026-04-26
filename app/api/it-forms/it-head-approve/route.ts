@@ -169,9 +169,11 @@ export async function POST(request: NextRequest) {
           updateData.admin_signature = approverSignature
         }
         updateData.status = approvedStoreStatus
-        // Flag for UI to render correct approval stages
-        if (hasColumn("regional_fulfillment") || true) {
+        // Flag for UI — only set if column exists in schema
+        if (hasColumn("regional_fulfillment")) {
           updateData.regional_fulfillment = !isHeadOfficeReq
+        }
+        if (hasColumn("requester_location")) {
           updateData.requester_location = requesterLocation
         }
       } else {
@@ -199,7 +201,7 @@ export async function POST(request: NextRequest) {
 
     let updated: any = null
     let updateError: any = null
-    for (let attempt = 0; attempt < 3; attempt++) {
+    for (let attempt = 0; attempt < 10; attempt++) {
       const result = await supabaseAdmin
         .from("it_equipment_requisitions")
         .update(updateData)
@@ -269,22 +271,28 @@ export async function POST(request: NextRequest) {
         await supabaseAdmin.from("notifications").insert(regionalNotifications).catch(console.error)
       }
     } else {
-      const { error: notificationError } = await supabaseAdmin.from("notifications").insert({
-        recipient_id: action === "approve" ? "admin" : requisition.requested_by,
-        recipient_type: action === "approve" ? "admin" : "staff",
-        title: `IT Head ${action === "approve" ? "Approved" : "Rejected"} Requisition`,
-        message: `Requisition ${requisition.requisition_number} was ${action === "approve" ? "approved and forwarded to Store" : "rejected"}`,
-        type: "it_form_update",
-        related_id: requisitionId,
-        related_type: "it_equipment_requisition",
-        read: false,
-      })
-      if (notificationError) console.error("[v0] Notification error:", notificationError)
+      // Head Office approval or rejection — notify requester or admin
+      const notifyUserId = action === "approve"
+        ? null  // admin notification not needed for head office (store head handles next)
+        : (isUuidLike(requisition.requested_by_id) ? requisition.requested_by_id
+            : isUuidLike(requisition.created_by_id) ? requisition.created_by_id : null)
+      if (notifyUserId) {
+        await supabaseAdmin.from("notifications").insert({
+          user_id: notifyUserId,
+          title: `IT Head ${action === "approve" ? "Approved" : "Rejected"} Your Requisition`,
+          message: `Your requisition ${requisition.requisition_number || requisitionId} was ${action === "approve" ? "approved and forwarded to the store for issuance" : "rejected by the IT Head"}.`,
+          type: action === "approve" ? "success" : "warning",
+          category: "approval",
+          reference_type: "it_equipment_requisition",
+          reference_id: requisitionId,
+          is_read: false,
+        }).catch((e: any) => console.error("[v0] Notification error:", e))
+      }
     }
 
     return NextResponse.json({ success: true, requisition: updated })
-  } catch (error) {
-    console.error("[v0] API Error:", error)
-    return NextResponse.json({ error: "Internal error" }, { status: 500 })
+  } catch (error: any) {
+    console.error("[v0] API Error:", error?.message || error)
+    return NextResponse.json({ error: error?.message || "Internal error" }, { status: 500 })
   }
 }
