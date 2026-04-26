@@ -104,7 +104,7 @@ export function ServiceDeskDashboard() {
         location: location,
         canSeeAll: String(canSeeAll),
         userRole: user?.role || "",
-        userId: user?.full_name || user?.name || "",
+        userId: user?.id || "",
       })
 
       const response = await fetch(`/api/service-tickets?${params}`)

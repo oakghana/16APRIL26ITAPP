@@ -35,6 +35,7 @@ interface StaffMember {
   email: string
   department: string
   location?: string
+  role?: string
   linked: boolean
   department_head_id?: string | null
 }
@@ -53,6 +54,8 @@ export function DepartmentHeadLinking() {
   const [isAutoLinking, setIsAutoLinking] = useState(false)
   const [isAutoLinkingAll, setIsAutoLinkingAll] = useState(false)
   const [activeTab, setActiveTab] = useState("mapping")
+
+  const isLinkableRole = (role?: string) => role === "staff" || role === "user"
 
   // Determine if the current user is restricted to their own location
   const currentUser = safeJsonParse<{ id?: string; role?: string; location?: string } | null>(
@@ -119,7 +122,9 @@ export function DepartmentHeadLinking() {
         }),
       })
 
-      if (!response.ok) throw new Error("Failed to link staff")
+      const data = await response.json().catch(() => ({}))
+
+      if (!response.ok) throw new Error(data.error || "Failed to link staff")
       
       toast({
         title: "Success",
@@ -134,7 +139,7 @@ export function DepartmentHeadLinking() {
       console.error("[v0] Error linking staff:", error)
       toast({
         title: "Error",
-        description: "Failed to link staff to department head",
+        description: error instanceof Error ? error.message : "Failed to link staff to department head",
         variant: "destructive",
       })
     } finally {
@@ -388,10 +393,12 @@ export function DepartmentHeadLinking() {
                       </div>
 
                       <div className="space-y-2 max-h-96 overflow-y-auto">
-                        {filteredStaff.length === 0 ? (
+                        {filteredStaff.filter((m) => isLinkableRole(m.role)).length === 0 ? (
                           <p className="text-sm text-muted-foreground text-center py-4">No staff available</p>
                         ) : (
-                          filteredStaff.map((member) => {
+                          filteredStaff
+                          .filter((member) => isLinkableRole(member.role))
+                          .map((member) => {
                             const isLinkedElsewhere = member.linked && member.department_head_id !== selectedHeadId
                             const isLinkedHere = member.department_head_id === selectedHeadId
                             
@@ -543,6 +550,8 @@ export function DepartmentHeadLinking() {
                     const linkedHead = departmentHeads.find(
                       (h) => h.id === member.department_head_id
                     )
+                    const linkable = isLinkableRole(member.role)
+
                     return (
                       <div
                         key={member.id}
@@ -560,10 +569,16 @@ export function DepartmentHeadLinking() {
                               Linked to: {linkedHead.name}
                             </Badge>
                           )}
+                          {!linkable && (
+                            <Badge variant="outline" className="mt-2">
+                              Not linkable role: {member.role}
+                            </Badge>
+                          )}
                         </div>
                         <div className="flex gap-2 ml-4 flex-shrink-0">
                           <Select
                             value={member.department_head_id || ""}
+                            disabled={!linkable}
                             onValueChange={(headId) => {
                               if (headId === "__unlink__") {
                                 // Unlink staff

@@ -1,5 +1,6 @@
 import { type NextRequest, NextResponse } from "next/server"
 import { createClient } from "@supabase/supabase-js"
+import { locationsMatch, isLocationInSameRegion } from "@/lib/location-filter"
 
 // Use service role key to bypass RLS
 const supabase = createClient(
@@ -9,7 +10,7 @@ const supabase = createClient(
 
 export async function GET(request: NextRequest) {
   try {
-    const searchParams = request.nextUrl.searchParams
+    const { searchParams } = request.nextUrl
     const location = searchParams.get("location")
     const canSeeAll = searchParams.get("canSeeAll") === "true"
     const userId = searchParams.get("userId")
@@ -17,42 +18,27 @@ export async function GET(request: NextRequest) {
 
     console.log("[v0] Dashboard stats API - location:", location, "canSeeAll:", canSeeAll, "role:", userRole)
 
-    // Helper function to filter repairs by location
-    const applyRepairLocationFilter = (query: any) => {
-      if (!canSeeAll && location) {
-        // Repairs use requester_location field
-        return query.ilike("requester_location", `%${location}%`)
-      }
-      return query
-    }
-
-    // Helper function to filter devices by location
-    const applyDeviceLocationFilter = (query: any) => {
-      if (!canSeeAll && location) {
-        return query.ilike("location", `%${location}%`)
-      }
-      return query
-    }
-
-    // Fetch total devices
-    let devicesQuery = supabase
+    // Fetch total devices and filter in code for robust regional alias matching.
+    const { data: devicesData, error: devicesError } = await supabase
       .from("devices")
-      .select("*", { count: "exact", head: true })
-    
-    devicesQuery = applyDeviceLocationFilter(devicesQuery)
-    
-    const { count: devicesCount, error: devicesError } = await devicesQuery
+      .select("id, location")
+
+    const devicesCount = (devicesData || []).filter((d: any) => {
+      if (canSeeAll || !location) return true
+      return locationsMatch(d.location, location) || isLocationInSameRegion(d.location, location)
+    }).length
     if (devicesError) console.error("[v0] Error fetching devices:", devicesError)
 
     // Fetch active repairs (all non-completed/non-rejected statuses)
-    let repairsQuery = supabase
+    const { data: activeRepairsData, error: repairsError } = await supabase
       .from("repair_requests")
-      .select("*", { count: "exact", head: true })
+      .select("id, requester_location, status")
       .in("status", ["pending", "approved", "in_transit", "with_provider", "in_progress", "assigned"])
-    
-    repairsQuery = applyRepairLocationFilter(repairsQuery)
-    
-    const { count: activeRepairsCount, error: repairsError } = await repairsQuery
+
+    const activeRepairsCount = (activeRepairsData || []).filter((r: any) => {
+      if (canSeeAll || !location) return true
+      return locationsMatch(r.requester_location, location) || isLocationInSameRegion(r.requester_location, location)
+    }).length
     if (repairsError) console.error("[v0] Error fetching repairs:", repairsError.message || repairsError)
 
     // Fetch completed repairs this month
@@ -60,15 +46,16 @@ export async function GET(request: NextRequest) {
     startOfMonth.setDate(1)
     startOfMonth.setHours(0, 0, 0, 0)
 
-    let completedQuery = supabase
+    const { data: completedRepairsData, error: completedError } = await supabase
       .from("repair_requests")
-      .select("*", { count: "exact", head: true })
+      .select("id, requester_location, status, updated_at")
       .eq("status", "completed")
       .gte("updated_at", startOfMonth.toISOString())
-    
-    completedQuery = applyRepairLocationFilter(completedQuery)
-    
-    const { count: completedRepairsCount, error: completedError } = await completedQuery
+
+    const completedRepairsCount = (completedRepairsData || []).filter((r: any) => {
+      if (canSeeAll || !location) return true
+      return locationsMatch(r.requester_location, location) || isLocationInSameRegion(r.requester_location, location)
+    }).length
     if (completedError) console.error("[v0] Error fetching completed repairs:", completedError.message || completedError)
 
     // Fetch pending approvals (users with pending status)

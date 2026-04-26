@@ -93,8 +93,20 @@ export function isLocationInSameRegion(
 ): boolean {
   if (!loc1 || !loc2) return false
 
-  const a = loc1.toLowerCase().trim()
-  const b = loc2.toLowerCase().trim()
+  const a = normalizeLocation(loc1)
+  const b = normalizeLocation(loc2)
+
+  // Strongest check first: canonical alias mapping (e.g. VR -> Ho).
+  const canonicalA = normalizeLocation(getCanonicalLocationName(loc1))
+  const canonicalB = normalizeLocation(getCanonicalLocationName(loc2))
+  if (canonicalA && canonicalB && canonicalA === canonicalB) return true
+
+  // Alias-group check to catch all configured variants.
+  const aliasesA = new Set(getLocationAliases(loc1).map((v) => normalizeLocation(v)))
+  const aliasesB = new Set(getLocationAliases(loc2).map((v) => normalizeLocation(v)))
+  for (const alias of aliasesA) {
+    if (aliasesB.has(alias)) return true
+  }
 
   if (a === b) return true
   if (a.includes(b) || b.includes(a)) return true
