@@ -257,6 +257,7 @@ export function AssignStockToStaff() {
         status: REGIONAL_CONFIRMATION_STATUSES.join(","),
         officeUseLocation: user.location || "",
         officeUseRole: user.role || "",
+        officeUseUserId: user.id || "",
       })
 
       const response = await fetch(`/api/it-forms/requisitions?${params.toString()}`)

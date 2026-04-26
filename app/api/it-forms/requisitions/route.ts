@@ -41,14 +41,74 @@ function getDispatchTargetLocation(record: any): string {
       continue
     }
 
-    const meta = entry.meta && typeof entry.meta === "object" ? entry.meta : entry
+    const meta = entry.meta
+      ? (typeof entry.meta === "string"
+          ? (() => {
+              try {
+                return JSON.parse(entry.meta)
+              } catch {
+                return {}
+              }
+            })()
+          : entry.meta)
+      : entry
+
+    const fallbackEntry = entry && typeof entry === "object" ? entry : {}
     const targetLocation = String(
       meta.requesterLocation ||
+      meta.dispatchToLocation ||
+      fallbackEntry.requesterLocation ||
+      fallbackEntry.dispatchToLocation ||
       meta.location ||
       ""
     ).trim()
 
     if (targetLocation) return targetLocation
+  }
+
+  return ""
+}
+
+function getAssignedRegionalHeadId(record: any): string {
+  const rawTimeline = record?.approval_timeline ?? record?.approval_chain
+  const timeline = Array.isArray(rawTimeline)
+    ? rawTimeline
+    : typeof rawTimeline === "string"
+      ? (() => {
+          try {
+            const parsed = JSON.parse(rawTimeline)
+            return Array.isArray(parsed) ? parsed : []
+          } catch {
+            return []
+          }
+        })()
+      : []
+
+  for (let index = timeline.length - 1; index >= 0; index -= 1) {
+    const entry = timeline[index]
+    if (!entry || typeof entry !== "object") continue
+    const action = String(entry.action || "")
+    if (!["dispatch_prepared", "dispatch_updated", "issue_prepared", "issue_updated"].includes(action)) continue
+
+    const meta = entry.meta
+      ? (typeof entry.meta === "string"
+          ? (() => {
+              try {
+                return JSON.parse(entry.meta)
+              } catch {
+                return {}
+              }
+            })()
+          : entry.meta)
+      : entry
+
+    const assignedId = String(
+      meta.assignedRegionalHeadId ||
+      entry.assignedRegionalHeadId ||
+      ""
+    ).trim()
+
+    if (assignedId) return assignedId
   }
 
   return ""
@@ -287,6 +347,7 @@ export async function GET(request: NextRequest) {
     const requestedBy = searchParams.get("requestedBy")
     const officeUseLocation = searchParams.get("officeUseLocation")
     const officeUseRole = searchParams.get("officeUseRole")
+    const officeUseUserId = searchParams.get("officeUseUserId")
     const processedBy = searchParams.get("processedBy")
     const processedById = searchParams.get("processedById")
 
@@ -450,6 +511,7 @@ export async function GET(request: NextRequest) {
       requisitions = requisitions.map((r: any) => ({
         ...r,
         regional_dispatch_location: getDispatchTargetLocation(r),
+        assigned_regional_head_id: getAssignedRegionalHeadId(r),
       }))
 
       requisitions = requisitions.map((r: any) => ({
@@ -476,6 +538,11 @@ export async function GET(request: NextRequest) {
           const requesterLocation = String(r.requester_location || "")
           const dispatchTargetLocation = String(r.regional_dispatch_location || "")
           const filterLocation = dispatchTargetLocation || requesterLocation
+          const assignedRegionalHeadId = String(r.assigned_regional_head_id || r.assigned_to_id || "")
+
+          if (officeUseRole === "regional_it_head" && officeUseUserId && assignedRegionalHeadId) {
+            return assignedRegionalHeadId === officeUseUserId
+          }
 
           if (!filterLocation) return false
 

@@ -251,7 +251,19 @@ export async function GET(request: NextRequest) {
 
 export async function POST(request: NextRequest) {
   try {
-    const { requisitionId, issuedBy, issuedById, notes, supplierName, userRole, userLocation, dispatchItems } = await request.json()
+    const {
+      requisitionId,
+      issuedBy,
+      issuedById,
+      notes,
+      supplierName,
+      userRole,
+      userLocation,
+      dispatchItems,
+      assignedRegionalHeadId,
+      assignedRegionalHeadName,
+      dispatchToLocation,
+    } = await request.json()
     // dispatchItems: Array<{ id?: string; name: string; dispatchQty: number; unit?: string; category?: string }>
 
     if (!requisitionId || !issuedBy || !notes) {
@@ -358,6 +370,25 @@ export async function POST(request: NextRequest) {
         ? dispatchItems
         : buildFallbackDispatchItems(requisition)
 
+      let regionalHeadLocation = ""
+      if (isUuidLike(assignedRegionalHeadId)) {
+        const { data: assignedRegionalHead } = await supabaseAdmin
+          .from("profiles")
+          .select("location")
+          .eq("id", assignedRegionalHeadId)
+          .maybeSingle()
+        regionalHeadLocation = String(assignedRegionalHead?.location || "")
+      }
+
+      const regionalTargetLocation = String(
+        dispatchToLocation ||
+        regionalHeadLocation ||
+        requesterLocation ||
+        requisition.requester_location ||
+        requisition.location ||
+        ""
+      ).trim()
+
       const updateData: any = {
         status: "awaiting_regional_confirmation",
         updated_at: now,
@@ -370,16 +401,22 @@ export async function POST(request: NextRequest) {
         store_head_approval_comments: notes,
       }
       updateData.issued_by_name = issuedBy
+      if (assignedRegionalHeadName) updateData.assigned_to_name = assignedRegionalHeadName
+      if (isUuidLike(assignedRegionalHeadId)) updateData.assigned_to_id = assignedRegionalHeadId
+      if (regionalTargetLocation) updateData.requester_location = regionalTargetLocation
 
       existingTimeline.push({
         approver: issuedBy,
         role: "store_head",
         action: isAwaitingRegionalConfirmation ? "dispatch_updated" : "dispatch_prepared",
-        notes: `Dispatch ${isAwaitingRegionalConfirmation ? "updated" : "prepared"} for ${requesterLocation}. ${notes}`,
+        notes: `Dispatch ${isAwaitingRegionalConfirmation ? "updated" : "prepared"} for ${regionalTargetLocation || requesterLocation || "regional location"}. ${notes}`,
         timestamp: now,
         meta: {
           mode: "regional",
-          requesterLocation,
+          requesterLocation: regionalTargetLocation || requesterLocation,
+          dispatchToLocation: regionalTargetLocation || requesterLocation,
+          assignedRegionalHeadId: isUuidLike(assignedRegionalHeadId) ? assignedRegionalHeadId : null,
+          assignedRegionalHeadName: assignedRegionalHeadName || null,
           supplierName: supplierName || requisition.supplier_name || null,
           notes,
           dispatchItems: preparedDispatchItems,
@@ -401,18 +438,24 @@ export async function POST(request: NextRequest) {
       if (regionalHeads && regionalHeads.length > 0) {
         await supabaseAdmin.from("notifications").insert(
           regionalHeads
-            .filter((rh: any) => !rh.location || String(rh.location).toLowerCase().trim() === String(requesterLocation).toLowerCase().trim())
+            .filter((rh: any) => {
+              if (isUuidLike(assignedRegionalHeadId)) {
+                return rh.id === assignedRegionalHeadId
+              }
+              if (!regionalTargetLocation) return !rh.location
+              return String(rh.location).toLowerCase().trim() === String(regionalTargetLocation).toLowerCase().trim()
+            })
             .map((rh: any) => ({
             user_id: rh.id,
             title: "IT Equipment Awaiting Your Receipt Confirmation",
-            message: `Requisition ${requisition.requisition_number || requisition.reg_no || requisition.id} is prepared for dispatch to ${requesterLocation}. Please confirm receipt before stock is posted to your regional store.`,
+            message: `Requisition ${requisition.requisition_number || requisition.reg_no || requisition.id} is prepared for dispatch to ${regionalTargetLocation || requesterLocation || "your region"}. Please confirm receipt before stock is posted to your regional store.`,
             type: "info", category: "approval",
             reference_type: "it_equipment_requisition", reference_id: requisitionId, is_read: false,
           }))
         ).then(() => {}).catch((e: any) => console.error("[v0] Regional notify error:", e?.message))
       }
 
-      return NextResponse.json({ success: true, awaitingConfirmation: true, confirmationTarget: "regional_it_head", requesterLocation })
+      return NextResponse.json({ success: true, awaitingConfirmation: true, confirmationTarget: "regional_it_head", requesterLocation: regionalTargetLocation || requesterLocation })
     }
 
     if ((isStoreHead || isAdmin) && isHeadOfficeRequester) {
