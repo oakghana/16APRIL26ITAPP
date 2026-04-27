@@ -13,8 +13,8 @@ export const LOCATIONS = {
   bar: "BAR",
   eastern: "Eastern",
   nsawam: "Nsawam",
-  cr: "CR",
-  cape_coast: "Cape Coast",
+  cr: "Swedru/CR",
+  cape_coast: "Swedru/CR",
   sunyani: "Sunyani",
 } as const
 

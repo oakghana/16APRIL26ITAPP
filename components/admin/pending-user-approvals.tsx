@@ -75,7 +75,7 @@ const locationNames = {
   accra: "Accra",
   kumasi: "Kumasi",
   kaase_inland_port: "Kaase Inland Port",
-  cape_coast: "Cape Coast",
+  cape_coast: "Swedru/CR",
 }
 
 const statusColors = {

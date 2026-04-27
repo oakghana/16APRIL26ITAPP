@@ -538,7 +538,7 @@ export function UserManagement() {
                 <SelectItem value="service_desk_kumasi">Service Desk (Kumasi)</SelectItem>
                 <SelectItem value="service_desk_tema">Service Desk (Tema)</SelectItem>
                 <SelectItem value="service_desk_takoradi">Service Desk (Takoradi)</SelectItem>
-                <SelectItem value="service_desk_cape_coast">Service Desk (Cape Coast)</SelectItem>
+                <SelectItem value="service_desk_cape_coast">Service Desk (Swedru/CR)</SelectItem>
                 <SelectItem value="service_desk_ho">Service Desk (Ho)</SelectItem>
               </SelectContent>
             </Select>

@@ -56,7 +56,7 @@ export function DeviceTransferForm({ device, onSubmit, onCancel }: DeviceTransfe
   // Build locationNames from fetched data for display
   const locationNames: Record<string, string> = locations.reduce(
     (acc, loc) => ({ ...acc, [loc.code]: loc.name }),
-    { head_office: "Head Office", accra: "Accra", kumasi: "Kumasi", kaase_inland_port: "Kaase Inland Port", cape_coast: "Cape Coast" } as Record<string, string>
+    { head_office: "Head Office", accra: "Accra", kumasi: "Kumasi", kaase_inland_port: "Kaase Inland Port", cape_coast: "Swedru/CR" } as Record<string, string>
   )
 
   return (
@@ -94,7 +94,7 @@ export function DeviceTransferForm({ device, onSubmit, onCancel }: DeviceTransfe
                     <SelectItem value="accra">Accra</SelectItem>
                     <SelectItem value="kumasi">Kumasi</SelectItem>
                     <SelectItem value="kaase_inland_port">Kaase Inland Port</SelectItem>
-                    <SelectItem value="cape_coast">Cape Coast</SelectItem>
+                    <SelectItem value="cape_coast">Swedru/CR</SelectItem>
                   </>
                 )}
               </SelectContent>

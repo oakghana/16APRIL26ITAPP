@@ -59,7 +59,7 @@ const ROLE_OPTIONS: { value: ManagedRole; label: string }[] = [
   { value: "service_desk_kumasi", label: "Service Desk Kumasi" },
   { value: "service_desk_tema", label: "Service Desk Tema" },
   { value: "service_desk_takoradi", label: "Service Desk Takoradi" },
-  { value: "service_desk_cape_coast", label: "Service Desk Cape Coast" },
+  { value: "service_desk_cape_coast", label: "Service Desk Swedru/CR" },
   { value: "service_desk_ho", label: "Service Desk Ho" },
   { value: "admin", label: "Admin" },
 ]

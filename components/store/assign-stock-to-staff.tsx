@@ -1432,7 +1432,7 @@ export function AssignStockToStaff() {
                                 <SelectValue />
                               </SelectTrigger>
                               <SelectContent>
-                                {["Head Office","Accra","Kumasi","Takoradi","Tema","Cape Coast","Ho","Tamale","Sunyani"].map(l => (
+                                {["Head Office","Accra","Kumasi","Takoradi","Tema","Swedru/CR","Ho","Tamale","Sunyani"].map(l => (
                                   <SelectItem key={l} value={l}>{l}</SelectItem>
                                 ))}
                               </SelectContent>

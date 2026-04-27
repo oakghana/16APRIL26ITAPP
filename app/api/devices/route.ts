@@ -10,8 +10,10 @@ const supabase = createClient(
 function getLocationFilterClauses(location: string) {
   const normalized = location.toLowerCase().replace(/[_-]+/g, " ").trim()
   const aliasMap: Record<string, string[]> = {
-    cr: ["CR", "Cape Coast", "Central Region"],
-    "cape coast": ["Cape Coast", "CR", "Central Region"],
+    cr: ["Swedru/CR", "CR", "Cape Coast", "Central Region"],
+    "cape coast": ["Swedru/CR", "Cape Coast", "CR", "Central Region"],
+    "swedru/cr": ["Swedru/CR", "Swedru CR", "CR", "Cape Coast", "Central Region"],
+    "swedru cr": ["Swedru/CR", "Swedru CR", "CR", "Cape Coast", "Central Region"],
     vr: ["VR", "Ho", "Volta"],
     ho: ["Ho", "VR", "Volta"],
     bar: ["BAR", "Sunyani", "Brong Ahafo"],

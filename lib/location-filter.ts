@@ -6,7 +6,7 @@ import type { User } from "./auth-context"
 export function normalizeLocation(location: string | null | undefined): string {
   if (!location) return ""
   // Convert to lowercase and handle common variations
-  return location.toLowerCase().replace(/[\s_-]+/g, "_").trim()
+  return location.toLowerCase().replace(/[\s_\/-]+/g, "_").trim()
 }
 
 /**
@@ -38,9 +38,11 @@ const LOCATION_CANONICAL_MAP: Record<string, string> = {
   ws: "Western South",
   western_south: "Western South",
   // Regional aliases
-  cr: "Cape Coast",
-  cape_coast: "Cape Coast",
-  central_region: "Cape Coast",
+  cr: "Swedru/CR",
+  cape_coast: "Swedru/CR",
+  central_region: "Swedru/CR",
+  swedru_cr: "Swedru/CR",
+  "swedru/cr": "Swedru/CR",
   vr: "Ho",
   ho: "Ho",
   volta: "Ho",
@@ -52,7 +54,7 @@ const LOCATION_CANONICAL_MAP: Record<string, string> = {
 }
 
 const LOCATION_ALIAS_GROUPS: Record<string, string[]> = {
-  "Cape Coast": ["CR", "Cape Coast", "Central Region", "cape_coast", "cr", "central_region"],
+  "Swedru/CR": ["Swedru/CR", "Swedru CR", "CR", "Cape Coast", "Central Region", "cape_coast", "cr", "central_region", "swedru_cr", "swedru/cr"],
   "Ho": ["VR", "Ho", "Volta", "vr", "ho", "volta"],
   "Sunyani": ["BAR", "Sunyani", "Brong Ahafo", "bar", "sunyani", "brong_ahafo"],
   "Head Office": ["Head Office", "head_office", "HeadOffice", "Head Office Accra", "Accra", "accra"],

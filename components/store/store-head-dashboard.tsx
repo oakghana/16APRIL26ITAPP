@@ -83,7 +83,7 @@ export default function StoreHeadDashboard() {
     if (lower === "central_stores") return "Central Stores"
     if (lower === "wn" || lower === "western_north") return "Western North"
     if (lower === "ws" || lower === "western_south") return "Western South"
-    if (lower === "cr" || lower === "cape_coast" || lower === "central_region") return "Cape Coast"
+    if (lower === "cr" || lower === "cape_coast" || lower === "central_region" || lower === "swedru" || lower === "swedru_cr" || lower === "swedru/cr") return "Swedru/CR"
     if (lower === "vr" || lower === "volta") return "Ho"
     if (lower === "bar" || lower === "brong_ahafo") return "Sunyani"
     return loc.charAt(0).toUpperCase() + loc.slice(1).toLowerCase()

@@ -81,7 +81,7 @@ export function SystemOverview() {
       }
 
       // Fetch regional statistics
-      const locations = ["Head Office", "Accra", "Kumasi", "Kaase Inland Port", "Cape Coast", "Takoradi"]
+      const locations = ["Head Office", "Accra", "Kumasi", "Kaase Inland Port", "Swedru/CR", "Takoradi"]
       const regionalData: RegionalStat[] = []
 
       for (const location of locations) {
