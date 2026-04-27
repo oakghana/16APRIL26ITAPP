@@ -532,10 +532,50 @@ export function RequestStatusTracker({
     const isRegional = (req as any).regional_fulfillment === true ||
       ["awaiting_regional_confirmation", "pending_regional_store"].includes(req.status)
 
+    // Simplified regional flow: HOD approved directly to Regional IT Head (no IT Office Use / IT Head / Store Head)
+    const isSimplifiedRegional = (req as any).regional_fulfillment === true &&
+      !req.service_desk_approved && !req.it_head_approved &&
+      !["awaiting_regional_confirmation"].includes(req.status)
+
     const adminStageCompleted =
       Boolean(req.admin_approved) ||
       Boolean(req.it_head_approved) ||
       ["pending_store", "pending_regional_store", "approved", "issued", "completed"].includes(req.status)
+
+    if (isSimplifiedRegional) {
+      return [
+        {
+          stage: "Department Head Review",
+          role: "Department Head",
+          status: req.department_head_approved_by
+            ? (req.department_head_approved ? "completed" : "rejected")
+            : "pending",
+          approver: req.department_head_approved_by,
+          timestamp: req.department_head_approved_at,
+          notes: req.department_head_notes,
+          signatureDataUrl: req.department_head_signature,
+        },
+        {
+          stage: "Regional IT Head Issuance",
+          role: "Regional IT Head",
+          status: ["issued", "completed", "awaiting_user_confirmation"].includes(req.status)
+            ? "completed"
+            : req.status === "pending_regional_store"
+              ? "awaiting"
+              : "pending",
+          notes: req.status === "pending_regional_store" ? "Awaiting issuance from regional stock" : undefined,
+        },
+        {
+          stage: "Requester Confirmation",
+          role: "Requester",
+          status: req.status === "awaiting_user_confirmation"
+            ? "awaiting"
+            : ["issued", "completed"].includes(req.status)
+              ? "completed"
+              : "pending",
+        },
+      ]
+    }
 
     if (isRegional) {
       return [

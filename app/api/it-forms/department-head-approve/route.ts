@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server"
 import { createClient } from "@supabase/supabase-js"
 import { normalizeDepartmentName } from "@/lib/department-options"
+import { isHeadOfficeOrAccraLocation } from "@/lib/location-filter"
 
 type FormType = "requisition" | "new-gadget" | "maintenance"
 
@@ -104,13 +105,48 @@ export async function POST(request: NextRequest) {
 
     const now = new Date().toISOString()
     const approvedByUuid = isUuidLike(approvedById) ? approvedById : null
+
+    // Determine requester location to decide regional vs Head Office routing
+    let requesterLocation: string | null = null
+    if (formType === "requisition" && action === "approve") {
+      const requesterId = isUuidLike(requisition.requested_by_id)
+        ? requisition.requested_by_id
+        : isUuidLike(requisition.created_by)
+          ? requisition.created_by
+          : null
+      if (requesterId) {
+        const { data: rProfile } = await supabaseAdmin
+          .from("profiles")
+          .select("location")
+          .eq("id", requesterId)
+          .single()
+        requesterLocation = rProfile?.location || null
+      }
+      if (!requesterLocation && requisition.created_by_email) {
+        const { data: emailProfile } = await supabaseAdmin
+          .from("profiles")
+          .select("location")
+          .eq("email", String(requisition.created_by_email).toLowerCase())
+          .maybeSingle()
+        requesterLocation = emailProfile?.location || null
+      }
+      if (!requesterLocation) {
+        requesterLocation = requisition.requester_location || null
+      }
+    }
+
+    // Regional requisitions (non-HO, non-Accra) go directly to Regional IT Head,
+    // bypassing IT Office Use, IT Head, and Store Head.
+    const isRegionalRequester = formType === "requisition" && action === "approve" &&
+      requesterLocation !== null && !isHeadOfficeOrAccraLocation(requesterLocation)
+
     const requisitionStatusCandidates = formType === "requisition" ? getRequisitionHodStatusCandidates(action as "approve" | "reject") : []
     let requisitionStatusIndex = 0
     const updateData: any = {
       updated_at: now,
       status:
         formType === "requisition"
-          ? requisitionStatusCandidates[requisitionStatusIndex]
+          ? (isRegionalRequester ? "pending_regional_store" : requisitionStatusCandidates[requisitionStatusIndex])
           : action === "approve"
             ? "hod_approved"
             : "rejected",
@@ -141,6 +177,15 @@ export async function POST(request: NextRequest) {
         signatureDataUrl: action === "approve" ? hodSignature : undefined,
       })
       updateData.approval_timeline = approvalChain
+
+      // For regional requisitions: mark as direct regional flow so the Regional IT Head
+      // can issue without going through IT Head / Store Head.
+      if (isRegionalRequester) {
+        updateData.regional_fulfillment = true
+        if (requesterLocation) {
+          updateData.requester_location = requesterLocation
+        }
+      }
     }
 
     if (formType === "new-gadget") {
@@ -215,7 +260,7 @@ export async function POST(request: NextRequest) {
         if (changed) continue
       }
 
-      if (/check constraint/i.test(message) && /status/i.test(message) && formType === "requisition") {
+      if (/check constraint/i.test(message) && /status/i.test(message) && formType === "requisition" && !isRegionalRequester) {
         requisitionStatusIndex += 1
         if (requisitionStatusCandidates[requisitionStatusIndex]) {
           updateData.status = requisitionStatusCandidates[requisitionStatusIndex]
@@ -255,8 +300,8 @@ export async function POST(request: NextRequest) {
 
     // Create notification for IT office-use staff in request location if approved
     if (action === "approve") {
-      let targetLocation = ""
-      if (requisition.requested_by_id) {
+      let targetLocation = requesterLocation || ""
+      if (!targetLocation && requisition.requested_by_id) {
         const { data: requesterProfile } = await supabaseAdmin
           .from("profiles")
           .select("location")
@@ -265,6 +310,41 @@ export async function POST(request: NextRequest) {
         targetLocation = String(requesterProfile?.location || "")
       }
 
+      if (isRegionalRequester) {
+        // Notify Regional IT Heads at the requester's location
+        let regionalITHeadQuery = supabaseAdmin
+          .from("profiles")
+          .select("id")
+          .eq("role", "regional_it_head")
+          .eq("is_active", true)
+
+        if (targetLocation) {
+          regionalITHeadQuery = regionalITHeadQuery.eq("location", targetLocation)
+        }
+
+        const { data: regionalITHeads } = await regionalITHeadQuery
+
+        if (regionalITHeads && regionalITHeads.length > 0) {
+          const notifications = regionalITHeads.map((staff) => ({
+            user_id: staff.id,
+            title: "New Requisition Ready for Regional Issuance",
+            message: `Request ${requestNumber} from ${requesterName} has been HOD approved. Please issue items from regional stock${targetLocation ? ` (${targetLocation})` : ""}.`,
+            type: "info" as const,
+            category: "approval" as const,
+            reference_type: config.relatedType,
+            reference_id: requisitionId,
+            is_read: false,
+          }))
+
+          const { error: regionalNotificationError } = await supabaseAdmin
+            .from("notifications")
+            .insert(notifications)
+
+          if (regionalNotificationError) {
+            console.error("[v0] Error creating regional IT head notifications:", regionalNotificationError)
+          }
+        }
+      } else {
       let officeUseQuery = supabaseAdmin
         .from("profiles")
         .select("id")
@@ -306,6 +386,7 @@ export async function POST(request: NextRequest) {
           console.error("[v0] Error creating IT office-use notifications:", officeUseNotificationError)
         }
       }
+      } // end else (HO/Accra)
     }
 
     // Create notification for rejection - notify admin
