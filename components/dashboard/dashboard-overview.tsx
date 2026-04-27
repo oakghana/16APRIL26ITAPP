@@ -351,7 +351,7 @@ export function DashboardOverview() {
       </div>
 
       {/* Performance Banner - shown prominently at top for IT staff */}
-      {(user?.role === "it_staff" || user?.role === "it_head" || user?.role === "regional_it_head") && (
+      {(["it_staff", "it_head", "regional_it_head", "it_store_head", "service_desk_head"].includes(user?.role || "")) && (
         <StaffProductivityWidget />
       )}
 
