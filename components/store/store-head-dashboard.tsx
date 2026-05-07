@@ -80,6 +80,7 @@ export default function StoreHeadDashboard() {
     if (lower === "kumasi") return "Kumasi"
     if (lower === "kaase") return "Kaase"
     if (lower === "tema_port") return "Tema Port"
+    if (lower === "takoradi_port" || lower === "takoradi") return "Takoradi Port"
     if (lower === "central_stores") return "Central Stores"
     if (lower === "wn" || lower === "western_north") return "Western North"
     if (lower === "ws" || lower === "western_south") return "Western South"

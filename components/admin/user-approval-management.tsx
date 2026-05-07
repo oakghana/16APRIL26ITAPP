@@ -413,7 +413,7 @@ export function UserApprovalManagement() {
                       <SelectContent>
                         <SelectItem value="head_office">Head Office</SelectItem>
                         <SelectItem value="tema_port">Tema Port</SelectItem>
-                        <SelectItem value="takoradi_port">Takoradi Port</SelectItem>
+                        <SelectItem value="Takoradi Port">Takoradi Port</SelectItem>
                         <SelectItem value="tema_research">Tema Research</SelectItem>
                         <SelectItem value="tema_training_school">Tema Training School</SelectItem>
                         <SelectItem value="kumasi">Kumasi</SelectItem>

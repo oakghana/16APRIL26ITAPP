@@ -494,7 +494,9 @@ export async function GET(request: NextRequest) {
         .select("id, full_name, username, email, location")
 
       const locationById = new Map((requesterProfiles || []).map((p: any) => [p.id, String(p.location || "")]))
+      const nameById = new Map((requesterProfiles || []).map((p: any) => [p.id, String(p.full_name || p.username || "")]))
       const locationByName = new Map<string, string>()
+      const nameByEmail = new Map<string, string>()
 
       for (const p of requesterProfiles || []) {
         if (p.full_name) {
@@ -505,6 +507,7 @@ export async function GET(request: NextRequest) {
         }
         if (p.email) {
           locationByName.set(String(p.email).toLowerCase().trim(), String(p.location || ""))
+          nameByEmail.set(String(p.email).toLowerCase().trim(), String(p.full_name || p.username || ""))
         }
       }
 
@@ -514,15 +517,37 @@ export async function GET(request: NextRequest) {
         assigned_regional_head_id: getAssignedRegionalHeadId(r),
       }))
 
+      // Extract requester name from approval timeline if not stored as plain text
+      function resolveRequesterName(r: any): string {
+        // If requested_by is NOT a UUID, it's already the name
+        const raw = String(r.requested_by || "")
+        const isUuid = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(raw)
+        if (!isUuid && raw) return raw
+        // Lookup by UUID
+        if (r.requested_by_id && nameById.has(r.requested_by_id)) return nameById.get(r.requested_by_id)!
+        if (r.requested_by && nameById.has(r.requested_by)) return nameById.get(r.requested_by)!
+        // Lookup by email
+        const emailKey = String(r.requested_by_email || r.requester_email || r.created_by_email || "").toLowerCase().trim()
+        if (emailKey && nameByEmail.has(emailKey)) return nameByEmail.get(emailKey)!
+        // Fall back to approval timeline submitter entry
+        const timeline = Array.isArray(r.approval_timeline) ? r.approval_timeline
+          : typeof r.approval_timeline === "string" ? (() => { try { return JSON.parse(r.approval_timeline) } catch { return [] } })()
+          : []
+        const submitter = timeline.find((t: any) => t?.action === "submitted")
+        if (submitter?.approver) return String(submitter.approver)
+        return ""
+      }
+
       requisitions = requisitions.map((r: any) => ({
         ...r,
+        requester_name: resolveRequesterName(r),
         requester_location:
           (r.requested_by_id ? locationById.get(r.requested_by_id) : "") ||
           locationByName.get(String(r.requested_by || "").toLowerCase().trim()) ||
           locationByName.get(String(r.created_by_email || r.requester_email || "").toLowerCase().trim()) ||
           // Fallback: resolve via the HOD who approved, when requester identity is unknown
           locationByName.get(String(r.department_head_approved_by || "").toLowerCase().trim()) ||
-          "",
+          r.requester_location || "",
       }))
 
       const normalizedOfficeLocation = normalizeLocation(officeUseLocation)

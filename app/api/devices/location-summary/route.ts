@@ -1,5 +1,6 @@
 import { type NextRequest, NextResponse } from "next/server"
 import { createClient } from "@supabase/supabase-js"
+import { getCanonicalLocationName } from "@/lib/location-filter"
 
 const supabase = createClient(
   (process.env.NEXT_PUBLIC_SUPABASE_URL ?? "https://placeholder.supabase.co"),
@@ -37,7 +38,8 @@ export async function GET(request: NextRequest) {
 
     if (data) {
       data.forEach((device: any) => {
-        const location = device.location || "Unallocated"
+        const rawLocation = device.location || "Unallocated"
+        const location = device.location ? getCanonicalLocationName(device.location) : "Unallocated"
         
         if (!device.location) {
           stats.devicesWithoutLocation++

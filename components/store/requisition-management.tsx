@@ -18,7 +18,7 @@ import {
   DialogTrigger,
 } from "@/components/ui/dialog"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
-import { Plus, FileText, Search, CheckCircle, Clock, XCircle, Download, Edit, Trash2, Package, Zap, Eye, Loader2, CheckCircle2, Minus } from "lucide-react"
+import { Plus, FileText, Search, CheckCircle, Clock, XCircle, Download, Edit, Trash2, Package, Zap, Eye, Loader2, CheckCircle2, Minus, RefreshCw } from "lucide-react"
 import { NewRequisitionForm } from "./new-requisition-form"
 import { IssueItemsForm } from "./issue-items-form"
 import { AddStockToCentralStore } from "./add-stock-to-central-store"
@@ -95,7 +95,7 @@ const statusConfig = {
 
 const DEFAULT_PAGE_SIZE = 10
 
-type RequisitionTabValue = "all" | "pending" | "approved" | "issued" | "rejected" | "transactions"
+type RequisitionTabValue = "all" | "pending" | "approved" | "issued" | "rejected" | "transactions" | "it_requests"
 
 const INITIAL_PAGE_STATE: Record<RequisitionTabValue, number> = {
   all: 1,
@@ -104,6 +104,7 @@ const INITIAL_PAGE_STATE: Record<RequisitionTabValue, number> = {
   issued: 1,
   rejected: 1,
   transactions: 1,
+  it_requests: 1,
 }
 
 const INITIAL_PAGE_SIZE_STATE: Record<RequisitionTabValue, number> = {
@@ -113,6 +114,7 @@ const INITIAL_PAGE_SIZE_STATE: Record<RequisitionTabValue, number> = {
   issued: DEFAULT_PAGE_SIZE,
   rejected: DEFAULT_PAGE_SIZE,
   transactions: DEFAULT_PAGE_SIZE,
+  it_requests: DEFAULT_PAGE_SIZE,
 }
 
 export function RequisitionManagement() {
@@ -336,9 +338,17 @@ export function RequisitionManagement() {
     setApprovedItError(null)
     try {
       const controller = new AbortController()
-      const timeoutId = window.setTimeout(() => controller.abort(), 15000)
+      const timeoutId = window.setTimeout(() => controller.abort(), 45000)
 
-      const response = await fetch(`/api/it-forms/requisitions?status=all&t=${Date.now()}`, {
+      const params = new URLSearchParams({
+        status: "all",
+        t: String(Date.now()),
+        officeUseLocation: user?.location || "Head Office",
+        officeUseRole: user?.role || "it_store_head",
+        ...(user?.id ? { officeUseUserId: user.id } : {}),
+      })
+
+      const response = await fetch(`/api/it-forms/requisitions?${params.toString()}`, {
         cache: "no-store",
         signal: controller.signal,
       })
@@ -405,7 +415,9 @@ export function RequisitionManagement() {
     setSelectedItReq(req)
     setItIssueNotes(req.issuance_notes || "")
     setItSupplierName(req.supplier_name || "")
-    setStockSearch("")
+    // Pre-fill stock search with the item name hint from requisition for faster matching
+    const itemHint = String(req.gadget_make || req.items_required || "").split(/[,;(]/)[0].trim().substring(0, 30)
+    setStockSearch(itemHint)
     setSelectedRegionalHead("")
     // Pre-fill dispatch location from requester's location
     setDispatchLocation(req.requester_location || req.location || "")
@@ -495,6 +507,9 @@ export function RequisitionManagement() {
 
     if (nextTab === "transactions") {
       loadTransactions()
+    }
+    if (nextTab === "it_requests") {
+      void loadApprovedItRequisitions()
     }
   }
 
@@ -932,12 +947,24 @@ export function RequisitionManagement() {
 
           {(user?.role === "admin" || user?.role === "it_store_head") && (
             <Button
-              onClick={openApprovedItPanel}
-              className="border-blue-300 bg-blue-50 text-blue-900 hover:bg-blue-100 border"
               variant="outline"
+              onClick={() => {
+                setActiveTab("it_requests")
+                void loadApprovedItRequisitions()
+              }}
+              className="border-blue-300 bg-blue-50 text-blue-900 hover:bg-blue-100 border relative"
             >
-              <Eye className="mr-2 h-4 w-4" />
-              View Approved IT Requisitions
+              <Package className="mr-2 h-4 w-4" />
+              IT Requests
+              {approvedItReqs.filter(r =>
+                r.status === "pending_store" || r.status === "ready_for_issuance"
+              ).length > 0 && (
+                <span className="absolute -top-1.5 -right-1.5 inline-flex items-center justify-center rounded-full bg-red-500 text-white text-[10px] font-bold h-4 w-4">
+                  {approvedItReqs.filter(r =>
+                    r.status === "pending_store" || r.status === "ready_for_issuance"
+                  ).length}
+                </span>
+              )}
             </Button>
           )}
           
@@ -981,15 +1008,31 @@ export function RequisitionManagement() {
       </Card>
 
       <Tabs value={activeTab} onValueChange={handleTabChange} className="space-y-4">
-        <TabsList className="grid w-full grid-cols-6">
+      <TabsList className="grid w-full grid-cols-7">
           <TabsTrigger value="all">All</TabsTrigger>
           <TabsTrigger value="pending">Pending</TabsTrigger>
           <TabsTrigger value="approved">Approved</TabsTrigger>
           <TabsTrigger value="issued">Issued</TabsTrigger>
           <TabsTrigger value="rejected">Rejected</TabsTrigger>
+          {(user?.role === "admin" || user?.role === "it_store_head") && (
+            <TabsTrigger value="it_requests" className="flex items-center gap-1 relative">
+              <Package className="h-3.5 w-3.5" />
+              <span className="hidden sm:inline">IT Requests</span>
+              <span className="sm:hidden">IT</span>
+              {approvedItReqs.filter(r =>
+                r.status === "pending_store" || r.status === "ready_for_issuance"
+              ).length > 0 && (
+                <span className="inline-flex items-center justify-center rounded-full bg-red-500 text-white text-[10px] font-bold h-4 w-4 ml-0.5">
+                  {approvedItReqs.filter(r =>
+                    r.status === "pending_store" || r.status === "ready_for_issuance"
+                  ).length}
+                </span>
+              )}
+            </TabsTrigger>
+          )}
           <TabsTrigger value="transactions" className="flex items-center gap-1">
             <Zap className="h-4 w-4" />
-            Transactions
+            <span className="hidden sm:inline">Transactions</span>
           </TabsTrigger>
         </TabsList>
 
@@ -1322,6 +1365,187 @@ export function RequisitionManagement() {
             )}
           </TabsContent>
         ))}
+
+        {/* ── IT Requests Tab ──────────────────────────────────────────── */}
+        <TabsContent value="it_requests" className="space-y-4">
+          <div className="rounded-2xl border border-blue-100 bg-gradient-to-r from-blue-50 to-indigo-50 p-4 flex items-center justify-between gap-4">
+            <div>
+              <h2 className="text-lg font-bold text-blue-900 flex items-center gap-2">
+                <Package className="h-5 w-5" />
+                IT-Approved Requisitions — Ready for Store Action
+              </h2>
+              <p className="text-sm text-blue-700 mt-0.5">
+                Requisitions approved by IT Head/IT Office, awaiting issuance or dispatch to regional stock.
+              </p>
+            </div>
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={loadApprovedItRequisitions}
+              disabled={approvedItLoading}
+              className="border-blue-300 text-blue-800 hover:bg-blue-100 shrink-0"
+            >
+              {approvedItLoading ? <Loader2 className="h-4 w-4 animate-spin mr-1" /> : <RefreshCw className="h-4 w-4 mr-1" />}
+              Refresh
+            </Button>
+          </div>
+
+          {approvedItLoading ? (
+            <div className="flex justify-center py-16">
+              <Loader2 className="h-8 w-8 animate-spin text-blue-500" />
+            </div>
+          ) : approvedItError ? (
+            <Card className="border-destructive/30">
+              <CardContent className="flex flex-col items-center justify-center py-12 gap-2">
+                <p className="font-semibold text-destructive">Failed to load IT requisitions</p>
+                <p className="text-sm text-muted-foreground">{approvedItError}</p>
+                <Button size="sm" variant="outline" onClick={loadApprovedItRequisitions}>Retry</Button>
+              </CardContent>
+            </Card>
+          ) : approvedItReqs.length === 0 ? (
+            <Card>
+              <CardContent className="flex flex-col items-center justify-center py-16 gap-3">
+                <CheckCircle2 className="h-12 w-12 text-muted-foreground opacity-30" />
+                <p className="font-semibold text-muted-foreground">No IT requisitions awaiting store action</p>
+                <p className="text-sm text-muted-foreground">Requisitions approved by IT Head will appear here.</p>
+              </CardContent>
+            </Card>
+          ) : (
+            <div className="space-y-4">
+              {approvedItReqs.map((req: any) => {
+                const isHO = isHeadOfficeReq(req)
+                const isActionable = ["pending_store", "ready_for_issuance", "awaiting_user_confirmation", "awaiting_regional_confirmation"].includes(req.status)
+                const isIssued = req.status === "issued"
+                const isPrepared = req.status === "awaiting_user_confirmation" || req.status === "awaiting_regional_confirmation"
+                const statusLabel = req.status === "awaiting_user_confirmation"
+                  ? "Awaiting User Confirmation"
+                  : req.status === "awaiting_regional_confirmation"
+                    ? "Awaiting Regional Receipt"
+                    : req.status === "issued"
+                      ? "Issued"
+                      : req.status === "ready_for_issuance"
+                        ? "Ready for Issuance"
+                        : "Pending Store"
+                const statusColor = isIssued
+                  ? "bg-green-100 text-green-800 border-green-200"
+                  : isPrepared
+                    ? "bg-amber-100 text-amber-800 border-amber-200"
+                    : "bg-blue-100 text-blue-800 border-blue-200"
+
+                const itemsText = req.gadget_make || req.items_required || req.item_description || "—"
+                const qtyText = req.quantity_required || req.quantity || 1
+
+                return (
+                  <Card key={req.id} className={`transition-shadow hover:shadow-md ${isIssued ? "opacity-75" : ""}`}>
+                    <CardContent className="p-0">
+                      {/* Card top stripe */}
+                      <div className={`h-1.5 rounded-t-xl ${isHO ? "bg-emerald-500" : "bg-blue-500"}`} />
+
+                      <div className="p-5 space-y-4">
+                        {/* Header row */}
+                        <div className="flex items-start justify-between gap-3 flex-wrap">
+                          <div className="space-y-1">
+                            <div className="flex items-center gap-2 flex-wrap">
+                              <span className="font-bold text-base">{req.requisition_number}</span>
+                              <span className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-xs font-semibold border ${statusColor}`}>
+                                {statusLabel}
+                              </span>
+                              <span className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-xs font-medium border ${isHO ? "bg-emerald-50 text-emerald-800 border-emerald-200" : "bg-indigo-50 text-indigo-800 border-indigo-200"}`}>
+                                {isHO ? "Head Office" : (req.requester_location || req.location || "Regional")}
+                              </span>
+                            </div>
+                            <p className="text-xs text-muted-foreground">
+                              {new Date(req.created_at || req.updated_at || Date.now()).toLocaleDateString("en-GB", { day: "2-digit", month: "short", year: "numeric" })}
+                            </p>
+                          </div>
+                          {!isIssued && (
+                            <Button
+                              size="sm"
+                              className={isHO ? "bg-emerald-600 hover:bg-emerald-700 text-white shrink-0" : "bg-blue-600 hover:bg-blue-700 text-white shrink-0"}
+                              onClick={() => handleItIssue(req)}
+                              disabled={issuingItReq === req.id}
+                            >
+                              {issuingItReq === req.id ? (
+                                <Loader2 className="h-4 w-4 animate-spin" />
+                              ) : (
+                                <>
+                                  {isPrepared
+                                    ? <Edit className="h-4 w-4 mr-1.5" />
+                                    : isHO
+                                      ? <CheckCircle2 className="h-4 w-4 mr-1.5" />
+                                      : <Package className="h-4 w-4 mr-1.5" />}
+                                  {isPrepared
+                                    ? "Edit Issuance"
+                                    : isHO
+                                      ? "Issue to Staff"
+                                      : "Dispatch to Region"}
+                                </>
+                              )}
+                            </Button>
+                          )}
+                        </div>
+
+                        {/* Info grid */}
+                        <div className="grid grid-cols-2 md:grid-cols-4 gap-3 text-sm">
+                          <div className="space-y-0.5">
+                            <p className="text-[10px] font-semibold uppercase tracking-wider text-muted-foreground">Requester</p>
+                            <p className="font-semibold truncate">{req.requester_name || req.staff_name || (!/^[0-9a-f-]{36}$/i.test(req.requested_by || "") ? req.requested_by : null) || "—"}</p>
+                          </div>
+                          <div className="space-y-0.5">
+                            <p className="text-[10px] font-semibold uppercase tracking-wider text-muted-foreground">Department</p>
+                            <p className="font-semibold truncate">{req.department || req.department_name || "—"}</p>
+                          </div>
+                          <div className="space-y-0.5">
+                            <p className="text-[10px] font-semibold uppercase tracking-wider text-muted-foreground">Location</p>
+                            <p className="font-semibold truncate">{req.requester_location || req.location || "—"}</p>
+                          </div>
+                          <div className="space-y-0.5">
+                            <p className="text-[10px] font-semibold uppercase tracking-wider text-muted-foreground">Quantity</p>
+                            <p className="font-semibold">{qtyText} unit(s)</p>
+                          </div>
+                        </div>
+
+                        {/* Items section */}
+                        <div className="rounded-xl border border-slate-200 bg-slate-50 px-4 py-3 space-y-1.5">
+                          <p className="text-[10px] font-semibold uppercase tracking-wider text-muted-foreground">Item(s) Requested</p>
+                          <p className="text-sm font-semibold text-slate-900">{itemsText}</p>
+                          {req.gadget_make && req.items_required && req.gadget_make !== req.items_required && (
+                            <p className="text-xs text-muted-foreground">Description: {req.items_required}</p>
+                          )}
+                          {req.serial_number && (
+                            <p className="text-xs text-muted-foreground">S/N: {req.serial_number}</p>
+                          )}
+                        </div>
+
+                        {/* IT Approval trail */}
+                        {(req.service_desk_notes || req.it_head_notes || req.it_head_approved_by_name) && (
+                          <div className="rounded-xl border border-indigo-100 bg-indigo-50 px-4 py-3 space-y-1.5">
+                            <p className="text-[10px] font-semibold uppercase tracking-wider text-indigo-600">IT Approval Notes</p>
+                            {req.service_desk_notes && (
+                              <p className="text-xs text-indigo-800">
+                                <span className="font-semibold">IT Office: </span>{req.service_desk_notes}
+                              </p>
+                            )}
+                            {req.it_head_notes && (
+                              <p className="text-xs text-indigo-800">
+                                <span className="font-semibold">IT Head: </span>{req.it_head_notes}
+                              </p>
+                            )}
+                            {req.it_head_approved_by_name && (
+                              <p className="text-xs text-indigo-700">
+                                Approved by <span className="font-semibold">{req.it_head_approved_by_name}</span>
+                              </p>
+                            )}
+                          </div>
+                        )}
+                      </div>
+                    </CardContent>
+                  </Card>
+                )
+              })}
+            </div>
+          )}
+        </TabsContent>
 
         {/* Transactions Tab */}
         <TabsContent value="transactions" className="space-y-4">
@@ -1778,20 +2002,39 @@ export function RequisitionManagement() {
                 <div className="grid grid-cols-2 gap-x-6 gap-y-3 rounded-xl border bg-muted/30 px-5 py-4 text-sm">
                   <div>
                     <p className="text-[10px] font-semibold uppercase tracking-widest text-muted-foreground mb-0.5">Requested By</p>
-                    <p className="font-semibold">{selectedItReq.requested_by || "—"}</p>
+                    <p className="font-semibold">{selectedItReq.requester_name || selectedItReq.staff_name || (!/^[0-9a-f-]{36}$/i.test(selectedItReq.requested_by || "") ? selectedItReq.requested_by : null) || "—"}</p>
                   </div>
                   <div>
                     <p className="text-[10px] font-semibold uppercase tracking-widest text-muted-foreground mb-0.5">Department</p>
-                    <p className="font-semibold">{selectedItReq.department || "—"}</p>
+                    <p className="font-semibold">{selectedItReq.department || selectedItReq.department_name || "—"}</p>
                   </div>
                   <div>
                     <p className="text-[10px] font-semibold uppercase tracking-widest text-muted-foreground mb-0.5">Origin Location</p>
                     <p className="font-semibold">{selectedItReq.requester_location || selectedItReq.location || "—"}</p>
                   </div>
                   <div>
-                    <p className="text-[10px] font-semibold uppercase tracking-widest text-muted-foreground mb-0.5">Items Requested</p>
-                    <p className="font-semibold">{selectedItReq.items_required}</p>
+                    <p className="text-[10px] font-semibold uppercase tracking-widest text-muted-foreground mb-0.5">Quantity</p>
+                    <p className="font-semibold">{selectedItReq.quantity_required || selectedItReq.quantity || 1} unit(s)</p>
                   </div>
+                  <div className="col-span-2">
+                    <p className="text-[10px] font-semibold uppercase tracking-widest text-muted-foreground mb-0.5">Item(s) Requested</p>
+                    <p className="font-semibold text-blue-900">{selectedItReq.gadget_make || selectedItReq.items_required || selectedItReq.item_description || "—"}</p>
+                    {selectedItReq.gadget_make && selectedItReq.items_required && selectedItReq.gadget_make !== selectedItReq.items_required && (
+                      <p className="text-xs text-muted-foreground mt-0.5">{selectedItReq.items_required}</p>
+                    )}
+                  </div>
+                  {selectedItReq.service_desk_notes && (
+                    <div className="col-span-2">
+                      <p className="text-[10px] font-semibold uppercase tracking-widest text-muted-foreground mb-0.5">IT Office Notes</p>
+                      <p className="text-sm text-indigo-800 bg-indigo-50 rounded-lg px-3 py-1.5 font-medium">{selectedItReq.service_desk_notes}</p>
+                    </div>
+                  )}
+                  {selectedItReq.it_head_notes && (
+                    <div className="col-span-2">
+                      <p className="text-[10px] font-semibold uppercase tracking-widest text-muted-foreground mb-0.5">IT Head Notes</p>
+                      <p className="text-sm text-indigo-800 bg-indigo-50 rounded-lg px-3 py-1.5 font-medium">{selectedItReq.it_head_notes}</p>
+                    </div>
+                  )}
                   {selectedItReq.issuance_notes && (
                     <div className="col-span-2">
                       <p className="text-[10px] font-semibold uppercase tracking-widest text-muted-foreground mb-0.5">Current Issuance Notes</p>

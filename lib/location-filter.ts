@@ -25,6 +25,8 @@ export function isHeadOfficeOrAccraLocation(location: string | null | undefined)
 const LOCATION_CANONICAL_MAP: Record<string, string> = {
   tema_training_school: "Tema Training School-TSCH",
   tema_research: "Tema Research",
+  takoradi_port: "Takoradi Port",
+  takoradi: "Takoradi Port",
   // Merge all Head Office variants → "Head Office"
   head_office: "Head Office",
   "head_office_accra": "Head Office",
@@ -57,6 +59,7 @@ const LOCATION_ALIAS_GROUPS: Record<string, string[]> = {
   "Swedru/CR": ["Swedru/CR", "Swedru CR", "CR", "Cape Coast", "Central Region", "cape_coast", "cr", "central_region", "swedru_cr", "swedru/cr"],
   "Ho": ["VR", "Ho", "Volta", "vr", "ho", "volta"],
   "Sunyani": ["BAR", "Sunyani", "Brong Ahafo", "bar", "sunyani", "brong_ahafo"],
+  "Takoradi Port": ["Takoradi Port", "Takoradi", "takoradi_port", "takoradi"],
   "Head Office": ["Head Office", "head_office", "HeadOffice", "Head Office Accra", "Accra", "accra"],
 }
 

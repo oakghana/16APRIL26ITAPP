@@ -6,7 +6,7 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import { Badge } from "@/components/ui/badge"
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from "@/components/ui/dialog"
-import { Plus, Clock, AlertTriangle, Ticket, MapPin, Monitor, Wifi, Smartphone, Printer, UserPlus, Eye, CheckCircle, User, Calendar, FileText, Trash2, UserCheck, Loader2, Repeat2, Pause, Droplets } from "lucide-react"
+import { Plus, Clock, AlertTriangle, Ticket, MapPin, Monitor, Wifi, Smartphone, Printer, UserPlus, Eye, CheckCircle, User, Calendar, FileText, Trash2, UserCheck, Loader2, Repeat2, Pause, Droplets, Users } from "lucide-react"
 import { MyDeviceTonerPanel } from "@/components/devices/my-device-toner-panel"
 import { NewTicketForm } from "./new-ticket-form"
 import { KnowledgeBase } from "./knowledge-base"
@@ -536,6 +536,12 @@ export function ServiceDeskDashboard() {
             <CheckCircle className="h-4 w-4 mr-1" />
             Closed ({stats.resolved})
           </TabsTrigger>
+          {user?.role === "regional_it_head" && (
+            <TabsTrigger value="regional-staff" className="flex items-center gap-1">
+              <Users className="h-4 w-4" />
+              Regional IT Staff
+            </TabsTrigger>
+          )}
           <TabsTrigger value="my-devices" className="flex items-center gap-1">
             <Droplets className="h-4 w-4" />
             My Devices & Toner
@@ -956,6 +962,182 @@ export function ServiceDeskDashboard() {
             </CardContent>
           </Card>
         </TabsContent>
+
+        {/* Regional IT Staff Monitoring — only for regional_it_head */}
+        {user?.role === "regional_it_head" && (
+          <TabsContent value="regional-staff" className="space-y-4">
+            <Card>
+              <CardHeader>
+                <div className="flex items-center justify-between">
+                  <div>
+                    <CardTitle className="flex items-center gap-2">
+                      <Users className="h-5 w-5 text-blue-600" />
+                      Regional IT Staff
+                    </CardTitle>
+                    <CardDescription>
+                      Monitor your regional IT staff and their current ticket workload
+                    </CardDescription>
+                  </div>
+                  <Badge variant="outline" className="text-sm">
+                    {itStaffList.filter(s => isLocationInSameRegion(s.location, user?.location)).length} staff members
+                  </Badge>
+                </div>
+              </CardHeader>
+              <CardContent>
+                {(() => {
+                  const regionalStaff = itStaffList.filter(s => isLocationInSameRegion(s.location || "", user?.location || ""))
+                  if (regionalStaff.length === 0) {
+                    return (
+                      <div className="text-center py-12 text-muted-foreground">
+                        <Users className="h-12 w-12 mx-auto mb-4 opacity-50" />
+                        <p className="text-lg font-medium">No IT staff found in your region</p>
+                        <p className="text-sm">Staff members assigned to your region will appear here</p>
+                      </div>
+                    )
+                  }
+                  return (
+                    <div className="space-y-4">
+                      {regionalStaff.map((staff: any) => {
+                        const staffId = (staff.id || "").toLowerCase()
+                        const staffName = (staff.full_name || staff.name || "").toLowerCase()
+                        const assignedTickets = allTickets.filter(t =>
+                          (t.assignedToId && t.assignedToId.toLowerCase() === staffId) ||
+                          (t.assignedTo && t.assignedTo.toLowerCase() === staffName)
+                        )
+                        const openCount = assignedTickets.filter(t => isOpenStatus(t.status)).length
+                        const inProgressCount = assignedTickets.filter(t => isInProgressStatus(t.status)).length
+                        const resolvedCount = assignedTickets.filter(t => isResolvedStatus(t.status)).length
+
+                        return (
+                          <div key={staff.id} className="border rounded-lg p-4 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
+                            <div className="flex items-center gap-3">
+                              <div className="h-10 w-10 rounded-full bg-blue-100 dark:bg-blue-900 flex items-center justify-center flex-shrink-0">
+                                <User className="h-5 w-5 text-blue-600 dark:text-blue-300" />
+                              </div>
+                              <div>
+                                <p className="font-medium">{staff.full_name || staff.name || staff.username}</p>
+                                <div className="flex flex-wrap gap-2 text-xs text-muted-foreground mt-0.5">
+                                  <span className="flex items-center gap-1">
+                                    <MapPin className="h-3 w-3" />
+                                    {staff.location || "—"}
+                                  </span>
+                                  {staff.email && (
+                                    <span>{staff.email}</span>
+                                  )}
+                                  {staff.phone && (
+                                    <span>{staff.phone}</span>
+                                  )}
+                                </div>
+                              </div>
+                            </div>
+                            <div className="flex items-center gap-3 flex-wrap">
+                              <div className="text-center min-w-[56px]">
+                                <p className="text-lg font-bold text-amber-600">{openCount}</p>
+                                <p className="text-xs text-muted-foreground">Open</p>
+                              </div>
+                              <div className="text-center min-w-[56px]">
+                                <p className="text-lg font-bold text-blue-600">{inProgressCount}</p>
+                                <p className="text-xs text-muted-foreground">In Progress</p>
+                              </div>
+                              <div className="text-center min-w-[56px]">
+                                <p className="text-lg font-bold text-green-600">{resolvedCount}</p>
+                                <p className="text-xs text-muted-foreground">Resolved</p>
+                              </div>
+                              <div className="text-center min-w-[56px] border-l pl-3">
+                                <p className="text-lg font-bold">{assignedTickets.length}</p>
+                                <p className="text-xs text-muted-foreground">Total</p>
+                              </div>
+                              <Badge
+                                variant={inProgressCount > 0 ? "default" : openCount > 0 ? "outline" : "secondary"}
+                                className="ml-2"
+                              >
+                                {inProgressCount > 0 ? "Active" : openCount > 0 ? "Pending" : "Free"}
+                              </Badge>
+                            </div>
+                          </div>
+                        )
+                      })}
+                    </div>
+                  )
+                })()}
+              </CardContent>
+            </Card>
+
+            {/* Unassigned Tickets in Region */}
+            {(() => {
+              const unassigned = allTickets.filter(t => !t.assignedToId && (isOpenStatus(t.status)))
+              if (unassigned.length === 0) return null
+              return (
+                <Card>
+                  <CardHeader>
+                    <CardTitle className="flex items-center gap-2 text-amber-700 dark:text-amber-400">
+                      <AlertTriangle className="h-5 w-5" />
+                      Unassigned Tickets ({unassigned.length})
+                    </CardTitle>
+                    <CardDescription>
+                      Open tickets in your region that have not yet been assigned to a staff member
+                    </CardDescription>
+                  </CardHeader>
+                  <CardContent>
+                    <div className="space-y-3">
+                      {unassigned.map(ticket => {
+                        const IconComponent = categoryIcons[ticket.category as keyof typeof categoryIcons] || Monitor
+                        return (
+                          <div key={ticket.id} className="flex items-center justify-between p-3 border rounded-lg border-amber-200 dark:border-amber-800 bg-amber-50/50 dark:bg-amber-950/20">
+                            <div className="flex items-center gap-3">
+                              <div className="p-2 bg-amber-100 dark:bg-amber-900 rounded-lg">
+                                <IconComponent className="h-4 w-4 text-amber-600 dark:text-amber-400" />
+                              </div>
+                              <div>
+                                <p className="font-medium text-sm">{ticket.title}</p>
+                                <div className="flex items-center gap-2 text-xs text-muted-foreground mt-0.5">
+                                  <MapPin className="h-3 w-3" />
+                                  <span>{ticket.locationName}</span>
+                                  <span>•</span>
+                                  <span>By: {ticket.requester}</span>
+                                  <span>•</span>
+                                  <span>{ticket.created}</span>
+                                </div>
+                              </div>
+                            </div>
+                            <div className="flex items-center gap-2">
+                              <Badge variant={ticket.priority === "High" || ticket.priority === "high" ? "destructive" : "outline"} className="text-xs">
+                                {ticket.priority}
+                              </Badge>
+                              <Button
+                                size="sm"
+                                variant="outline"
+                                className="h-7 px-2 text-xs border-blue-200 text-blue-700 hover:bg-blue-50 dark:border-blue-800 dark:text-blue-300 dark:hover:bg-blue-950 bg-transparent"
+                                onClick={() => setSelectedTicketForAssign(ticket)}
+                              >
+                                <UserPlus className="h-3 w-3 mr-1" />
+                                Assign
+                              </Button>
+                              <Button
+                                size="sm"
+                                variant="outline"
+                                className="h-7 px-2 text-xs border-green-200 text-green-700 hover:bg-green-50 dark:border-green-800 dark:text-green-300 dark:hover:bg-green-950 bg-transparent"
+                                onClick={() => handleSelfAssign(ticket)}
+                                disabled={selfAssigningTicketId === (ticket.uuid || ticket.dbId || ticket.id)}
+                              >
+                                {selfAssigningTicketId === (ticket.uuid || ticket.dbId || ticket.id) ? (
+                                  <Loader2 className="h-3 w-3 mr-1 animate-spin" />
+                                ) : (
+                                  <UserCheck className="h-3 w-3 mr-1" />
+                                )}
+                                Self-Assign
+                              </Button>
+                            </div>
+                          </div>
+                        )
+                      })}
+                    </div>
+                  </CardContent>
+                </Card>
+              )
+            })()}
+          </TabsContent>
+        )}
 
         <TabsContent value="my-devices" className="space-y-4">
           <MyDeviceTonerPanel />

@@ -36,10 +36,14 @@ export async function GET(request: NextRequest) {
           query = query.or(`requested_by.eq.${userId},assigned_to.eq.${userId}`)
         }
       } else if ((userRole === "regional_it_head" || userRole === "service_desk_head") && normalizedLocation) {
+        // Use only the first meaningful keyword of the location so that variants like
+        // "Eastern Region" (user) still match tickets stored as "Eastern" or vice-versa.
+        // The precise isLocationInSameRegion check in the JS layer acts as the gate-keeper.
+        const locationKeyword = normalizedLocation.replace(/[\s_\-/]+/g, " ").split(" ").filter(p => p.length > 2)[0] || normalizedLocation
         if (userId) {
-          query = query.or(`location.ilike.%${normalizedLocation}%,assigned_to.eq.${userId}`)
+          query = query.or(`location.ilike.%${locationKeyword}%,assigned_to.eq.${userId}`)
         } else {
-          query = query.ilike("location", `%${normalizedLocation}%`)
+          query = query.ilike("location", `%${locationKeyword}%`)
         }
       } else if (!canSeeAll && normalizedLocation) {
         if (userId) {
