@@ -288,18 +288,50 @@ export function ITHeadAdminPanel() {
                     ? "Asset Transfer"
         : "Requisition"
 
-  const extractManagerMeta = (req: ITRequisition) => {
-    const noteText = req.other_comments || ""
-    const match = noteText.match(/IT Manager\s+(approved|rejected)\s+note:[\s\S]*?\(by\s+(.+?)\s+on\s+([^\)]+)\)/i)
-    return {
-      managerName: req.manager_approved_by || req.it_manager_approved_by || req.admin_approved_by || req.it_head_approved_by || (match?.[2] || ""),
-      managerDate: req.manager_approved_at || req.it_manager_approved_at || req.admin_approved_at || req.it_head_approved_at || (match?.[3] || ""),
-    }
+  const isUuidValue = (value?: string | null) =>
+    /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(value || "")
+
+  // Extract approver name from approval_timeline JSONB — the most reliable source since it always stores the actual name
+  const nameFromTimeline = (req: ITRequisition, roles: string[]): string => {
+    const timeline = Array.isArray(req.approval_timeline) ? req.approval_timeline : []
+    const entry = timeline.find((e: any) => roles.includes(e?.role) && e?.action === "approve")
+    return entry?.approver || ""
+  }
+
+  const dateFromTimeline = (req: ITRequisition, roles: string[]): string => {
+    const timeline = Array.isArray(req.approval_timeline) ? req.approval_timeline : []
+    const entry = timeline.find((e: any) => roles.includes(e?.role) && e?.action === "approve")
+    return entry?.timestamp || ""
+  }
+
+  const resolveHodName = (req: ITRequisition): string => {
+    // Prefer text name columns; skip if they contain a UUID
+    const fromNameCol = req.department_head_approved_by_name || req.departmental_head_name || req.sectional_head_name
+    if (fromNameCol && !isUuidValue(fromNameCol)) return fromNameCol
+    // Fall back to approval_timeline approver name
+    const fromTimeline = nameFromTimeline(req, ["department_head"])
+    if (fromTimeline) return fromTimeline
+    // Last resort: non-UUID FK value
+    const fromUuidCol = req.department_head_approved_by
+    return (!isUuidValue(fromUuidCol) && fromUuidCol) ? fromUuidCol : ""
+  }
+
+  const resolveManagerName = (req: ITRequisition): string => {
+    const fromNameCol = req.it_head_approved_by_name || req.admin_approved_by_name || req.manager_approved_by || req.it_manager_approved_by
+    if (fromNameCol && !isUuidValue(fromNameCol)) return fromNameCol
+    const fromTimeline = nameFromTimeline(req, ["it_head", "admin"])
+    if (fromTimeline) return fromTimeline
+    const fromUuidCols = req.admin_approved_by || req.it_head_approved_by
+    return (!isUuidValue(fromUuidCols) && fromUuidCols) ? fromUuidCols : ""
+  }
+
+  const resolveManagerDate = (req: ITRequisition): string => {
+    const raw = req.manager_approved_at || req.it_manager_approved_at || req.admin_approved_at || req.it_head_approved_at || dateFromTimeline(req, ["it_head", "admin"])
+    return raw || ""
   }
 
   const buildExportPayload = (req: ITRequisition) => {
     const requestNumber = getRequestNumber(req)
-    const { managerName, managerDate } = extractManagerMeta(req)
     const isPasswordReset = req.formType === "password-reset"
     const passwordSystem = req.system_name === "Other" ? (req.other_system_name || "Other") : (req.system_name || "Password Reset")
     return {
@@ -312,12 +344,12 @@ export function ITHeadAdminPanel() {
       summary: getSummary(req),
       purpose: isPasswordReset ? passwordSystem : (req.purpose || req.other_comments || ""),
       status: req.status,
-      hodName: req.department_head_approved_by_name || req.department_head_approved_by || req.departmental_head_name || req.sectional_head_name,
-      hodDate: formatDisplayDate(req.department_head_approved_at || req.departmental_head_date || req.sectional_head_date || ""),
+      hodName: resolveHodName(req),
+      hodDate: formatDisplayDate(req.department_head_approved_at || req.departmental_head_date || req.sectional_head_date || dateFromTimeline(req, ["department_head"]) || ""),
       hodSignature: req.department_head_signature,
       extraNotes: isPasswordReset ? (req.work_notes || req.manager_notes || req.other_comments) : req.other_comments,
-      managerName: req.it_head_approved_by_name || req.admin_approved_by_name || managerName,
-      managerDate: formatDisplayDate(managerDate || ""),
+      managerName: resolveManagerName(req),
+      managerDate: formatDisplayDate(resolveManagerDate(req) || ""),
       managerSignature: req.manager_signature || req.it_manager_signature || req.admin_signature || req.it_head_signature,
       recommendation: req.recommended,
       repairStatus: req.gadget_working_status,
