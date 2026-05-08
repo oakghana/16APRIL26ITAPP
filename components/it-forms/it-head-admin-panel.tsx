@@ -90,13 +90,16 @@ interface ITRequisition {
   service_desk_processed_at?: string
   it_head_notes?: string
   it_head_approved_by?: string
+  it_head_approved_by_name?: string
   it_head_approved_at?: string
   it_head_signature?: string
   it_head_approved?: boolean
   admin_approved_by?: string
+  admin_approved_by_name?: string
   admin_approved_at?: string
   admin_signature?: string
   admin_approved?: boolean
+  department_head_approved_by_name?: string
   store_head_approved?: boolean
   departmental_head_name?: string
   departmental_head_date?: string
@@ -309,12 +312,12 @@ export function ITHeadAdminPanel() {
       summary: getSummary(req),
       purpose: isPasswordReset ? passwordSystem : (req.purpose || req.other_comments || ""),
       status: req.status,
-      hodName: req.department_head_approved_by || req.departmental_head_name || req.sectional_head_name,
-      hodDate: req.department_head_approved_at || req.departmental_head_date || req.sectional_head_date,
+      hodName: req.department_head_approved_by_name || req.department_head_approved_by || req.departmental_head_name || req.sectional_head_name,
+      hodDate: formatDisplayDate(req.department_head_approved_at || req.departmental_head_date || req.sectional_head_date || ""),
       hodSignature: req.department_head_signature,
       extraNotes: isPasswordReset ? (req.work_notes || req.manager_notes || req.other_comments) : req.other_comments,
-      managerName,
-      managerDate,
+      managerName: req.it_head_approved_by_name || req.admin_approved_by_name || managerName,
+      managerDate: formatDisplayDate(managerDate || ""),
       managerSignature: req.manager_signature || req.it_manager_signature || req.admin_signature || req.it_head_signature,
       recommendation: req.recommended,
       repairStatus: req.gadget_working_status,
