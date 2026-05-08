@@ -51,6 +51,7 @@ export async function POST(request: NextRequest) {
         escalation_date: new Date().toISOString(),
         escalated_by: currentAssignedUser,
         escalated_by_role: currentUserRole,
+        escalated_by_location: currentUserLocation,
         it_request_form_url: itRequestFormUrl,
       })
       .eq("id", ticketId)

@@ -40,6 +40,7 @@ import {
 import { useAuth } from "@/lib/auth-context"
 import { createClient } from "@/lib/supabase/client"
 import { canSeeAllLocations } from "@/lib/location-filter"
+import { generateRepairReportPDF } from "@/lib/it-report-pdf"
 
 interface RepairReport {
   period: string
@@ -226,100 +227,114 @@ export function ITHeadRepairReports() {
 
   const COLORS = ["#3b82f6", "#ef4444", "#f59e0b", "#10b981", "#8b5cf6", "#f97316", "#06b6d4"]
 
-  const exportReport = () => {
-    const reportData = {
-      period: currentReport.period,
-      generated: new Date().toISOString(),
-      summary: {
+  const exportReport = async () => {
+    setLoading(true)
+    try {
+      await generateRepairReportPDF({
+        dateRange,
+        generatedBy: user?.name || user?.full_name || "Unknown",
+        period: currentReport.period,
         totalTasks: currentReport.totalTasks,
         completedTasks: currentReport.completedTasks,
-        completionRate: currentReport.totalTasks > 0 ? ((currentReport.completedTasks / currentReport.totalTasks) * 100).toFixed(1) : "0",
+        inProgressTasks: currentReport.inProgressTasks,
+        overdueTasks: currentReport.overdueTasks,
         totalCost: currentReport.totalCost,
         avgRepairTime: currentReport.avgRepairTime,
-      },
-      serviceProviders: currentReport.serviceProviderPerformance,
-      deviceBreakdown: currentReport.deviceTypes,
-      priorityAnalysis: currentReport.priorityBreakdown,
-      topIssues: currentReport.topIssues,
+        repairs: reports,
+      })
+    } catch (err) {
+      console.error("PDF generation failed:", err)
+    } finally {
+      setLoading(false)
     }
-
-    const blob = new Blob([JSON.stringify(reportData, null, 2)], { type: "application/json" })
-    const url = URL.createObjectURL(blob)
-    const a = document.createElement("a")
-    a.href = url
-    a.download = `repair-report-${reportPeriod}-${new Date().toISOString().split("T")[0]}.json`
-    document.body.appendChild(a)
-    a.click()
-    document.body.removeChild(a)
-    URL.revokeObjectURL(url)
   }
 
   return (
     <div className="space-y-6">
-      {/* Header */}
-      <div className="flex items-center justify-between">
-        <div className="flex items-center space-x-4">
-          <div className="w-12 h-12 rounded-lg bg-gradient-to-br from-blue-600 to-indigo-700 flex items-center justify-center shadow-lg">
-            <BarChart3 className="h-6 w-6 text-white" />
-          </div>
-          <div>
-            <h1 className="text-3xl font-bold text-foreground">Repair Analytics & Reports</h1>
-            <p className="text-muted-foreground">
-              Comprehensive repair tracking with service provider performance • {user?.name}
-            </p>
-          </div>
+      {/* ── Page Header ─────────────────────────────────────────────────── */}
+      <div className="relative overflow-hidden rounded-2xl bg-gradient-to-br from-blue-800 via-blue-700 to-indigo-600 p-6 text-white shadow-xl">
+        <div className="absolute inset-0 opacity-10 pointer-events-none">
+          <div className="absolute -top-4 -right-4 w-40 h-40 rounded-full bg-white" />
+          <div className="absolute bottom-2 left-10 w-24 h-24 rounded-full bg-indigo-300" />
         </div>
-
-        <div className="flex items-center space-x-3">
-          <Button
-            onClick={exportReport}
-            variant="outline"
-            className="bg-gradient-to-r from-green-50 to-emerald-50 hover:from-green-100 hover:to-emerald-100 text-green-700 border-green-200"
-          >
-            <Download className="h-4 w-4 mr-2" />
-            Export Report
-          </Button>
-
-          <Button
-            onClick={generateReports}
-            disabled={loading}
-            className="bg-gradient-to-r from-blue-600 to-indigo-700 hover:from-blue-700 hover:to-indigo-800 text-white"
-          >
-            {loading ? <RefreshCw className="h-4 w-4 mr-2 animate-spin" /> : <RefreshCw className="h-4 w-4 mr-2" />}
-            Refresh Data
-          </Button>
+        <div className="relative flex items-start justify-between flex-wrap gap-4">
+          <div className="flex items-center gap-4">
+            <div className="w-14 h-14 rounded-xl bg-white/20 backdrop-blur flex items-center justify-center shadow-lg">
+              <BarChart3 className="h-7 w-7 text-white" />
+            </div>
+            <div>
+              <h1 className="text-2xl font-bold tracking-tight">Repair Analytics & Reports</h1>
+              <p className="text-blue-100 text-sm mt-0.5">
+                Quality Control Company Limited — Repair & Maintenance Division
+              </p>
+              <div className="flex items-center gap-2 mt-2 flex-wrap">
+                <Badge className="bg-white/20 text-white border-white/30 text-xs">
+                  <Wrench className="h-3 w-3 mr-1" />
+                  Live Data
+                </Badge>
+                <Badge className="bg-indigo-400/30 text-indigo-100 border-indigo-400/40 text-xs">
+                  {currentReport.period || "Current Period"}
+                </Badge>
+              </div>
+            </div>
+          </div>
+          <div className="flex items-center gap-3">
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={generateReports}
+              disabled={loading}
+              className="bg-white/10 text-white border-white/30 hover:bg-white/20"
+            >
+              <RefreshCw className={`h-4 w-4 mr-2 ${loading ? "animate-spin" : ""}`} />
+              Refresh
+            </Button>
+            <Button
+              onClick={exportReport}
+              disabled={loading}
+              className="bg-white text-blue-800 hover:bg-blue-50 font-semibold shadow-md"
+            >
+              {loading ? (
+                <RefreshCw className="h-4 w-4 mr-2 animate-spin" />
+              ) : (
+                <Download className="h-4 w-4 mr-2" />
+              )}
+              {loading ? "Generating PDF..." : "Download PDF Report"}
+            </Button>
+          </div>
         </div>
       </div>
 
-      {/* Report Controls */}
-      <Card>
-        <CardHeader>
-          <CardTitle className="flex items-center gap-2">
-            <Filter className="h-5 w-5" />
+      {/* Report Configuration */}
+      <Card className="border-0 shadow-sm">
+        <CardHeader className="pb-3">
+          <CardTitle className="flex items-center gap-2 text-base">
+            <Filter className="h-4 w-4 text-blue-600" />
             Report Configuration
           </CardTitle>
+          <CardDescription>Adjust filters to focus the report scope</CardDescription>
         </CardHeader>
         <CardContent>
-          <div className="grid md:grid-cols-4 gap-4">
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
             <div>
-              <Label htmlFor="period">Report Period</Label>
+              <Label className="text-xs font-semibold uppercase tracking-wide text-muted-foreground mb-1.5 block">Report Period</Label>
               <Select value={reportPeriod} onValueChange={(value) => setReportPeriod(value as any)}>
-                <SelectTrigger>
+                <SelectTrigger className="h-9">
                   <SelectValue />
                 </SelectTrigger>
                 <SelectContent>
-                  <SelectItem value="daily">Daily Reports</SelectItem>
-                  <SelectItem value="weekly">Weekly Reports</SelectItem>
-                  <SelectItem value="monthly">Monthly Reports</SelectItem>
-                  <SelectItem value="yearly">Yearly Reports</SelectItem>
+                  <SelectItem value="daily">Daily</SelectItem>
+                  <SelectItem value="weekly">Weekly</SelectItem>
+                  <SelectItem value="monthly">Monthly</SelectItem>
+                  <SelectItem value="yearly">Yearly</SelectItem>
                 </SelectContent>
               </Select>
             </div>
 
             <div>
-              <Label htmlFor="provider">Service Provider</Label>
+              <Label className="text-xs font-semibold uppercase tracking-wide text-muted-foreground mb-1.5 block">Service Provider</Label>
               <Select value={selectedProvider} onValueChange={setSelectedProvider}>
-                <SelectTrigger>
+                <SelectTrigger className="h-9">
                   <SelectValue />
                 </SelectTrigger>
                 <SelectContent>
@@ -334,20 +349,22 @@ export function ITHeadRepairReports() {
             </div>
 
             <div>
-              <Label htmlFor="startDate">Start Date</Label>
+              <Label className="text-xs font-semibold uppercase tracking-wide text-muted-foreground mb-1.5 block">Start Date</Label>
               <Input
                 id="startDate"
                 type="date"
+                className="h-9"
                 value={dateRange.start}
                 onChange={(e) => setDateRange((prev) => ({ ...prev, start: e.target.value }))}
               />
             </div>
 
             <div>
-              <Label htmlFor="endDate">End Date</Label>
+              <Label className="text-xs font-semibold uppercase tracking-wide text-muted-foreground mb-1.5 block">End Date</Label>
               <Input
                 id="endDate"
                 type="date"
+                className="h-9"
                 value={dateRange.end}
                 onChange={(e) => setDateRange((prev) => ({ ...prev, end: e.target.value }))}
               />
@@ -357,75 +374,90 @@ export function ITHeadRepairReports() {
       </Card>
 
       {/* Summary Stats */}
-      <div className="grid gap-4 md:grid-cols-5">
-        <Card className="border-l-4 border-l-blue-500">
-          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-            <CardTitle className="text-sm font-medium">Total Tasks</CardTitle>
-            <Wrench className="h-4 w-4 text-muted-foreground" />
-          </CardHeader>
-          <CardContent>
-            <div className="text-2xl font-bold">{currentReport.totalTasks}</div>
-            <p className="text-xs text-muted-foreground">{currentReport.period || "Current period"}</p>
-          </CardContent>
-        </Card>
-
-        <Card className="border-l-4 border-l-green-500">
-          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-            <CardTitle className="text-sm font-medium">Completed</CardTitle>
-            <CheckCircle className="h-4 w-4 text-muted-foreground" />
-          </CardHeader>
-          <CardContent>
-            <div className="text-2xl font-bold">{currentReport.completedTasks}</div>
-            <p className="text-xs text-muted-foreground">
-              {currentReport.totalTasks > 0
-                ? `${((currentReport.completedTasks / currentReport.totalTasks) * 100).toFixed(1)}% completion rate`
-                : "0% completion rate"}
-            </p>
-          </CardContent>
-        </Card>
-
-        <Card className="border-l-4 border-l-orange-500">
-          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-            <CardTitle className="text-sm font-medium">In Progress</CardTitle>
-            <Clock className="h-4 w-4 text-muted-foreground" />
-          </CardHeader>
-          <CardContent>
-            <div className="text-2xl font-bold">{currentReport.inProgressTasks}</div>
-            <p className="text-xs text-muted-foreground">Active repairs</p>
-          </CardContent>
-        </Card>
-
-        <Card className="border-l-4 border-l-red-500">
-          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-            <CardTitle className="text-sm font-medium">Overdue</CardTitle>
-            <AlertTriangle className="h-4 w-4 text-muted-foreground" />
-          </CardHeader>
-          <CardContent>
-            <div className="text-2xl font-bold">{currentReport.overdueTasks}</div>
-            <p className="text-xs text-muted-foreground">Requires attention</p>
-          </CardContent>
-        </Card>
-
-        <Card className="border-l-4 border-l-purple-500">
-          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-            <CardTitle className="text-sm font-medium">Total Cost</CardTitle>
-            <DollarSign className="h-4 w-4 text-muted-foreground" />
-          </CardHeader>
-          <CardContent>
-            <div className="text-2xl font-bold">
-              GHS{" "}
-              {currentReport.totalCost.toLocaleString("en-GH", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+      <div className="grid gap-3 grid-cols-2 sm:grid-cols-3 lg:grid-cols-6">
+        <Card className="border-l-4 border-l-blue-500 shadow-sm hover:shadow-md transition-shadow">
+          <CardContent className="p-4">
+            <div className="flex items-start justify-between">
+              <div>
+                <p className="text-xs font-semibold uppercase tracking-wide text-muted-foreground mb-1">Total Tasks</p>
+                <p className="text-3xl font-bold text-blue-600">{currentReport.totalTasks}</p>
+                <p className="text-xs text-muted-foreground mt-1">{currentReport.period || "Current period"}</p>
+              </div>
+              <div className="p-2 rounded-lg bg-gray-100"><Wrench className="h-5 w-5 text-blue-600" /></div>
             </div>
-            <p className="text-xs text-muted-foreground">
-              Avg: GHS{" "}
-              {currentReport.totalTasks > 0
-                ? (currentReport.totalCost / currentReport.totalTasks).toLocaleString("en-GH", {
-                    minimumFractionDigits: 0,
-                    maximumFractionDigits: 0,
-                  })
-                : "0"}
-              /task
-            </p>
+          </CardContent>
+        </Card>
+
+        <Card className="border-l-4 border-l-green-500 shadow-sm hover:shadow-md transition-shadow">
+          <CardContent className="p-4">
+            <div className="flex items-start justify-between">
+              <div>
+                <p className="text-xs font-semibold uppercase tracking-wide text-muted-foreground mb-1">Completed</p>
+                <p className="text-3xl font-bold text-green-600">{currentReport.completedTasks}</p>
+                <p className="text-xs text-muted-foreground mt-1">
+                  {currentReport.totalTasks > 0
+                    ? `${((currentReport.completedTasks / currentReport.totalTasks) * 100).toFixed(1)}% rate`
+                    : "0% rate"}
+                </p>
+              </div>
+              <div className="p-2 rounded-lg bg-gray-100"><CheckCircle className="h-5 w-5 text-green-600" /></div>
+            </div>
+          </CardContent>
+        </Card>
+
+        <Card className="border-l-4 border-l-orange-500 shadow-sm hover:shadow-md transition-shadow">
+          <CardContent className="p-4">
+            <div className="flex items-start justify-between">
+              <div>
+                <p className="text-xs font-semibold uppercase tracking-wide text-muted-foreground mb-1">In Progress</p>
+                <p className="text-3xl font-bold text-orange-600">{currentReport.inProgressTasks}</p>
+                <p className="text-xs text-muted-foreground mt-1">Active repairs</p>
+              </div>
+              <div className="p-2 rounded-lg bg-gray-100"><Clock className="h-5 w-5 text-orange-600" /></div>
+            </div>
+          </CardContent>
+        </Card>
+
+        <Card className="border-l-4 border-l-red-500 shadow-sm hover:shadow-md transition-shadow">
+          <CardContent className="p-4">
+            <div className="flex items-start justify-between">
+              <div>
+                <p className="text-xs font-semibold uppercase tracking-wide text-muted-foreground mb-1">Overdue</p>
+                <p className="text-3xl font-bold text-red-600">{currentReport.overdueTasks}</p>
+                <p className="text-xs text-muted-foreground mt-1">Requires attention</p>
+              </div>
+              <div className="p-2 rounded-lg bg-gray-100"><AlertTriangle className="h-5 w-5 text-red-600" /></div>
+            </div>
+          </CardContent>
+        </Card>
+
+        <Card className="border-l-4 border-l-purple-500 shadow-sm hover:shadow-md transition-shadow">
+          <CardContent className="p-4">
+            <div className="flex items-start justify-between">
+              <div>
+                <p className="text-xs font-semibold uppercase tracking-wide text-muted-foreground mb-1">Total Cost</p>
+                <p className="text-2xl font-bold text-purple-600">
+                  GHS {currentReport.totalCost.toLocaleString("en-GH", { minimumFractionDigits: 0, maximumFractionDigits: 0 })}
+                </p>
+                <p className="text-xs text-muted-foreground mt-1">
+                  Avg: GHS {currentReport.totalTasks > 0 ? (currentReport.totalCost / currentReport.totalTasks).toFixed(0) : "0"}/task
+                </p>
+              </div>
+              <div className="p-2 rounded-lg bg-gray-100"><DollarSign className="h-5 w-5 text-purple-600" /></div>
+            </div>
+          </CardContent>
+        </Card>
+
+        <Card className="border-l-4 border-l-teal-500 shadow-sm hover:shadow-md transition-shadow">
+          <CardContent className="p-4">
+            <div className="flex items-start justify-between">
+              <div>
+                <p className="text-xs font-semibold uppercase tracking-wide text-muted-foreground mb-1">Avg Repair Time</p>
+                <p className="text-3xl font-bold text-teal-600">{currentReport.avgRepairTime.toFixed(1)}</p>
+                <p className="text-xs text-muted-foreground mt-1">days per repair</p>
+              </div>
+              <div className="p-2 rounded-lg bg-gray-100"><BarChart3 className="h-5 w-5 text-teal-600" /></div>
+            </div>
           </CardContent>
         </Card>
       </div>

@@ -29,15 +29,21 @@ import {
   Clock,
   CheckCircle,
   AlertTriangle,
-  Target,
   Filter,
   Shield,
   Loader2,
+  TrendingUp,
+  MapPin,
+  Cpu,
+  Wrench,
+  RefreshCw,
+  Activity,
 } from "lucide-react"
 import { useAuth } from "@/lib/auth-context"
 import { canSeeAllLocations, getCanonicalLocationName } from "@/lib/location-filter"
 import { createClient } from "@/supabase/supabase-client"
 import { LOCATIONS } from "@/lib/locations"
+import { generateITReportPDF } from "@/lib/it-report-pdf"
 
 interface ReportData {
   location: string
@@ -73,8 +79,7 @@ export function ITReportsDashboard() {
   const [selectedLocation, setSelectedLocation] = useState(
     user && user.role === "regional_it_head" ? user.location : "all",
   )
-  const [dateRange, setDateRange] = useState("30") // days
-  const [reportType, setReportType] = useState("overview")
+  const [dateRange, setDateRange] = useState("30")
   const [isGenerating, setIsGenerating] = useState(false)
   const [isLoading, setIsLoading] = useState(true)
   const [availableLocations, setAvailableLocations] = useState<string[]>([])
@@ -287,22 +292,22 @@ export function ITReportsDashboard() {
 
   const generateReport = async () => {
     setIsGenerating(true)
-    // Simulate report generation
-    await new Promise((resolve) => setTimeout(resolve, 2000))
-    setIsGenerating(false)
-
-    // In a real app, this would generate and download a PDF/Excel report
-    const reportContent = {
-      reportType,
-      location: selectedLocation,
-      dateRange,
-      generatedBy: user?.name,
-      generatedAt: new Date().toISOString(),
-      data: filteredReportData,
+    try {
+      await generateITReportPDF({
+        title: "IT OPERATIONS REPORT",
+        dateRange: dateRangeLabel[dateRange] || `Last ${dateRange} days`,
+        generatedBy: user?.name || user?.full_name || "Unknown",
+        location: selectedLocation,
+        reportData: filteredReportData,
+        categoryData,
+        timeSeriesData,
+        totalStats,
+      })
+    } catch (err) {
+      console.error("PDF generation failed:", err)
+    } finally {
+      setIsGenerating(false)
     }
-
-    console.log("Generated Report:", reportContent)
-    alert("Report generated successfully! In a real implementation, this would download a PDF/Excel file.")
   }
 
   const filteredReportData =
@@ -313,8 +318,8 @@ export function ITReportsDashboard() {
     return (
       <div className="flex items-center justify-center min-h-[400px]">
         <div className="flex flex-col items-center gap-4">
-          <Loader2 className="h-8 w-8 animate-spin text-primary" />
-          <p className="text-muted-foreground">Loading report data...</p>
+          <Loader2 className="h-10 w-10 animate-spin text-green-600" />
+          <p className="text-muted-foreground font-medium">Loading report data...</p>
         </div>
       </div>
     )
@@ -331,19 +336,9 @@ export function ITReportsDashboard() {
       repairRequests: acc.repairRequests + curr.repairRequests,
       avgSatisfactionScore: acc.avgSatisfactionScore + curr.satisfactionScore,
     }),
-    {
-      totalTickets: 0,
-      resolvedTickets: 0,
-      pendingTickets: 0,
-      avgResolutionTime: 0,
-      staffCount: 0,
-      deviceCount: 0,
-      repairRequests: 0,
-      avgSatisfactionScore: 0,
-    },
+    { totalTickets: 0, resolvedTickets: 0, pendingTickets: 0, avgResolutionTime: 0, staffCount: 0, deviceCount: 0, repairRequests: 0, avgSatisfactionScore: 0 },
   )
 
-  // Calculate averages
   const locationCount = filteredReportData.length
   if (locationCount > 0) {
     totalStats.avgResolutionTime = totalStats.avgResolutionTime / locationCount
@@ -353,61 +348,114 @@ export function ITReportsDashboard() {
   const resolutionRate =
     totalStats.totalTickets > 0 ? Math.round((totalStats.resolvedTickets / totalStats.totalTickets) * 100) : 0
 
-  return (
-    <div className="space-y-6">
-      {/* Header */}
-      <div className="flex items-center justify-between">
-        <div className="flex items-center space-x-4">
-          <div className="w-12 h-12 rounded-lg bg-gradient-to-br from-green-600 to-yellow-600 flex items-center justify-center shadow-lg">
-            <FileText className="h-6 w-6 text-white" />
-          </div>
+  const dateRangeLabel: Record<string, string> = {
+    "7": "Last 7 days",
+    "30": "Last 30 days",
+    "90": "Last 90 days",
+    "180": "Last 6 months",
+    "365": "Last 12 months",
+  }
+
+  const KPICard = ({
+    icon: Icon, label, value, sub, colorClass, borderClass,
+  }: {
+    icon: React.ElementType
+    label: string
+    value: string | number
+    sub?: string
+    colorClass: string
+    borderClass: string
+  }) => (
+    <Card className={`border-l-4 ${borderClass} shadow-sm hover:shadow-md transition-shadow`}>
+      <CardContent className="p-4">
+        <div className="flex items-start justify-between">
           <div>
-            <h1 className="text-3xl font-bold text-foreground">IT Reports & Analytics</h1>
-            <p className="text-muted-foreground">Generate comprehensive IT reports by location • QCC IT Management</p>
+            <p className="text-xs font-semibold uppercase tracking-wide text-muted-foreground mb-1">{label}</p>
+            <p className={`text-3xl font-bold ${colorClass}`}>{value}</p>
+            {sub && <p className="text-xs text-muted-foreground mt-1">{sub}</p>}
+          </div>
+          <div className="p-2 rounded-lg bg-gray-100">
+            <Icon className={`h-5 w-5 ${colorClass}`} />
           </div>
         </div>
+      </CardContent>
+    </Card>
+  )
 
-        <div className="flex items-center space-x-3">
-          <Badge variant="outline" className="bg-green-50 text-green-700 border-green-200">
-            Quality Control Company Ltd.
-          </Badge>
+  return (
+    <div className="space-y-6">
+      {/* ── Page Header ─────────────────────────────────────────────────── */}
+      <div className="relative overflow-hidden rounded-2xl bg-gradient-to-br from-green-800 via-green-700 to-yellow-600 p-6 text-white shadow-xl">
+        <div className="absolute inset-0 opacity-10 pointer-events-none">
+          <div className="absolute -top-4 -right-4 w-40 h-40 rounded-full bg-white" />
+          <div className="absolute bottom-2 left-10 w-24 h-24 rounded-full bg-yellow-300" />
+        </div>
+        <div className="relative flex items-start justify-between flex-wrap gap-4">
+          <div className="flex items-center gap-4">
+            <div className="w-14 h-14 rounded-xl bg-white/20 backdrop-blur flex items-center justify-center shadow-lg">
+              <FileText className="h-7 w-7 text-white" />
+            </div>
+            <div>
+              <h1 className="text-2xl font-bold tracking-tight">IT Operations Report</h1>
+              <p className="text-green-100 text-sm mt-0.5">
+                Quality Control Company Limited — Information Technology Department
+              </p>
+              <div className="flex items-center gap-2 mt-2 flex-wrap">
+                <Badge className="bg-white/20 text-white border-white/30 text-xs">
+                  <Activity className="h-3 w-3 mr-1" />
+                  Live Data
+                </Badge>
+                <Badge className="bg-yellow-400/30 text-yellow-100 border-yellow-400/40 text-xs">
+                  {dateRangeLabel[dateRange] || `Last ${dateRange} days`}
+                </Badge>
+              </div>
+            </div>
+          </div>
+          <div className="flex items-center gap-3">
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={fetchReportData}
+              disabled={isLoading}
+              className="bg-white/10 text-white border-white/30 hover:bg-white/20"
+            >
+              <RefreshCw className={`h-4 w-4 mr-2 ${isLoading ? "animate-spin" : ""}`} />
+              Refresh
+            </Button>
+            <Button
+              onClick={generateReport}
+              disabled={isGenerating || filteredReportData.length === 0}
+              className="bg-white text-green-800 hover:bg-green-50 font-semibold shadow-md"
+            >
+              {isGenerating ? (
+                <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+              ) : (
+                <Download className="h-4 w-4 mr-2" />
+              )}
+              {isGenerating ? "Generating PDF..." : "Download PDF Report"}
+            </Button>
+          </div>
         </div>
       </div>
 
-      {/* Report Generation Controls */}
-      <Card>
-        <CardHeader>
-          <CardTitle className="flex items-center gap-2">
-            <Filter className="h-5 w-5" />
+      {/* ── Report Configuration ─────────────────────────────────────────── */}
+      <Card className="border-0 shadow-sm">
+        <CardHeader className="pb-3">
+          <CardTitle className="flex items-center gap-2 text-base">
+            <Filter className="h-4 w-4 text-green-600" />
             Report Configuration
           </CardTitle>
-          <CardDescription>Configure and generate IT reports for your locations</CardDescription>
+          <CardDescription>Adjust filters to focus the report scope</CardDescription>
         </CardHeader>
         <CardContent>
-          <div className="grid md:grid-cols-4 gap-4 mb-6">
+          <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
             <div>
-              <Label htmlFor="reportType">Report Type</Label>
-              <Select value={reportType} onValueChange={setReportType}>
-                <SelectTrigger>
-                  <SelectValue />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="overview">Overview Report</SelectItem>
-                  <SelectItem value="performance">Performance Report</SelectItem>
-                  <SelectItem value="tickets">Ticket Analysis</SelectItem>
-                  <SelectItem value="devices">Device Status</SelectItem>
-                  <SelectItem value="staff">Staff Productivity</SelectItem>
-                </SelectContent>
-              </Select>
-            </div>
-
-            <div>
-              <Label htmlFor="location">Location</Label>
-              <Select
-                value={selectedLocation}
-                onValueChange={setSelectedLocation}
-              >
-                <SelectTrigger>
+              <Label className="text-xs font-semibold uppercase tracking-wide text-muted-foreground mb-1.5 block">
+                Location
+              </Label>
+              <Select value={selectedLocation} onValueChange={setSelectedLocation}>
+                <SelectTrigger className="h-9">
+                  <MapPin className="h-3.5 w-3.5 mr-1.5 text-muted-foreground" />
                   <SelectValue />
                 </SelectTrigger>
                 <SelectContent>
@@ -415,17 +463,19 @@ export function ITReportsDashboard() {
                   {availableLocations.map((loc) => (
                     <SelectItem key={loc} value={loc}>{loc}</SelectItem>
                   ))}
-                  {availableLocations.length === 0 && LOCATIONS.map((loc) => (
-                    <SelectItem key={loc} value={loc}>{loc}</SelectItem>
-                  ))}
+                  {availableLocations.length === 0 &&
+                    LOCATIONS.map((loc) => <SelectItem key={loc} value={loc}>{loc}</SelectItem>)}
                 </SelectContent>
               </Select>
             </div>
 
             <div>
-              <Label htmlFor="dateRange">Date Range</Label>
+              <Label className="text-xs font-semibold uppercase tracking-wide text-muted-foreground mb-1.5 block">
+                Date Range
+              </Label>
               <Select value={dateRange} onValueChange={setDateRange}>
-                <SelectTrigger>
+                <SelectTrigger className="h-9">
+                  <Clock className="h-3.5 w-3.5 mr-1.5 text-muted-foreground" />
                   <SelectValue />
                 </SelectTrigger>
                 <SelectContent>
@@ -441,244 +491,249 @@ export function ITReportsDashboard() {
             <div className="flex items-end">
               <Button
                 onClick={generateReport}
-                disabled={isGenerating}
-                className="w-full bg-gradient-to-r from-green-600 to-yellow-600 hover:from-green-700 hover:to-yellow-700 text-white"
+                disabled={isGenerating || filteredReportData.length === 0}
+                className="w-full h-9 bg-green-700 hover:bg-green-800 text-white"
               >
                 {isGenerating ? (
-                  <>
-                    <Clock className="h-4 w-4 mr-2 animate-spin" />
-                    Generating...
-                  </>
+                  <Loader2 className="h-4 w-4 mr-2 animate-spin" />
                 ) : (
-                  <>
-                    <Download className="h-4 w-4 mr-2" />
-                    Generate Report
-                  </>
+                  <FileText className="h-4 w-4 mr-2" />
                 )}
+                {isGenerating ? "Generating..." : "Export PDF"}
               </Button>
             </div>
           </div>
         </CardContent>
       </Card>
 
-      {/* Summary Stats */}
-      <div className="grid grid-cols-2 md:grid-cols-4 lg:grid-cols-6 gap-4">
-        <Card className="border-l-4 border-l-blue-500">
-          <CardHeader className="pb-2">
-            <CardTitle className="text-sm font-medium text-muted-foreground flex items-center gap-2">
-              <Headphones className="h-4 w-4" />
-              Total Tickets
-            </CardTitle>
-            <div className="text-2xl font-bold">{totalStats.totalTickets}</div>
-          </CardHeader>
-        </Card>
-
-        <Card className="border-l-4 border-l-green-500">
-          <CardHeader className="pb-2">
-            <CardTitle className="text-sm font-medium text-muted-foreground flex items-center gap-2">
-              <CheckCircle className="h-4 w-4" />
-              Resolved
-            </CardTitle>
-            <div className="text-2xl font-bold">{totalStats.resolvedTickets}</div>
-            <p className="text-xs text-green-600">{resolutionRate}% resolution rate</p>
-          </CardHeader>
-        </Card>
-
-        <Card className="border-l-4 border-l-orange-500">
-          <CardHeader className="pb-2">
-            <CardTitle className="text-sm font-medium text-muted-foreground flex items-center gap-2">
-              <AlertTriangle className="h-4 w-4" />
-              Pending
-            </CardTitle>
-            <div className="text-2xl font-bold">{totalStats.pendingTickets}</div>
-          </CardHeader>
-        </Card>
-
-        <Card className="border-l-4 border-l-purple-500">
-          <CardHeader className="pb-2">
-            <CardTitle className="text-sm font-medium text-muted-foreground flex items-center gap-2">
-              <Clock className="h-4 w-4" />
-              Avg Resolution
-            </CardTitle>
-            <div className="text-2xl font-bold">{totalStats.avgResolutionTime.toFixed(1)}h</div>
-          </CardHeader>
-        </Card>
-
-        <Card className="border-l-4 border-l-indigo-500">
-          <CardHeader className="pb-2">
-            <CardTitle className="text-sm font-medium text-muted-foreground flex items-center gap-2">
-              <Users className="h-4 w-4" />
-              Staff
-            </CardTitle>
-            <div className="text-2xl font-bold">{totalStats.staffCount}</div>
-          </CardHeader>
-        </Card>
-
-        <Card className="border-l-4 border-l-yellow-500">
-          <CardHeader className="pb-2">
-            <CardTitle className="text-sm font-medium text-muted-foreground flex items-center gap-2">
-              <Target className="h-4 w-4" />
-              Satisfaction
-            </CardTitle>
-            <div className="text-2xl font-bold">{totalStats.avgSatisfactionScore.toFixed(1)}/5</div>
-          </CardHeader>
-        </Card>
+      {/* ── KPI Cards ────────────────────────────────────────────────────── */}
+      <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-3">
+        <KPICard icon={Headphones} label="Total Tickets" value={totalStats.totalTickets} colorClass="text-blue-600" borderClass="border-l-blue-500" />
+        <KPICard icon={CheckCircle} label="Resolved" value={totalStats.resolvedTickets} sub={`${resolutionRate}% rate`} colorClass="text-green-600" borderClass="border-l-green-500" />
+        <KPICard icon={AlertTriangle} label="Pending" value={totalStats.pendingTickets} colorClass="text-orange-600" borderClass="border-l-orange-500" />
+        <KPICard icon={Clock} label="Avg Resolution" value={`${totalStats.avgResolutionTime.toFixed(1)}h`} sub="per ticket" colorClass="text-purple-600" borderClass="border-l-purple-500" />
+        <KPICard icon={Cpu} label="Devices" value={totalStats.deviceCount} colorClass="text-yellow-600" borderClass="border-l-yellow-500" />
+        <KPICard icon={Wrench} label="Repairs" value={totalStats.repairRequests} colorClass="text-red-600" borderClass="border-l-red-500" />
       </div>
 
-      {/* Charts and Analytics */}
-      <div className="grid lg:grid-cols-2 gap-6">
-        {/* Location Performance Chart */}
-        <Card>
-          <CardHeader>
-            <CardTitle>Performance by Location</CardTitle>
-            <CardDescription>Ticket resolution and satisfaction scores across locations</CardDescription>
+      {/* ── Resolution Rate Banner ───────────────────────────────────────── */}
+      <div className={`rounded-xl p-4 flex items-center justify-between flex-wrap gap-4 ${resolutionRate >= 75 ? "bg-green-50 border border-green-200" : resolutionRate >= 50 ? "bg-yellow-50 border border-yellow-200" : "bg-red-50 border border-red-200"}`}>
+        <div className="flex items-center gap-3">
+          <TrendingUp className={`h-5 w-5 ${resolutionRate >= 75 ? "text-green-600" : resolutionRate >= 50 ? "text-yellow-600" : "text-red-600"}`} />
+          <div>
+            <p className="font-semibold text-sm">Overall Ticket Resolution Rate</p>
+            <p className="text-xs text-muted-foreground">Based on {totalStats.totalTickets} total tickets in the selected period</p>
+          </div>
+        </div>
+        <div className="flex items-center gap-4">
+          <div className="w-48 h-3 bg-gray-200 rounded-full overflow-hidden">
+            <div
+              className={`h-full rounded-full transition-all duration-700 ${resolutionRate >= 75 ? "bg-green-500" : resolutionRate >= 50 ? "bg-yellow-500" : "bg-red-500"}`}
+              style={{ width: `${resolutionRate}%` }}
+            />
+          </div>
+          <span className={`text-2xl font-bold ${resolutionRate >= 75 ? "text-green-700" : resolutionRate >= 50 ? "text-yellow-700" : "text-red-700"}`}>
+            {resolutionRate}%
+          </span>
+        </div>
+      </div>
+
+      {/* ── Charts Row ───────────────────────────────────────────────────── */}
+      <div className="grid lg:grid-cols-2 gap-5">
+        <Card className="shadow-sm">
+          <CardHeader className="pb-2">
+            <CardTitle className="text-sm font-semibold">Performance by Location</CardTitle>
+            <CardDescription className="text-xs">Resolved vs. pending tickets per location</CardDescription>
           </CardHeader>
           <CardContent>
-            <ResponsiveContainer width="100%" height={300}>
-              <BarChart data={filteredReportData}>
-                <CartesianGrid strokeDasharray="3 3" />
-                <XAxis dataKey="location" />
-                <YAxis />
-                <Tooltip />
-                <Legend />
-                <Bar dataKey="resolvedTickets" fill="#10b981" name="Resolved Tickets" />
-                <Bar dataKey="pendingTickets" fill="#f59e0b" name="Pending Tickets" />
+            <ResponsiveContainer width="100%" height={260}>
+              <BarChart data={filteredReportData} margin={{ top: 4, right: 8, bottom: 4, left: 0 }}>
+                <CartesianGrid strokeDasharray="3 3" stroke="#f0f0f0" />
+                <XAxis dataKey="location" tick={{ fontSize: 10 }} />
+                <YAxis tick={{ fontSize: 10 }} />
+                <Tooltip contentStyle={{ borderRadius: 8, fontSize: 12, border: "1px solid #e5e7eb" }} />
+                <Legend wrapperStyle={{ fontSize: 11 }} />
+                <Bar dataKey="resolvedTickets" fill="#10b981" name="Resolved" radius={[3, 3, 0, 0]} />
+                <Bar dataKey="pendingTickets" fill="#f59e0b" name="Pending" radius={[3, 3, 0, 0]} />
               </BarChart>
             </ResponsiveContainer>
           </CardContent>
         </Card>
 
-        {/* Time Series Chart */}
-        <Card>
-          <CardHeader>
-            <CardTitle>Ticket Trends</CardTitle>
-            <CardDescription>Ticket volume and satisfaction over time</CardDescription>
+        <Card className="shadow-sm">
+          <CardHeader className="pb-2">
+            <CardTitle className="text-sm font-semibold">Weekly Activity Trend</CardTitle>
+            <CardDescription className="text-xs">Ticket and repair volume over time</CardDescription>
           </CardHeader>
           <CardContent>
-            <ResponsiveContainer width="100%" height={300}>
-              <LineChart data={timeSeriesData}>
-                <CartesianGrid strokeDasharray="3 3" />
-                <XAxis dataKey="date" />
-                <YAxis />
-                <Tooltip />
-                <Legend />
-                <Line type="monotone" dataKey="tickets" stroke="#3b82f6" name="Tickets" strokeWidth={2} />
-                <Line type="monotone" dataKey="repairs" stroke="#ef4444" name="Repairs" strokeWidth={2} />
+            <ResponsiveContainer width="100%" height={260}>
+              <LineChart data={timeSeriesData} margin={{ top: 4, right: 8, bottom: 4, left: 0 }}>
+                <CartesianGrid strokeDasharray="3 3" stroke="#f0f0f0" />
+                <XAxis dataKey="date" tick={{ fontSize: 10 }} />
+                <YAxis tick={{ fontSize: 10 }} />
+                <Tooltip contentStyle={{ borderRadius: 8, fontSize: 12, border: "1px solid #e5e7eb" }} />
+                <Legend wrapperStyle={{ fontSize: 11 }} />
+                <Line type="monotone" dataKey="tickets" stroke="#3b82f6" strokeWidth={2.5} dot={{ r: 3 }} name="Tickets" />
+                <Line type="monotone" dataKey="repairs" stroke="#ef4444" strokeWidth={2.5} dot={{ r: 3 }} name="Repairs" />
               </LineChart>
             </ResponsiveContainer>
           </CardContent>
         </Card>
       </div>
 
-      {/* Issue Categories */}
-      <div className="grid lg:grid-cols-3 gap-6">
-        <Card className="lg:col-span-2">
-          <CardHeader>
-            <CardTitle>Issue Categories Distribution</CardTitle>
-            <CardDescription>Breakdown of ticket types and frequencies</CardDescription>
+      {/* ── Category Analysis ────────────────────────────────────────────── */}
+      <div className="grid lg:grid-cols-5 gap-5">
+        <Card className="lg:col-span-3 shadow-sm">
+          <CardHeader className="pb-2">
+            <CardTitle className="text-sm font-semibold">Issue Category Breakdown</CardTitle>
+            <CardDescription className="text-xs">Top categories by ticket volume</CardDescription>
           </CardHeader>
           <CardContent>
-            <div className="space-y-4">
-              {categoryData.map((category, index) => (
-                <div key={index} className="flex items-center justify-between">
-                  <div className="flex items-center gap-3">
-                    <div className="w-4 h-4 rounded" style={{ backgroundColor: category.color }}></div>
-                    <span className="font-medium">{category.category}</span>
+            {categoryData.length === 0 ? (
+              <div className="text-center py-8 text-muted-foreground text-sm">No category data for this period.</div>
+            ) : (
+              <div className="space-y-3">
+                {categoryData.map((cat, i) => (
+                  <div key={i} className="flex items-center gap-3">
+                    <div className="w-2.5 h-2.5 rounded-full flex-shrink-0" style={{ backgroundColor: cat.color }} />
+                    <span className="text-sm flex-1 font-medium truncate">{cat.category}</span>
+                    <div className="flex-1 max-w-[120px]">
+                      <div className="h-2 bg-gray-100 rounded-full overflow-hidden">
+                        <div className="h-full rounded-full" style={{ width: `${cat.percentage}%`, backgroundColor: cat.color }} />
+                      </div>
+                    </div>
+                    <span className="text-xs text-muted-foreground w-16 text-right">{cat.count} tickets</span>
+                    <Badge variant="outline" className="text-xs w-12 justify-center" style={{ borderColor: cat.color, color: cat.color }}>
+                      {cat.percentage}%
+                    </Badge>
                   </div>
-                  <div className="flex items-center gap-3">
-                    <span className="text-sm text-muted-foreground">{category.count} tickets</span>
-                    <Badge variant="outline">{category.percentage}%</Badge>
-                  </div>
-                </div>
-              ))}
-            </div>
+                ))}
+              </div>
+            )}
           </CardContent>
         </Card>
 
-        <Card>
-          <CardHeader>
-            <CardTitle>Category Distribution</CardTitle>
+        <Card className="lg:col-span-2 shadow-sm">
+          <CardHeader className="pb-2">
+            <CardTitle className="text-sm font-semibold">Category Distribution</CardTitle>
           </CardHeader>
           <CardContent>
-            <ResponsiveContainer width="100%" height={250}>
+            <ResponsiveContainer width="100%" height={220}>
               <PieChart>
-                <Pie
-                  data={categoryData}
-                  cx="50%"
-                  cy="50%"
-                  innerRadius={60}
-                  outerRadius={100}
-                  paddingAngle={5}
-                  dataKey="count"
-                >
+                <Pie data={categoryData} cx="50%" cy="50%" innerRadius={55} outerRadius={90} paddingAngle={3} dataKey="count">
                   {categoryData.map((entry, index) => (
                     <Cell key={`cell-${index}`} fill={entry.color} />
                   ))}
                 </Pie>
-                <Tooltip />
+                <Tooltip contentStyle={{ borderRadius: 8, fontSize: 12 }} />
               </PieChart>
             </ResponsiveContainer>
           </CardContent>
         </Card>
       </div>
 
-      {/* Location Details Table */}
-      <Card>
-        <CardHeader>
-          <CardTitle>Location Performance Details</CardTitle>
-          <CardDescription>Comprehensive performance metrics for each location</CardDescription>
+      {/* ── Location Details Table ───────────────────────────────────────── */}
+      <Card className="shadow-sm">
+        <CardHeader className="pb-3">
+          <div className="flex items-center justify-between">
+            <div>
+              <CardTitle className="text-sm font-semibold flex items-center gap-2">
+                <MapPin className="h-4 w-4 text-green-600" />
+                Location Performance Details
+              </CardTitle>
+              <CardDescription className="text-xs">Comprehensive metrics across all locations</CardDescription>
+            </div>
+            <Badge variant="outline" className="text-xs">{filteredReportData.length} location{filteredReportData.length !== 1 ? "s" : ""}</Badge>
+          </div>
         </CardHeader>
-        <CardContent>
+        <CardContent className="p-0">
           <div className="overflow-x-auto">
-            <table className="w-full border-collapse">
+            <table className="w-full text-sm">
               <thead>
-                <tr className="border-b">
-                  <th className="text-left p-3 font-semibold">Location</th>
-                  <th className="text-left p-3 font-semibold">Staff</th>
-                  <th className="text-left p-3 font-semibold">Devices</th>
-                  <th className="text-left p-3 font-semibold">Total Tickets</th>
-                  <th className="text-left p-3 font-semibold">Resolution Rate</th>
-                  <th className="text-left p-3 font-semibold">Avg Time</th>
-                  <th className="text-left p-3 font-semibold">Satisfaction</th>
+                <tr className="border-b bg-muted/40">
+                  <th className="text-left p-3 pl-4 font-semibold text-xs uppercase tracking-wide text-muted-foreground">Location</th>
+                  <th className="text-center p-3 font-semibold text-xs uppercase tracking-wide text-muted-foreground">Staff</th>
+                  <th className="text-center p-3 font-semibold text-xs uppercase tracking-wide text-muted-foreground">Devices</th>
+                  <th className="text-center p-3 font-semibold text-xs uppercase tracking-wide text-muted-foreground">Tickets</th>
+                  <th className="text-left p-3 font-semibold text-xs uppercase tracking-wide text-muted-foreground">Resolution Rate</th>
+                  <th className="text-center p-3 font-semibold text-xs uppercase tracking-wide text-muted-foreground">Avg Time</th>
+                  <th className="text-center p-3 font-semibold text-xs uppercase tracking-wide text-muted-foreground">Repairs</th>
+                  <th className="text-center p-3 font-semibold text-xs uppercase tracking-wide text-muted-foreground">Status</th>
                 </tr>
               </thead>
               <tbody>
-                {filteredReportData.map((location, index) => (
-                  <tr key={index} className="border-b hover:bg-muted/50">
-                    <td className="p-3">
-                      <div className="font-medium">{location.location}</div>
-                    </td>
-                    <td className="p-3">{location.staffCount}</td>
-                    <td className="p-3">{location.deviceCount}</td>
-                    <td className="p-3">{location.totalTickets}</td>
-                    <td className="p-3">
-                      <div className="flex items-center gap-2">
-                        {location.totalTickets > 0 ? (
-                          <>
-                            <span>{Math.round((location.resolvedTickets / location.totalTickets) * 100)}%</span>
-                            <div className="w-16 h-2 bg-muted rounded-full overflow-hidden">
-                              <div
-                                className="h-full bg-green-500 transition-all duration-300"
-                                style={{
-                                  width: `${(location.resolvedTickets / location.totalTickets) * 100}%`,
-                                }}
-                              ></div>
-                            </div>
-                          </>
-                        ) : (
-                          <span className="text-muted-foreground text-sm">N/A</span>
-                        )}
-                      </div>
-                    </td>
-                    <td className="p-3">{location.avgResolutionTime}h</td>
-                    <td className="p-3">
-                      <Badge variant={location.satisfactionScore >= 4.5 ? "default" : "secondary"}>
-                        {location.satisfactionScore}/5
-                      </Badge>
+                {filteredReportData.length === 0 ? (
+                  <tr>
+                    <td colSpan={8} className="text-center py-12 text-muted-foreground">
+                      No data available for the selected filters.
                     </td>
                   </tr>
-                ))}
+                ) : (
+                  filteredReportData.map((loc, index) => {
+                    const rate = loc.totalTickets > 0 ? Math.round((loc.resolvedTickets / loc.totalTickets) * 100) : 0
+                    const rateColor = rate >= 75 ? "text-green-700 bg-green-50" : rate >= 50 ? "text-yellow-700 bg-yellow-50" : "text-red-700 bg-red-50"
+                    const barColor = rate >= 75 ? "bg-green-500" : rate >= 50 ? "bg-yellow-500" : "bg-red-500"
+                    return (
+                      <tr key={index} className="border-b hover:bg-muted/30 transition-colors">
+                        <td className="p-3 pl-4">
+                          <div className="flex items-center gap-2">
+                            <div className="w-2 h-2 rounded-full bg-green-600" />
+                            <span className="font-semibold">{loc.location}</span>
+                          </div>
+                        </td>
+                        <td className="p-3 text-center">
+                          <div className="flex items-center justify-center gap-1">
+                            <Users className="h-3.5 w-3.5 text-muted-foreground" />
+                            <span>{loc.staffCount}</span>
+                          </div>
+                        </td>
+                        <td className="p-3 text-center">{loc.deviceCount}</td>
+                        <td className="p-3 text-center font-semibold">{loc.totalTickets}</td>
+                        <td className="p-3">
+                          {loc.totalTickets > 0 ? (
+                            <div className="flex items-center gap-2">
+                              <div className="w-20 h-2 bg-gray-100 rounded-full overflow-hidden">
+                                <div className={`h-full rounded-full ${barColor}`} style={{ width: `${rate}%` }} />
+                              </div>
+                              <span className={`text-xs font-semibold px-1.5 py-0.5 rounded ${rateColor}`}>{rate}%</span>
+                            </div>
+                          ) : (
+                            <span className="text-xs text-muted-foreground">No tickets</span>
+                          )}
+                        </td>
+                        <td className="p-3 text-center text-sm">{loc.avgResolutionTime}h</td>
+                        <td className="p-3 text-center">{loc.repairRequests}</td>
+                        <td className="p-3 text-center">
+                          <Badge
+                            variant="outline"
+                            className={`text-xs ${rate >= 75 ? "border-green-300 text-green-700 bg-green-50" : rate >= 50 ? "border-yellow-300 text-yellow-700 bg-yellow-50" : "border-red-300 text-red-700 bg-red-50"}`}
+                          >
+                            {rate >= 75 ? "On Track" : rate >= 50 ? "Monitor" : "At Risk"}
+                          </Badge>
+                        </td>
+                      </tr>
+                    )
+                  })
+                )}
               </tbody>
+              {filteredReportData.length > 1 && (
+                <tfoot>
+                  <tr className="bg-muted/60 border-t-2">
+                    <td className="p-3 pl-4 font-bold text-xs uppercase tracking-wide">Totals / Averages</td>
+                    <td className="p-3 text-center font-bold">{totalStats.staffCount}</td>
+                    <td className="p-3 text-center font-bold">{totalStats.deviceCount}</td>
+                    <td className="p-3 text-center font-bold">{totalStats.totalTickets}</td>
+                    <td className="p-3">
+                      <span className={`text-xs font-bold px-1.5 py-0.5 rounded ${resolutionRate >= 75 ? "text-green-700 bg-green-100" : resolutionRate >= 50 ? "text-yellow-700 bg-yellow-100" : "text-red-700 bg-red-100"}`}>
+                        {resolutionRate}%
+                      </span>
+                    </td>
+                    <td className="p-3 text-center font-bold">{totalStats.avgResolutionTime.toFixed(1)}h</td>
+                    <td className="p-3 text-center font-bold">{totalStats.repairRequests}</td>
+                    <td className="p-3" />
+                  </tr>
+                </tfoot>
+              )}
             </table>
           </div>
         </CardContent>

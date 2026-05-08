@@ -34,10 +34,10 @@ export async function POST(request: NextRequest) {
       )
     }
 
-    // Get tickets awaiting confirmation
+    // Get tickets awaiting confirmation (include assigned_to for targeted notifications)
     const { data: tickets, error: ticketsError } = await supabaseAdmin
       .from("service_tickets")
-      .select("id, status")
+      .select("id, status, assigned_to")
       .eq("status", "awaiting_confirmation")
 
     if (ticketsError) {
@@ -58,26 +58,21 @@ export async function POST(request: NextRequest) {
         return NextResponse.json({ error: "Failed to confirm tickets" }, { status: 500 })
       }
 
-      // Send notifications to staff
-      const { data: staffIds } = await supabaseAdmin
-        .from("service_tickets")
-        .select("assigned_to")
-        .eq("status", "completed")
-        .not("assigned_to", "is", null)
-
-      if (staffIds && staffIds.length > 0) {
-        const uniqueStaffIds = [...new Set(staffIds.map(t => t.assigned_to))]
-        for (const staffId of uniqueStaffIds) {
-          await supabaseAdmin.from("notifications").insert({
-            user_id: staffId,
-            type: "task_confirmed",
-            title: "Task Confirmed",
-            message: "Your completed task has been confirmed by management.",
-            priority: "normal",
-            read: false,
-            created_at: new Date().toISOString(),
-          })
-        }
+      // Notify only the staff assigned to the tickets that were just confirmed
+      // (use the pre-update snapshot to avoid catching all historically-completed tickets)
+      const uniqueStaffIds = [...new Set(
+        (tickets || []).map((t: any) => t.assigned_to).filter(Boolean)
+      )]
+      for (const staffId of uniqueStaffIds) {
+        await supabaseAdmin.from("notifications").insert({
+          user_id: staffId,
+          type: "task_confirmed",
+          title: "Task Confirmed",
+          message: "Your completed task has been confirmed by management.",
+          priority: "normal",
+          read: false,
+          created_at: new Date().toISOString(),
+        })
       }
     }
 

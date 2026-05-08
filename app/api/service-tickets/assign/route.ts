@@ -118,7 +118,7 @@ export async function POST(request: NextRequest) {
         .insert({
           ticket_id: dbTicketId,
           update_type: "assignment",
-          old_status: "open",
+          old_status: ticketData[0]?.status || "open",
           new_status: "in_progress",
           new_assignee: assigneeId,
           notes: `Ticket assigned to ${assignee} by ${assignedBy}. Instructions: ${instructions || "None"}`,

@@ -43,7 +43,9 @@ export async function GET(request: NextRequest) {
       .in("role", roles)
 
     if (onlyActive) {
-      query = query.eq("status", "active")
+      // Active users are stored with status="approved" and is_active=true (see create-user mapStatus).
+      // Filter by is_active to catch both naming variants across DB deployments.
+      query = query.eq("is_active", true)
     }
 
     const { data, error } = await query.order("full_name", { ascending: true })
