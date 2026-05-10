@@ -1,3 +1,5 @@
+import { getCanonicalLocationName, normalizeLocation } from "./location-filter"
+
 export const LOCATIONS = {
   head_office: "Head Office",
   central_stores: "Central Stores",
@@ -6,30 +8,41 @@ export const LOCATIONS = {
   tema_research: "Tema Research",
   tema_training_school: "Tema Training School",
   kumasi: "Kumasi",
-  kaase: "Kaase",
+  kaase_port: "Kaase Port",
   western_south: "Western South",
   western_north: "Western North",
-  vr: "VR",
-  bar: "BAR",
-  eastern: "Eastern",
-  nsawam: "Nsawam",
-  cr: "Swedru/CR",
-  cape_coast: "Swedru/CR",
+  ho: "Ho",
   sunyani: "Sunyani",
+  eastern_region: "Eastern Region",
+  swedru_cr: "Swedru/CR",
 } as const
 
 export type LocationKey = keyof typeof LOCATIONS
 export type LocationValue = (typeof LOCATIONS)[LocationKey]
 
 export function getLocationLabel(key: string): string {
-  return LOCATIONS[key as LocationKey] || key
+  if (!key) return key
+  return LOCATIONS[key as LocationKey] || getCanonicalLocationName(key) || key
 }
 
 export function getLocationOptions() {
-  return Object.entries(LOCATIONS).map(([value, label]) => ({
-    value,
-    label,
-  }))
+  const seen = new Set<string>()
+  return Object.entries(LOCATIONS)
+    .filter(([, label]) => {
+      if (seen.has(label)) return false
+      seen.add(label)
+      return true
+    })
+    .map(([value, label]) => ({ value, label }))
+    .sort((a, b) => a.label.localeCompare(b.label))
+}
+
+export function getLocationKey(location?: string): LocationKey {
+  if (!location) return "head_office"
+  const canonicalName = getCanonicalLocationName(location)
+  const normalizedCanonical = normalizeLocation(canonicalName)
+  const match = Object.entries(LOCATIONS).find(([, label]) => normalizeLocation(label) === normalizedCanonical)
+  return (match?.[0] as LocationKey) || "head_office"
 }
 
 export async function fetchLocationsFromDatabase(): Promise<{ code: string; name: string }[]> {

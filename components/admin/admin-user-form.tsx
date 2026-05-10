@@ -9,7 +9,7 @@ import { Label } from "@/components/ui/label"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { useToast } from "@/hooks/use-toast"
 import { useAuth } from "@/lib/auth-context"
-import { LOCATIONS, type LocationKey } from "@/lib/locations"
+import { LOCATIONS, getLocationKey, type LocationKey } from "@/lib/locations"
 
 type AdminFormMode = "create" | "edit"
 
@@ -65,10 +65,7 @@ const ROLE_OPTIONS: { value: ManagedRole; label: string }[] = [
 ]
 
 function toLocationKey(location?: string): LocationKey {
-  if (!location) return "head_office"
-  const normalized = location.toLowerCase().replace(/[\s-]+/g, "_")
-  const match = Object.entries(LOCATIONS).find(([key, label]) => key.toLowerCase() === normalized || label.toLowerCase() === location.toLowerCase())
-  return (match?.[0] as LocationKey) || "head_office"
+  return getLocationKey(location)
 }
 
 function toStatusValue(status?: string): "approved" | "pending" | "suspended" {
