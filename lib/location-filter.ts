@@ -53,14 +53,17 @@ const LOCATION_CANONICAL_MAP: Record<string, string> = {
   bar: "Sunyani",
   brong_ahafo: "Sunyani",
   sunyani: "Sunyani",
-  eastern: "Eastern",
-  nsawam: "Eastern",
+  eastern: "Eastern Region",
+  eastern_region: "Eastern Region",
+  er: "Eastern Region",
+  nsawam: "Eastern Region",
 }
 
 const LOCATION_ALIAS_GROUPS: Record<string, string[]> = {
   "Swedru/CR": ["Swedru/CR", "Swedru CR", "CR", "Cape Coast", "Central Region", "cape_coast", "cr", "central_region", "swedru_cr", "swedru/cr"],
   "Ho": ["VR", "Ho", "Volta", "vr", "ho", "volta"],
   "Sunyani": ["BAR", "Sunyani", "Brong Ahafo", "bar", "sunyani", "brong_ahafo"],
+  "Eastern Region": ["Eastern Region", "Eastern", "ER", "Nsawam", "eastern", "eastern_region", "er", "nsawam"],
   "Takoradi Port": ["Takoradi Port", "Takoradi", "takoradi_port", "takoradi"],
   "Kaase Port": ["Kaase Port", "Kaase", "kaase", "kaase_port", "kaase port", "kaase-port"],
   "Head Office": ["Head Office", "head_office", "HeadOffice", "Head Office Accra", "Accra", "accra"],

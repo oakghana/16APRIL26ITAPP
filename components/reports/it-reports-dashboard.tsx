@@ -98,17 +98,27 @@ export function ITReportsDashboard() {
       startDate.setDate(startDate.getDate() - daysAgo)
       const startDateStr = startDate.toISOString()
       
-      // Get unique locations from devices
-      const { data: deviceLocations } = await supabase
-        .from("devices")
-        .select("location")
-        .not("location", "is", null)
+      // All canonical locations that should be displayed in reports
+      const allCanonicalLocations = [
+        "Head Office",
+        "Swedru/CR",
+        "Ho",
+        "Sunyani",
+        "Eastern Region",
+        "Western North",
+        "Western South",
+        "Tema Training School-TSCH",
+        "Takoradi Port",
+        "Tema Port",
+        "Tema Research",
+        "Kaase Port",
+        "Kumasi",
+      ].sort()
       
-      const uniqueLocations = [...new Set(deviceLocations?.map(d => getCanonicalLocationName(d.location)).filter(Boolean) || [])].sort()
-      setAvailableLocations(uniqueLocations)
+      setAvailableLocations(allCanonicalLocations)
       
       // Filter locations based on user role
-      let locationsToQuery = uniqueLocations
+      let locationsToQuery = allCanonicalLocations
       if (user.role === "regional_it_head" && user.location) {
         locationsToQuery = [user.location]
       }
@@ -174,7 +184,7 @@ export function ITReportsDashboard() {
       })
       
       const reportResults = await Promise.all(reportDataPromises)
-      setReportData(reportResults.filter(r => r.totalTickets > 0 || r.deviceCount > 0 || r.staffCount > 0))
+      setReportData(reportResults.sort((a, b) => a.location.localeCompare(b.location)))
       
       // Build time series data (weekly aggregation)
       const weeks: TimeSeriesData[] = []
