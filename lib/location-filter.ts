@@ -27,6 +27,9 @@ const LOCATION_CANONICAL_MAP: Record<string, string> = {
   tema_research: "Tema Research",
   takoradi_port: "Takoradi Port",
   takoradi: "Takoradi Port",
+  kaase_port: "Kaase Port",
+  kaase: "Kaase Port",
+  port: "Kaase Port",
   // Merge all Head Office variants → "Head Office"
   head_office: "Head Office",
   "head_office_accra": "Head Office",
@@ -60,6 +63,7 @@ const LOCATION_ALIAS_GROUPS: Record<string, string[]> = {
   "Ho": ["VR", "Ho", "Volta", "vr", "ho", "volta"],
   "Sunyani": ["BAR", "Sunyani", "Brong Ahafo", "bar", "sunyani", "brong_ahafo"],
   "Takoradi Port": ["Takoradi Port", "Takoradi", "takoradi_port", "takoradi"],
+  "Kaase Port": ["Kaase Port", "kaase port", "kaase-port", "Kaase", "kaase_port", "kaase"],
   "Head Office": ["Head Office", "head_office", "HeadOffice", "Head Office Accra", "Accra", "accra"],
 }
 

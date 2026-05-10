@@ -1,17 +1,12 @@
 import { type NextRequest, NextResponse } from "next/server"
 import { createServerClient } from "@/lib/supabase/server"
-import { getCanonicalLocationName, normalizeLocation } from "@/lib/location-filter"
+import { getCanonicalLocationName, getLocationAliases } from "@/lib/location-filter"
 
 /**
  * Returns all raw DB variants that map to the same canonical location name.
- * e.g. "Western North" → ["wn", "western_north", "Western North"]
  */
 function getLocationVariants(canonicalName: string): string[] {
-  const VARIANT_MAP: Record<string, string[]> = {
-    "Western North": ["wn", "western_north", "Western North"],
-    "Western South": ["ws", "western_south", "Western South"],
-  }
-  return VARIANT_MAP[canonicalName] || [canonicalName]
+  return getLocationAliases(canonicalName)
 }
 
 export async function GET(request: NextRequest) {
@@ -28,9 +23,9 @@ export async function GET(request: NextRequest) {
       return NextResponse.json({ error: "Username is required" }, { status: 401 })
     }
 
-    // Resolve to canonical name, then get all known variants
+    // Resolve to canonical name, then get all known aliases for the same location
     const canonical = getCanonicalLocationName(location)
-    const variants = getLocationVariants(canonical)
+    const variants = Array.from(new Set(getLocationVariants(canonical)))
     console.log("[v0] Fetching devices for location:", location, "→ canonical:", canonical, "→ variants:", variants)
 
     const supabase = await createServerClient()
@@ -55,7 +50,7 @@ export async function GET(request: NextRequest) {
       return NextResponse.json({ error: "Failed to fetch devices" }, { status: 500 })
     }
 
-    console.log("[v0] Found", devices?.length || 0, "devices for location:", normalizedLocation)
+    console.log("[v0] Found", devices?.length || 0, "devices for location:", location)
     return NextResponse.json(devices || [])
   } catch (error) {
     console.error("[v0] Error in by-location route:", error)
