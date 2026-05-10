@@ -377,7 +377,7 @@ export function DeviceInventory() {
     // Use canonical location names for comparison
     const matchesLocation =
       locationFilter === "all" ||
-      normalizeLocation(device.location) === normalizeLocation(locationFilter)
+      getCanonicalLocationName(device.location) === getCanonicalLocationName(locationFilter)
 
     return matchesSearch && matchesStatus && matchesLocation
   })

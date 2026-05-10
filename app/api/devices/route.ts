@@ -1,5 +1,6 @@
 import { type NextRequest, NextResponse } from "next/server"
 import { createClient } from "@supabase/supabase-js"
+import { getCanonicalLocationName, getLocationAliases } from "@/lib/location-filter"
 
 // Use service role key to bypass RLS
 const supabase = createClient(
@@ -8,27 +9,16 @@ const supabase = createClient(
 )
 
 function getLocationFilterClauses(location: string) {
-  const normalized = location.toLowerCase().replace(/[_-]+/g, " ").trim()
-  const aliasMap: Record<string, string[]> = {
-    cr: ["Swedru/CR", "CR", "Cape Coast", "Central Region"],
-    "cape coast": ["Swedru/CR", "Cape Coast", "CR", "Central Region"],
-    "swedru/cr": ["Swedru/CR", "Swedru CR", "CR", "Cape Coast", "Central Region"],
-    "swedru cr": ["Swedru/CR", "Swedru CR", "CR", "Cape Coast", "Central Region"],
-    vr: ["VR", "Ho", "Volta"],
-    ho: ["Ho", "VR", "Volta"],
-    bar: ["BAR", "Sunyani", "Brong Ahafo"],
-    sunyani: ["Sunyani", "BAR", "Brong Ahafo"],
-    wn: ["WN", "Western North"],
-    ws: ["WS", "Western South"],
-    "head office": ["Head Office", "Head Office Accra"],
-  }
+  const canonicalName = getCanonicalLocationName(location)
+  const aliases = new Set<string>([location, canonicalName, ...getLocationAliases(location), ...getLocationAliases(canonicalName)])
 
-  const aliases = Array.from(new Set([location, normalized, ...(aliasMap[normalized] || [])]))
-
-  return aliases.map((term) => {
-    const safeTerm = term.replace(/,/g, " ").trim()
-    return safeTerm.length <= 3 ? `location.ilike.${safeTerm}` : `location.ilike.%${safeTerm}%`
-  })
+  return Array.from(aliases)
+    .map((term) => term.replace(/[_-]+/g, " ").trim())
+    .filter((term) => term.length > 0)
+    .map((term) => {
+      const safeTerm = term.replace(/,/g, " ").trim()
+      return safeTerm.length <= 3 ? `location.ilike.${safeTerm}` : `location.ilike.%${safeTerm}%`
+    })
 }
 
 export async function GET(request: NextRequest) {
