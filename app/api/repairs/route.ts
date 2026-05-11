@@ -21,6 +21,13 @@ const createEmailTransporter = () => {
   })
 }
 
+const isUuidLike = (value: unknown): value is string => {
+  return (
+    typeof value === "string" &&
+    /^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$/.test(value.trim())
+  )
+}
+
 // Send email to service provider
 async function sendServiceProviderEmail(
   providerEmail: string,
@@ -161,9 +168,44 @@ export async function GET(request: NextRequest) {
       return NextResponse.json({ error: error.message }, { status: 500 })
     }
 
-    console.log("[v0] Loaded repair requests:", data?.length || 0)
+    const repairsData = Array.isArray(data) ? data : []
+    const requestedByIds = Array.from(
+      new Set(
+        repairsData
+          .map((repair: any) => String(repair.requested_by || "").trim())
+          .filter((value) => isUuidLike(value)),
+      ),
+    )
 
-    return NextResponse.json({ repairs: data || [] })
+    let requesterNameById = new Map<string, string>()
+    if (requestedByIds.length > 0) {
+      const { data: requesterProfiles, error: requesterError } = await supabaseAdmin
+        .from("profiles")
+        .select("id, full_name")
+        .in("id", requestedByIds)
+
+      if (requesterError) {
+        console.warn("[v0] Failed to load requester profiles:", requesterError)
+      }
+
+      if (Array.isArray(requesterProfiles)) {
+        requesterNameById = new Map(
+          requesterProfiles.map((profile: any) => [profile.id, profile.full_name || profile.id]),
+        )
+      }
+    }
+
+    const transformedRepairs = repairsData.map((repair: any) => ({
+      ...repair,
+      requested_by_name:
+        repair.requested_by_name ||
+        requesterNameById.get(String(repair.requested_by || "").trim()) ||
+        String(repair.requested_by || "IT Department"),
+    }))
+
+    console.log("[v0] Loaded repair requests:", transformedRepairs.length)
+
+    return NextResponse.json({ repairs: transformedRepairs })
   } catch (error) {
     console.error("[v0] API Repair Requests error:", error)
     return NextResponse.json({ error: "Internal server error" }, { status: 500 })
