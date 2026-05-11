@@ -7,7 +7,9 @@ import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
+import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
+import { downloadCSV, exportToPDF } from "@/lib/export-utils"
 import {
   BarChart,
   Bar,
@@ -127,6 +129,9 @@ export function ITHeadRepairReports() {
   const [providerStats, setProviderStats] = useState<ServiceProviderStats[]>([])
   const [loading, setLoading] = useState(false)
   const [reports, setReports] = useState<any[]>([]) // Declare the reports variable
+  const [activeReportTab, setActiveReportTab] = useState<
+    "overview" | "trends" | "providers" | "devices" | "issues" | "summary"
+  >("overview")
 
   useEffect(() => {
     generateReports()
@@ -247,6 +252,74 @@ export function ITHeadRepairReports() {
     } finally {
       setLoading(false)
     }
+  }
+
+  const formatDateValue = (value?: string) => {
+    if (!value) return "-"
+    try {
+      return new Date(value).toLocaleDateString()
+    } catch {
+      return value
+    }
+  }
+
+  const summaryHeaders = [
+    "Task Number",
+    "Device",
+    "Problem / Diagnosis",
+    "Report Date",
+    "Status",
+    "Work Done / Notes",
+  ]
+
+  const summaryRows = reports.map((repair) => {
+    const deviceName =
+      repair.device_name ||
+      repair.device?.device_name ||
+      repair.device?.assetTag ||
+      repair.device?.serialNumber ||
+      repair.device?.type ||
+      repair.device?.brand ||
+      "Unknown"
+
+    const issue = repair.issue_description || repair.description || "-"
+    const notes = repair.repair_notes || repair.notes || repair.service_provider_notes || "-"
+
+    return [
+      repair.task_number || repair.taskNumber || repair.id || "-",
+      deviceName,
+      issue,
+      formatDateValue(repair.created_at || repair.createdAt),
+      repair.status || "-",
+      notes,
+    ]
+  })
+
+  const exportSummaryPDF = async () => {
+    if (reports.length === 0) return
+    setLoading(true)
+    try {
+      await exportToPDF({
+        title: "Repair Summary Report",
+        fileName: "repair-summary-report",
+        headers: summaryHeaders,
+        rows: summaryRows,
+      })
+    } catch (error) {
+      console.error("Failed to export repair summary PDF:", error)
+    } finally {
+      setLoading(false)
+    }
+  }
+
+  const exportSummaryExcel = () => {
+    if (reports.length === 0) return
+    downloadCSV({
+      title: "Repair Summary Report",
+      fileName: "repair-summary-report",
+      headers: summaryHeaders,
+      rows: summaryRows,
+    })
   }
 
   return (
@@ -463,9 +536,10 @@ export function ITHeadRepairReports() {
       </div>
 
       {/* Main Analytics */}
-      <Tabs defaultValue="overview" className="space-y-6">
-        <TabsList className="grid w-full grid-cols-5">
+      <Tabs value={activeReportTab} onValueChange={setActiveReportTab} className="space-y-6">
+        <TabsList className="grid w-full grid-cols-6">
           <TabsTrigger value="overview">Overview</TabsTrigger>
+          <TabsTrigger value="summary">Summary</TabsTrigger>
           <TabsTrigger value="trends">Trends</TabsTrigger>
           <TabsTrigger value="providers">Service Providers</TabsTrigger>
           <TabsTrigger value="devices">Device Analysis</TabsTrigger>
@@ -542,6 +616,76 @@ export function ITHeadRepairReports() {
                   <Bar yAxisId="cost" dataKey="totalCost" fill="#10b981" name="Total Cost (GHS)" />
                 </BarChart>
               </ResponsiveContainer>
+            </CardContent>
+          </Card>
+        </TabsContent>
+
+        <TabsContent value="summary" className="space-y-6">
+          <Card>
+            <CardHeader className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+              <div>
+                <CardTitle>Repair Summary</CardTitle>
+                <CardDescription>Full task list with device, issue, report date, status, and repair notes.</CardDescription>
+              </div>
+              <div className="flex flex-wrap gap-2">
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={exportSummaryExcel}
+                  disabled={reports.length === 0}
+                >
+                  <Download className="h-4 w-4 mr-2" />
+                  Export Excel
+                </Button>
+                <Button
+                  size="sm"
+                  onClick={exportSummaryPDF}
+                  disabled={reports.length === 0 || loading}
+                >
+                  <Download className="h-4 w-4 mr-2" />
+                  Export PDF
+                </Button>
+              </div>
+            </CardHeader>
+            <CardContent>
+              {reports.length === 0 ? (
+                <p className="text-sm text-muted-foreground">No repair summary rows available for the selected filters.</p>
+              ) : (
+                <div className="overflow-x-auto">
+                  <Table className="min-w-full border border-slate-200">
+                    <TableHeader>
+                      <TableRow>
+                        <TableHead>Task</TableHead>
+                        <TableHead>Device</TableHead>
+                        <TableHead>Problem</TableHead>
+                        <TableHead>Reported</TableHead>
+                        <TableHead>Status</TableHead>
+                        <TableHead>Work Done / Notes</TableHead>
+                      </TableRow>
+                    </TableHeader>
+                    <TableBody>
+                      {reports.map((repair, index) => (
+                        <TableRow key={repair.id || repair.task_number || index}>
+                          <TableCell className="font-medium">
+                            {repair.task_number || repair.taskNumber || repair.id || "-"}
+                          </TableCell>
+                          <TableCell>
+                            {repair.device_name || repair.device?.device_name || repair.device?.assetTag || repair.device?.serialNumber || repair.device?.type || "-"}
+                          </TableCell>
+                          <TableCell className="max-w-xs truncate text-sm">
+                            {repair.issue_description || repair.description || "-"}
+                          </TableCell>
+                          <TableCell>{formatDateValue(repair.created_at || repair.createdAt)}</TableCell>
+                          <TableCell>{repair.status || "-"}</TableCell>
+                          <TableCell className="max-w-xs truncate text-sm">
+                            {repair.repair_notes || repair.notes || repair.service_provider_notes || "-"}
+                          </TableCell>
+                        </TableRow>
+                      ))}
+                    </TableBody>
+                  </Table>
+                </div>
+              )}
             </CardContent>
           </Card>
         </TabsContent>
