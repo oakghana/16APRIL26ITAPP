@@ -1,7 +1,30 @@
 # Document Upload Permissions - IT Documents & Reports
 
 ## Overview
-This update enables non-Head Office IT Staff to upload documents and files in the IT Documents & Reports page while restricting Head Office IT Staff uploads to maintain proper access control.
+This document outlines the permissions for viewing, downloading, and uploading documents in the IT Documents & Reports page.
+
+## Who Can View and Download ALL Documents
+
+### All IT Staff Roles Can View and Download ALL Documents:
+- **Admin** - Full access to all documents
+- **IT Head** - Full access to all documents
+- **Regional IT Head** - Full access to all documents
+- **IT Staff** - Full access to all documents
+- **IT Store Head** - Full access to all documents
+- **Service Desk Head** - Full access to all documents
+- **Service Desk Staff (All Locations)** - Full access to all documents
+  - service_desk_accra
+  - service_desk_kumasi
+  - service_desk_takoradi
+  - service_desk_tema
+  - service_desk_sunyani
+  - service_desk_cape_coast
+
+All IT staff can:
+- View all documents from all locations
+- Download all documents
+- Filter documents by location
+- Confirm document receipt
 
 ## Who Can Upload
 

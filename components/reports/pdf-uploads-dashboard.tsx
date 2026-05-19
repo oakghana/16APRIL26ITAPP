@@ -133,6 +133,22 @@ export function PDFUploadsDashboard() {
     targetLocation: "all",
   })
 
+  // All IT staff roles can see all documents and download them
+  const itStaffRoles = [
+    "admin",
+    "it_head",
+    "regional_it_head",
+    "it_staff",
+    "it_store_head",
+    "service_desk_head",
+    "service_desk_accra",
+    "service_desk_kumasi",
+    "service_desk_takoradi",
+    "service_desk_tema",
+    "service_desk_sunyani",
+    "service_desk_cape_coast",
+  ]
+  const isITStaff = user && itStaffRoles.includes(user.role)
   const canUpload = user && (
     ["admin", "it_head", "regional_it_head"].includes(user.role) ||
     (user.role === "it_staff" && user.location && locationsMatch(user.location, "Head Office"))
@@ -140,19 +156,20 @@ export function PDFUploadsDashboard() {
   const canEdit = user && ["admin", "it_head"].includes(user.role)
   const canDelete = user && ["admin", "it_head"].includes(user.role)
   const canConfirmUploads = user && user.role === "admin"
-  const isLocationRestrictedUser = !!user && !["admin", "it_head"].includes(user.role)
+  const isLocationRestrictedUser = !!user && !isITStaff
 
   useEffect(() => {
     if (!user) return
 
-    if (["admin", "it_head"].includes(user.role)) {
+    // All IT staff can view all locations
+    if (isITStaff) {
       setSelectedLocation("all")
       setUploadForm((current) => ({ ...current, targetLocation: current.targetLocation || "all" }))
     } else if (user.location) {
       setSelectedLocation(user.location)
       setUploadForm((current) => ({ ...current, targetLocation: user.location }))
     }
-  }, [user])
+  }, [user, isITStaff])
 
   useEffect(() => {
     fetchUploads()
@@ -177,13 +194,14 @@ export function PDFUploadsDashboard() {
         params.append("userLocation", user.location)
       }
       
-      // Apply location access rules
-      if (user && !["admin", "it_head"].includes(user.role)) {
-        if (user.location) {
-          params.append("location", user.location)
+      // All IT staff can view all documents - apply location filter only if explicitly selected
+      if (isITStaff) {
+        if (selectedLocation !== "all") {
+          params.append("location", selectedLocation)
         }
-      } else if (selectedLocation !== "all") {
-        params.append("location", selectedLocation)
+      } else if (user && user.location) {
+        // Non-IT staff are restricted to their own location
+        params.append("location", user.location)
       }
 
       console.log("[v0] Fetching documents with params:", params.toString(), "user role:", user?.role, "location:", user?.location)
@@ -423,7 +441,7 @@ export function PDFUploadsDashboard() {
 
     if (!matchesSelectedLocation) return false
 
-    const canSeeAllDocuments = ["admin", "it_head"].includes(user?.role || "")
+    const canSeeAllDocuments = isITStaff
     if (canSeeAllDocuments) {
       return true
     }
@@ -490,7 +508,7 @@ export function PDFUploadsDashboard() {
             IT Documents & Reports
           </h1>
           <p className="text-gray-600 dark:text-gray-400">
-            {["admin", "it_head"].includes(user?.role || "")
+            {isITStaff
               ? "View and manage uploaded IT documents across all locations"
               : `View documents available for ${getCanonicalLocationName(user?.location || "your location")}`}
           </p>
@@ -712,7 +730,7 @@ export function PDFUploadsDashboard() {
                 <SelectItem value="information">Information</SelectItem>
               </SelectContent>
             </Select>
-            {["admin", "it_head"].includes(user?.role || "") && (
+            {isITStaff && (
               <Select value={selectedLocation} onValueChange={setSelectedLocation}>
                 <SelectTrigger className="w-48">
                   <SelectValue placeholder="Location" />
@@ -727,7 +745,7 @@ export function PDFUploadsDashboard() {
                 </SelectContent>
               </Select>
             )}
-            {!["admin", "it_head"].includes(user?.role || "") && (
+            {!isITStaff && (
               <div className="px-3 py-2 text-sm font-medium text-blue-600 dark:text-blue-400 bg-blue-50 dark:bg-blue-950/30 rounded border border-blue-200 dark:border-blue-800">
                 {`You can view documents for ${getCanonicalLocationName(user?.location || "your location")} only.`}
               </div>

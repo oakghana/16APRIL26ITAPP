@@ -49,7 +49,22 @@ export async function GET(request: Request) {
       return NextResponse.json({ error: error.message }, { status: 500 })
     }
 
-    const canSeeAllDocuments = userRole === "admin" || userRole === "it_head"
+    // All IT staff roles can see all documents
+    const itStaffRoles = [
+      "admin",
+      "it_head",
+      "regional_it_head",
+      "it_staff",
+      "it_store_head",
+      "service_desk_head",
+      "service_desk_accra",
+      "service_desk_kumasi",
+      "service_desk_takoradi",
+      "service_desk_tema",
+      "service_desk_sunyani",
+      "service_desk_cape_coast",
+    ]
+    const canSeeAllDocuments = itStaffRoles.includes(userRole || "")
 
     const filteredUploads = (data || []).filter((upload: any) => {
       const matchesRequestedLocation =
