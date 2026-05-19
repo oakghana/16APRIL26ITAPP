@@ -149,10 +149,7 @@ export function PDFUploadsDashboard() {
     "service_desk_cape_coast",
   ]
   const isITStaff = user && itStaffRoles.includes(user.role)
-  const canUpload = user && (
-    ["admin", "it_head", "regional_it_head"].includes(user.role) ||
-    (user.role === "it_staff" && user.location && locationsMatch(user.location, "Head Office"))
-  )
+  const canUpload = user && isITStaff
   const canEdit = user && ["admin", "it_head"].includes(user.role)
   const canDelete = user && ["admin", "it_head"].includes(user.role)
   const canConfirmUploads = user && user.role === "admin"
@@ -645,11 +642,6 @@ export function PDFUploadsDashboard() {
             </DialogContent>
             </Dialog>
           )}
-        {!canUpload && user?.role === "it_staff" && (
-          <div className="bg-blue-50 border border-blue-200 rounded-lg p-3 text-sm text-blue-800">
-            <p>You don't have permission to upload documents in this location.</p>
-          </div>
-        )}
       </div>
 
       {/* Stats Cards */}

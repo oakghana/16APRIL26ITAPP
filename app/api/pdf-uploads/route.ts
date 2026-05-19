@@ -135,23 +135,29 @@ export async function POST(request: Request) {
       )
     }
 
-    // Validate upload permissions
-    const isAdmin = userRole === "admin"
-    const isITHead = userRole === "it_head"
-    const isRegionalITHead = userRole === "regional_it_head"
-    const isAllowedITStaffUploader =
-      userRole === "it_staff" &&
-      userLocation &&
-      locationsMatch(userLocation, "Head Office")
-
-    const canUploadDocument = isAdmin || isITHead || isRegionalITHead || isAllowedITStaffUploader
+    // Validate upload permissions - All IT staff can upload
+    const itStaffRoles = [
+      "admin",
+      "it_head",
+      "regional_it_head",
+      "it_staff",
+      "it_store_head",
+      "service_desk_head",
+      "service_desk_accra",
+      "service_desk_kumasi",
+      "service_desk_takoradi",
+      "service_desk_tema",
+      "service_desk_sunyani",
+      "service_desk_cape_coast",
+    ]
+    const canUploadDocument = itStaffRoles.includes(userRole || "")
 
     if (!canUploadDocument) {
       console.warn(
         `[v0] Upload rejected - insufficient permissions. Role: ${userRole}, Location: ${userLocation}`
       )
       return NextResponse.json(
-        { error: "You do not have permission to upload documents. Only Admin, IT Head, Regional IT Head, and IT Staff at Head Office or Accra can upload." },
+        { error: "You do not have permission to upload documents. Only IT staff can upload." },
         { status: 403 }
       )
     }

@@ -28,16 +28,22 @@ All IT staff can:
 
 ## Who Can Upload
 
-### ✅ Can Upload Documents:
-- **Admin** - Full access to upload documents
-- **IT Head** - Full access to upload documents
-- **Regional IT Head** - Can upload documents for their region
-- **IT Staff (Non-Head Office)** - Can upload documents if located at any branch/location except "Head Office"
+### All IT Staff Roles Can Upload Documents:
+- **Admin** - Full upload access
+- **IT Head** - Full upload access
+- **Regional IT Head** - Full upload access
+- **IT Staff** - Full upload access (all locations)
+- **IT Store Head** - Full upload access
+- **Service Desk Head** - Full upload access
+- **Service Desk Staff (All Locations)** - Full upload access
+  - service_desk_accra
+  - service_desk_kumasi
+  - service_desk_takoradi
+  - service_desk_tema
+  - service_desk_sunyani
+  - service_desk_cape_coast
 
-### ❌ Cannot Upload Documents:
-- **IT Staff at Head Office** - Restricted from uploading (contact IT Head)
-- **Service Desk Staff** - No upload permissions
-- **Other users** - No upload permissions
+All IT staff can upload documents with any attachment type they need to share across the organization.
 
 ## Technical Implementation
 
@@ -57,26 +63,37 @@ All IT staff can:
 ## Permission Logic
 
 ```javascript
-// Frontend Permission Check
-canUpload = 
-  - isAdmin OR
-  - isITHead OR 
-  - isRegionalITHead OR
-  - (isITStaff AND userLocation does NOT contain "head")
+// Upload Permission Check - All IT staff can upload
+const itStaffRoles = [
+  "admin",
+  "it_head",
+  "regional_it_head",
+  "it_staff",
+  "it_store_head",
+  "service_desk_head",
+  "service_desk_accra",
+  "service_desk_kumasi",
+  "service_desk_takoradi",
+  "service_desk_tema",
+  "service_desk_sunyani",
+  "service_desk_cape_coast",
+]
+
+canUpload = itStaffRoles.includes(userRole)
 ```
 
 ## User Experience
 
-### For Non-Head Office IT Staff:
+### For All IT Staff:
 1. Upload button is **visible and enabled**
 2. Can select document type (Toner Report, Quarterly Report, Information)
 3. Can set target location for the document
-4. Upload processed immediately upon confirmation
+4. Upload any file attachment needed
+5. Upload processed immediately upon confirmation
 
-### For Head Office IT Staff:
+### For Non-IT Staff:
 1. Upload button is **hidden**
-2. Informational message displayed: "To upload documents, please contact your IT Head or Regional IT Head."
-3. Can still view and manage all documents
+2. Can still view documents available to their location
 
 ## Document Types
 - **Toner Report** - Toner inventory and usage reports
@@ -92,24 +109,28 @@ All uploads are logged with:
 
 ## Testing Upload Permissions
 
-### Test Case 1: Non-Head Office IT Staff
-- Login as IT Staff from "Kumasi Branch"
+### Test Case 1: IT Staff from Any Location
+- Login as IT Staff from any location (Kumasi, Accra, etc.)
 - Navigate to IT Documents & Reports
 - ✅ Upload button should be visible
 - Upload a test document
 - ✅ Document upload should succeed
 
-### Test Case 2: Head Office IT Staff
-- Login as IT Staff from "Head Office"
+### Test Case 2: Service Desk Staff
+- Login as Service Desk Staff
 - Navigate to IT Documents & Reports
-- ❌ Upload button should be hidden
-- Message should display about contacting IT Head
-- ✅ Can still view all documents
+- ✅ Upload button should be visible
+- Upload a test document
+- ✅ Document upload should succeed
 
 ### Test Case 3: Admin User
 - Login as Admin
 - ✅ Upload button should be visible
 - Can upload documents as before
+
+### Test Case 4: Non-IT User
+- Login as non-IT user
+- ❌ Upload button should be hidden
 
 ## API Endpoints
 
