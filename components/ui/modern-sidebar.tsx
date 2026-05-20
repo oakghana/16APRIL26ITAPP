@@ -178,6 +178,14 @@ export function ModernSidebar({ isOpen, setIsOpen, className, onCollapseChange }
         ],
         groups: [
           {
+            name: "Documents & Reports",
+            icon: FileText,
+            items: [
+              { name: "IT Documents", href: "/dashboard/it-documents", icon: FileText },
+              { name: "Reports & Analysis", href: "/dashboard/it-reports", icon: BarChart3 },
+            ],
+          },
+          {
             name: "Operations",
             icon: Building2,
             badge: counts.itStaffStatus > 0 ? counts.itStaffStatus : undefined,
@@ -188,8 +196,6 @@ export function ModernSidebar({ isOpen, setIsOpen, className, onCollapseChange }
                 icon: Users,
                 badge: counts.itStaffStatus > 0 ? counts.itStaffStatus : undefined,
               },
-              { name: "Reports & Analysis", href: "/dashboard/it-reports", icon: BarChart3 },
-              { name: "IT Documents", href: "/dashboard/it-documents", icon: FileText },
             ],
           },
           {
@@ -218,7 +224,7 @@ export function ModernSidebar({ isOpen, setIsOpen, className, onCollapseChange }
             ],
           },
           {
-            name: "Store",
+            name: "Store & Inventory",
             icon: Store,
             badge: counts.storeRequisitions > 0 ? counts.storeRequisitions : undefined,
             items: [
@@ -234,10 +240,10 @@ export function ModernSidebar({ isOpen, setIsOpen, className, onCollapseChange }
             ],
           },
           {
-            name: "IT Forms",
-            icon: FileText,
+            name: "IT Forms Hub",
+            icon: ClipboardList,
             items: [
-              { name: "IT Forms Hub", href: "/dashboard/it-forms/approvals", icon: ClipboardList },
+              { name: "Form Approvals", href: "/dashboard/it-forms/approvals", icon: FileText },
             ],
           },
           {
@@ -272,38 +278,46 @@ export function ModernSidebar({ isOpen, setIsOpen, className, onCollapseChange }
             icon: Wrench,
             badge: counts.repairs > 0 ? counts.repairs : undefined,
           },
-          { name: "Store Stock Levels", href: "/dashboard/store-snapshot", icon: Package },
-          {
-            name: "Stock Balance Report",
-            href: "/dashboard/store-summary-report",
-            icon: FileText,
-          },
-          {
-            name: "Stock Analytics",
-            href: "/dashboard/store-analytics",
-            icon: BarChart3,
-          },
-          {
-            name: "My Requests",
-            href: "/dashboard/my-requests",
-            icon: FileText,
-          },
-          {
-            name: "Staff Performance Report",
-            href: "/dashboard/staff-performance-report",
-            icon: Target,
-          },
           { name: "IT Documents", href: "/dashboard/it-documents", icon: FileText },
-          { name: "My Complaints", href: "/dashboard/complaints", icon: MessageSquare },
-          { name: "HOD Staff Linking", href: "/dashboard/admin/department-heads", icon: Users },
         ],
         groups: [
+          {
+            name: "Reports & Analytics",
+            icon: BarChart3,
+            items: [
+              { name: "Store Stock Levels", href: "/dashboard/store-snapshot", icon: Package },
+              {
+                name: "Stock Balance Report",
+                href: "/dashboard/store-summary-report",
+                icon: FileText,
+              },
+              {
+                name: "Stock Analytics",
+                href: "/dashboard/store-analytics",
+                icon: BarChart3,
+              },
+              {
+                name: "Staff Performance Report",
+                href: "/dashboard/staff-performance-report",
+                icon: Target,
+              },
+            ],
+          },
           {
             name: "IT Forms",
             icon: FileText,
             badge: counts.itFormsQueue > 0 ? counts.itFormsQueue : undefined,
             items: [
               { name: "Approvals", href: "/dashboard/it-forms/approvals", icon: ClipboardList },
+            ],
+          },
+          {
+            name: "My Activities",
+            icon: Users,
+            items: [
+              { name: "My Requests", href: "/dashboard/my-requests", icon: FileText },
+              { name: "My Complaints", href: "/dashboard/complaints", icon: MessageSquare },
+              { name: "HOD Staff Linking", href: "/dashboard/admin/department-heads", icon: Users },
             ],
           },
         ],
@@ -479,16 +493,17 @@ export function ModernSidebar({ isOpen, setIsOpen, className, onCollapseChange }
     if (user?.role === "regional_it_head") {
       return {
         items: [
-          {
-            name: "My Requests",
-            href: "/dashboard/my-requests",
-            icon: FileText,
-          },
+          { name: "IT Documents", href: "/dashboard/it-documents", icon: FileText },
           {
             name: "IT Work Queue",
             href: "/dashboard/it-forms/approvals",
             icon: BellRing,
             badge: counts.itFormsQueue > 0 ? counts.itFormsQueue : undefined,
+          },
+          {
+            name: "My Requests",
+            href: "/dashboard/my-requests",
+            icon: FileText,
           },
         ],
         groups: [
@@ -514,7 +529,6 @@ export function ModernSidebar({ isOpen, setIsOpen, className, onCollapseChange }
               { name: "Staff Performance Report", href: "/dashboard/staff-performance-report", icon: Target },
               { name: "Weekly Internet Report", href: "/dashboard/weekly-internet-report", icon: Wifi },
               { name: "Reports & Analysis", href: "/dashboard/it-reports", icon: BarChart3 },
-              { name: "IT Documents", href: "/dashboard/it-documents", icon: FileText },
               { name: "HOD Staff Linking", href: "/dashboard/admin/department-heads", icon: Users },
             ],
           },

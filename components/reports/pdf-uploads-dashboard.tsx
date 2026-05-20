@@ -151,7 +151,7 @@ export function PDFUploadsDashboard() {
   const isITStaff = user && itStaffRoles.includes(user.role)
   const canUpload = user && (
     ["admin", "it_head", "regional_it_head"].includes(user.role) ||
-    (user.role === "it_staff" && user.location && locationsMatch(user.location, "Head Office"))
+    user.role === "it_staff"  // Allow all IT staff to upload from any location
   )
   const canEdit = user && ["admin", "it_head"].includes(user.role)
   const canDelete = user && ["admin", "it_head"].includes(user.role)
@@ -249,7 +249,9 @@ export function PDFUploadsDashboard() {
       const data = await response.json()
 
       if (data.success) {
-        toast.success("Document uploaded successfully")
+        toast.success("✓ Document uploaded successfully! It&apos;s now visible to all IT staff.", {
+          description: `"${uploadForm.title}" is ready for download.`,
+        })
         setShowUploadDialog(false)
         setUploadForm({
           title: "",
@@ -258,13 +260,16 @@ export function PDFUploadsDashboard() {
           targetLocation: isLocationRestrictedUser ? user?.location || "all" : "all",
           file: null,
         })
+        if (fileInputRef.current) {
+          fileInputRef.current.value = ""
+        }
         fetchUploads()
       } else {
         toast.error(data.error || "Failed to upload document")
       }
     } catch (error) {
       console.error("Error uploading:", error)
-      toast.error("Failed to upload document")
+      toast.error("Failed to upload document. Please try again.")
     } finally {
       setUploading(false)
     }
@@ -443,6 +448,8 @@ export function PDFUploadsDashboard() {
 
     const canSeeAllDocuments = isITStaff
     if (canSeeAllDocuments) {
+      // IT staff always see all documents
+      console.log("[v0] IT staff viewing document:", upload.id, upload.title)
       return true
     }
 
@@ -456,10 +463,18 @@ export function PDFUploadsDashboard() {
     const isOwnUpload = upload.uploaded_by === user?.id
     const isLocationSpecificDocument = Boolean(upload.target_location)
 
-    if (isLocationSpecificDocument) {
+    // Always show own uploads immediately
+    if (isOwnUpload) {
+      console.log("[v0] Showing own upload:", upload.id)
       return true
     }
 
+    if (isLocationSpecificDocument) {
+      console.log("[v0] Location-specific document visible:", upload.id)
+      return true
+    }
+
+    console.log("[v0] Filter decision for", upload.id, "- Published:", isPublished, "- Own:", isOwnUpload, "- Show:", isPublished || isOwnUpload)
     return isPublished || isOwnUpload
   })
 

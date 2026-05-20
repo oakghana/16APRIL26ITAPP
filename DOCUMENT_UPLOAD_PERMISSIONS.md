@@ -29,13 +29,12 @@ All IT staff can:
 ## Who Can Upload
 
 ### ✅ Can Upload Documents:
-- **Admin** - Full access to upload documents
-- **IT Head** - Full access to upload documents
-- **Regional IT Head** - Can upload documents for their region
-- **IT Staff (Non-Head Office)** - Can upload documents if located at any branch/location except "Head Office"
+- **Admin** - Full access to upload documents from any location
+- **IT Head** - Full access to upload documents from any location
+- **Regional IT Head** - Can upload documents from their region
+- **IT Staff (ALL Locations)** - Can upload documents from any location (Kumasi, Accra, Takoradi, Tema, Sunyani, Cape Coast, etc.)
 
 ### ❌ Cannot Upload Documents:
-- **IT Staff at Head Office** - Restricted from uploading (contact IT Head)
 - **Service Desk Staff** - No upload permissions
 - **Other users** - No upload permissions
 
@@ -43,40 +42,44 @@ All IT staff can:
 
 ### Frontend Changes
 **File: `components/reports/pdf-uploads-dashboard.tsx`**
-- Updated `canUpload` permission logic to include IT Staff with location check
-- Added user role and location context to upload API calls
-- Added helpful message for IT Staff without upload permissions
+- Updated `canUpload` permission logic to allow ALL IT Staff to upload
+- Removed "Head Office only" restriction
+- Added enhanced upload success notifications with confirmation message
+- Clear user feedback when document is uploaded and ready
 
 ### Backend Changes
 **File: `app/api/pdf-uploads/route.ts`**
 - Added server-side permission validation in POST handler
-- Validates user role and location to prevent Head Office IT Staff from uploading
+- Validates user role to allow all IT Staff regardless of location
 - Returns 403 Forbidden if user lacks upload permissions
-- Logs warnings for unauthorized upload attempts
+- Logs upload attempts for audit trail
+- Improved error messages for non-authorized users
 
-## Permission Logic
+## Permission Logic (UPDATED)
 
 ```javascript
-// Frontend Permission Check
+// Frontend Permission Check - SIMPLIFIED
 canUpload = 
   - isAdmin OR
   - isITHead OR 
   - isRegionalITHead OR
-  - (isITStaff AND userLocation does NOT contain "head")
+  - isITStaff  // NOW: No location restriction!
 ```
 
 ## User Experience
 
-### For Non-Head Office IT Staff:
+### For ALL IT Staff (Regional or Head Office):
 1. Upload button is **visible and enabled**
 2. Can select document type (Toner Report, Quarterly Report, Information)
 3. Can set target location for the document
-4. Upload processed immediately upon confirmation
+4. Upload processed immediately with success confirmation
+5. Document is immediately visible in the dashboard
+6. Receive confirmation: "Document uploaded successfully! It's now visible to all IT staff."
 
-### For Head Office IT Staff:
+### For Service Desk Staff or Others:
 1. Upload button is **hidden**
-2. Informational message displayed: "To upload documents, please contact your IT Head or Regional IT Head."
-3. Can still view and manage all documents
+2. Can still view all documents relevant to their location
+3. Cannot upload or manage documents
 
 ## Document Types
 - **Toner Report** - Toner inventory and usage reports
@@ -92,24 +95,40 @@ All uploads are logged with:
 
 ## Testing Upload Permissions
 
-### Test Case 1: Non-Head Office IT Staff
+### Test Case 1: Kumasi Branch IT Staff
 - Login as IT Staff from "Kumasi Branch"
 - Navigate to IT Documents & Reports
-- ✅ Upload button should be visible
-- Upload a test document
-- ✅ Document upload should succeed
+- ✅ Upload button should be visible and enabled
+- ✅ Upload a test document successfully
+- ✅ Document should appear in list immediately
+- ✅ Other IT staff can see and download the document
 
-### Test Case 2: Head Office IT Staff
-- Login as IT Staff from "Head Office"
+### Test Case 2: Accra IT Staff
+- Login as IT Staff from "Accra"
 - Navigate to IT Documents & Reports
-- ❌ Upload button should be hidden
-- Message should display about contacting IT Head
-- ✅ Can still view all documents
+- ✅ Upload button should be visible and enabled
+- ✅ Upload a test document successfully
+- ✅ Document should appear in list immediately
+- ✅ Can see all documents from all locations
 
-### Test Case 3: Admin User
+### Test Case 3: Regional IT Head
+- Login as Regional IT Head
+- Navigate to IT Documents & Reports
+- ✅ Upload button should be visible and enabled
+- ✅ Upload documents for their region
+- ✅ Documents visible to all IT staff
+
+### Test Case 4: Admin User
 - Login as Admin
 - ✅ Upload button should be visible
-- Can upload documents as before
+- ✅ Can upload documents and set target locations
+- ✅ Can see and manage all documents
+
+### Test Case 5: Service Desk Staff
+- Login as Service Desk Staff
+- Navigate to IT Documents & Reports
+- ❌ Upload button should NOT be visible
+- ✅ Can still view documents relevant to their location
 
 ## API Endpoints
 
