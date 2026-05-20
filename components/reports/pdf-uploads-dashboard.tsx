@@ -828,7 +828,6 @@ export function PDFUploadsDashboard() {
                     <TableHead>Target Location</TableHead>
                     <TableHead>Date</TableHead>
                     <TableHead>Confirmations</TableHead>
-                    <TableHead>Status</TableHead>
                     <TableHead className="text-right">Actions</TableHead>
                   </TableRow>
                 </TableHeader>
@@ -894,19 +893,6 @@ export function PDFUploadsDashboard() {
                             <Users className="h-4 w-4" />
                             {upload.confirmations?.length || 0}
                           </Button>
-                        </TableCell>
-                        <TableCell>
-                          {upload.is_confirmed ? (
-                            <Badge className="bg-green-100 text-green-800 dark:bg-green-900 dark:text-green-200">
-                              <CheckCircle className="h-3 w-3 mr-1" />
-                              Published
-                            </Badge>
-                          ) : (
-                            <Badge variant="outline" className="text-yellow-600 border-yellow-300">
-                              <Clock className="h-3 w-3 mr-1" />
-                              Pending Admin Approval
-                            </Badge>
-                          )}
                         </TableCell>
                         <TableCell>
                           <div className="flex items-center justify-end gap-2">
