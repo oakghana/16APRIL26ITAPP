@@ -75,10 +75,13 @@ export async function GET(request: Request) {
 
       if (!matchesRequestedLocation) return false
 
+      // IT staff can see all documents
       if (canSeeAllDocuments) {
+        console.log("[v0] Document visible to IT staff:", upload.id, "title:", upload.title)
         return true
       }
 
+      // Non-IT staff can see documents for their location
       const matchesUserLocation =
         !upload.target_location ||
         (userLocation ? locationsMatch(upload.target_location, userLocation) : false)
@@ -89,12 +92,23 @@ export async function GET(request: Request) {
       const isOwnUpload = Boolean(userId && upload.uploaded_by === userId)
       const isLocationSpecificDocument = Boolean(upload.target_location)
 
-      if (isLocationSpecificDocument) {
+      // Always show own uploads
+      if (isOwnUpload) {
+        console.log("[v0] Showing own upload:", upload.id, "by user:", userId)
         return true
       }
 
-      return isPublished || isOwnUpload
+      if (isLocationSpecificDocument) {
+        console.log("[v0] Document is location-specific, showing to location user:", upload.id)
+        return true
+      }
+
+      const shouldShow = isPublished || isOwnUpload
+      console.log("[v0] Filtering document", upload.id, "- Published:", isPublished, "- OwnUpload:", isOwnUpload, "- Showing:", shouldShow)
+      return shouldShow
     })
+
+    console.log("[v0] Final filtered uploads count:", filteredUploads.length, "from total:", data?.length)
 
     return NextResponse.json({ success: true, uploads: filteredUploads })
   } catch (error) {
@@ -136,22 +150,24 @@ export async function POST(request: Request) {
     }
 
     // Validate upload permissions
+    // Admin: Can upload from anywhere
+    // IT Head: Can upload from anywhere
+    // Regional IT Head: Can upload from their region
+    // IT Staff: Can upload from any location (FIXED - removed Head Office restriction)
+    // Others: Cannot upload
     const isAdmin = userRole === "admin"
     const isITHead = userRole === "it_head"
     const isRegionalITHead = userRole === "regional_it_head"
-    const isAllowedITStaffUploader =
-      userRole === "it_staff" &&
-      userLocation &&
-      locationsMatch(userLocation, "Head Office")
+    const isITStaffUploader = userRole === "it_staff" // Allow all IT staff, not just Head Office
 
-    const canUploadDocument = isAdmin || isITHead || isRegionalITHead || isAllowedITStaffUploader
+    const canUploadDocument = isAdmin || isITHead || isRegionalITHead || isITStaffUploader
 
     if (!canUploadDocument) {
       console.warn(
         `[v0] Upload rejected - insufficient permissions. Role: ${userRole}, Location: ${userLocation}`
       )
       return NextResponse.json(
-        { error: "You do not have permission to upload documents. Only Admin, IT Head, Regional IT Head, and IT Staff at Head Office or Accra can upload." },
+        { error: "You do not have permission to upload documents. Only Admin, IT Head, Regional IT Head, and IT Staff can upload." },
         { status: 403 }
       )
     }
