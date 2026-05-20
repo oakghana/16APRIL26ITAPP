@@ -106,7 +106,7 @@ export function PDFUploadsDashboard() {
   const [selectedLocation, setSelectedLocation] = useState("all")
   const [selectedPeriod, setSelectedPeriod] = useState<"week" | "month" | "quarter" | "year">("month")
   const [currentPage, setCurrentPage] = useState(1)
-  const itemsPerPage = 5
+  const [itemsPerPage, setItemsPerPage] = useState(50)
   const [showUploadDialog, setShowUploadDialog] = useState(false)
   const [showConfirmDialog, setShowConfirmDialog] = useState(false)
   const [showConfirmationsDialog, setShowConfirmationsDialog] = useState(false)
@@ -787,7 +787,26 @@ export function PDFUploadsDashboard() {
                 <TabsTrigger value="year">Year</TabsTrigger>
               </TabsList>
             </Tabs>
-            <div className="text-sm text-gray-600">Showing <span className="font-medium">{periodFilteredUploads.length}</span> items • Page <span className="font-medium">{currentPage}</span> of {totalPages}</div>
+            <div className="flex items-center gap-3">
+              <div className="text-sm text-gray-600">
+                <label htmlFor="items-per-page" className="inline-block mr-2">Items per page:</label>
+                <Select value={itemsPerPage.toString()} onValueChange={(value) => {
+                  setItemsPerPage(parseInt(value))
+                  setCurrentPage(1)
+                }}>
+                  <SelectTrigger id="items-per-page" className="w-20">
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="50">50</SelectItem>
+                    <SelectItem value="100">100</SelectItem>
+                    <SelectItem value="200">200</SelectItem>
+                    <SelectItem value="500">500</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
+              <div className="text-sm text-gray-600">Showing <span className="font-medium">{periodFilteredUploads.length}</span> items • Page <span className="font-medium">{currentPage}</span> of {totalPages}</div>
+            </div>
           </div>
           {loading ? (
             <div className="flex items-center justify-center py-8">
@@ -922,42 +941,13 @@ export function PDFUploadsDashboard() {
                             >
                               <Download className="h-4 w-4" />
                             </Button>
-                            {!confirmed && (
-                              <Button
-                                variant="outline"
-                                size="sm"
-                                className="gap-1 bg-transparent"
-                                onClick={() => {
-                                  setSelectedUpload(upload)
-                                  setShowConfirmDialog(true)
-                                }}
-                              >
-                                <FileCheck className="h-4 w-4" />
-                                Confirm
-                              </Button>
-                            )}
-                            {canConfirmUploads && !upload.is_confirmed && (
-                              <Button
-                                variant="outline"
-                                size="sm"
-                                className="gap-1 bg-green-50 text-green-700 border-green-300 hover:bg-green-100 dark:bg-green-950 dark:text-green-300 dark:border-green-800"
-                                onClick={() => {
-                                  setSelectedUpload(upload)
-                                  setShowAdminConfirmDialog(true)
-                                }}
-                                title="Approve this upload to make it visible to all users"
-                              >
-                                <CheckCircle className="h-4 w-4" />
-                                Approve
-                              </Button>
-                            )}
                             {canDelete && (
                               <Button
                                 variant="ghost"
                                 size="sm"
                                 className="text-red-600 hover:text-red-700"
                                 onClick={() => handleDelete(upload.id)}
-                                title="Delete"
+                                title="Delete document"
                               >
                                 <Trash2 className="h-4 w-4" />
                               </Button>
