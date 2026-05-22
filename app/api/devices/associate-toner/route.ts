@@ -65,7 +65,7 @@ export async function PUT(request: NextRequest) {
     }
 
     // Audit log (non-critical, don't fail if it errors)
-    await supabaseAdmin.from("audit_logs").insert({
+    supabaseAdmin.from("audit_logs").insert({
       username: userId || "unknown",
       action: "DEVICE_TONER_ASSOCIATED",
       resource: `devices/${deviceId}`,
@@ -73,7 +73,11 @@ export async function PUT(request: NextRequest) {
       severity: "medium",
       ip_address: request.headers.get("x-forwarded-for") || "unknown",
       user_agent: request.headers.get("user-agent") || "unknown",
-    }).catch((err) => console.error("Audit log error:", err))
+    }).then(() => {
+      // Audit log created successfully
+    }).catch((err: any) => {
+      console.error("Audit log error:", err)
+    })
 
     return NextResponse.json({ success: true, device: updated })
   } catch (error: any) {
