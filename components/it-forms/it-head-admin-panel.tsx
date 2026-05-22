@@ -1171,6 +1171,7 @@ export function ITHeadAdminPanel() {
                   onSave={(dataUrl) => setApproverSignature(dataUrl)}
                   onClear={() => setApproverSignature(null)}
                   height={130}
+                  allowUpload={true}
                 />
               </div>
             )}

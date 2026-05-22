@@ -3,7 +3,9 @@
 import { useRef, useState, useEffect, useCallback } from "react"
 import { Button } from "@/components/ui/button"
 import { cn } from "@/lib/utils"
-import { PenLine, Trash2, Check } from "lucide-react"
+import { PenLine, Trash2, Check, Upload, ImagePlus } from "lucide-react"
+import { useToast } from "@/hooks/use-toast"
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
 
 interface SignaturePadProps {
   onSave: (dataUrl: string) => void
@@ -14,6 +16,7 @@ interface SignaturePadProps {
   disabled?: boolean
   signerLabel?: string
   roleLabel?: string
+  allowUpload?: boolean
 }
 
 export function SignaturePad({
@@ -25,11 +28,17 @@ export function SignaturePad({
   disabled = false,
   signerLabel,
   roleLabel,
+  allowUpload = false,
 }: SignaturePadProps) {
   const canvasRef = useRef<HTMLCanvasElement>(null)
+  const fileInputRef = useRef<HTMLInputElement>(null)
+  const { toast } = useToast()
   const [isDrawing, setIsDrawing] = useState(false)
   const [isEmpty, setIsEmpty] = useState(!initialValue)
   const [lastPos, setLastPos] = useState<{ x: number; y: number } | null>(null)
+  const [uploadPreview, setUploadPreview] = useState<string | null>(null)
+  const [uploadProcessing, setUploadProcessing] = useState(false)
+  const [activeTab, setActiveTab] = useState("draw")
 
   const exportWithHologram = useCallback(() => {
     const canvas = canvasRef.current
@@ -168,7 +177,106 @@ export function SignaturePad({
     const ctx = canvas.getContext("2d")
     if (ctx) ctx.clearRect(0, 0, canvas.width, canvas.height)
     setIsEmpty(true)
+    setUploadPreview(null)
+    setActiveTab("draw")
     onClear?.()
+  }
+
+  const handleFileUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0]
+    if (!file) return
+
+    const allowedTypes = ["image/png", "image/jpeg", "image/jpg", "image/webp"]
+    if (!allowedTypes.includes(file.type)) {
+      toast({
+        title: "Invalid file",
+        description: "Please upload a PNG, JPG, or WEBP image.",
+        variant: "destructive",
+      })
+      return
+    }
+    if (file.size > 5 * 1024 * 1024) {
+      toast({
+        title: "File too large",
+        description: "Maximum file size is 5 MB.",
+        variant: "destructive",
+      })
+      return
+    }
+
+    setUploadProcessing(true)
+    const reader = new FileReader()
+    reader.onload = (ev) => {
+      const src = ev.target?.result as string
+      const img = new Image()
+      img.onload = () => {
+        // Composite hologram stamp over the uploaded image
+        const canvas = document.createElement("canvas")
+        const maxW = 600
+        const scale = img.width > maxW ? maxW / img.width : 1
+        canvas.width = img.width * scale
+        canvas.height = img.height * scale
+        const ctx = canvas.getContext("2d")!
+
+        ctx.drawImage(img, 0, 0, canvas.width, canvas.height)
+
+        // Hologram watermark pattern
+        ctx.save()
+        ctx.translate(canvas.width / 2, canvas.height / 2)
+        ctx.rotate((-25 * Math.PI) / 180)
+        ctx.textAlign = "center"
+        ctx.textBaseline = "middle"
+        ctx.font = `bold ${Math.max(16, canvas.width / 20)}px sans-serif`
+        ctx.fillStyle = "rgba(16, 185, 129, 0.11)"
+        for (let y = -canvas.height; y <= canvas.height; y += 80) {
+          for (let x = -canvas.width; x <= canvas.width; x += 260) {
+            ctx.fillText("QCC IT APP HOLOGRAM", x, y)
+          }
+        }
+        ctx.restore()
+
+        // Verification stamp
+        const stampW = Math.min(180, canvas.width * 0.42)
+        const stampH = 38
+        const stampX = canvas.width - stampW - 8
+        const stampY = canvas.height - stampH - 8
+        ctx.fillStyle = "#065f46"
+        ctx.beginPath()
+        ctx.roundRect(stampX, stampY, stampW, stampH, 6)
+        ctx.fill()
+        ctx.fillStyle = "#ffffff"
+        ctx.font = `bold ${Math.max(8, stampW / 16)}px sans-serif`
+        ctx.textAlign = "center"
+        ctx.textBaseline = "middle"
+        ctx.fillText("QCC IT APP VERIFIED", stampX + stampW / 2, stampY + 10)
+        ctx.font = `${Math.max(7, stampW / 20)}px sans-serif`
+        ctx.fillText(`${roleLabel} - ${signerLabel || ""}`, stampX + stampW / 2, stampY + 23)
+        ctx.fillText(new Date().toLocaleString(), stampX + stampW / 2, stampY + 33)
+
+        const result = canvas.toDataURL("image/png")
+        setUploadPreview(result)
+        setIsEmpty(false)
+        setUploadProcessing(false)
+      }
+      img.onerror = () => {
+        toast({
+          title: "Invalid image",
+          description: "Could not read the image file.",
+          variant: "destructive",
+        })
+        setUploadProcessing(false)
+      }
+      img.src = src
+    }
+    reader.readAsDataURL(file)
+    // Reset input so same file can be re-selected
+    e.target.value = ""
+  }
+
+  const saveUploadedSignature = () => {
+    if (uploadPreview) {
+      onSave(uploadPreview)
+    }
   }
 
   const saveSignature = () => {
@@ -182,57 +290,189 @@ export function SignaturePad({
 
   return (
     <div className={cn("flex flex-col gap-2", className)}>
-      <div className="relative rounded-md border-2 border-dashed border-orange-300 dark:border-orange-700 bg-white dark:bg-slate-950 overflow-hidden">
-        <div className="pointer-events-none absolute inset-0 z-[1] bg-[repeating-linear-gradient(-25deg,rgba(16,185,129,0.06)_0px,rgba(16,185,129,0.06)_2px,transparent_2px,transparent_34px)]" />
-        <canvas
-          ref={canvasRef}
-          width={600}
-          height={height}
-          className={cn(
-            "w-full cursor-crosshair block touch-none relative z-[2]",
-            disabled && "cursor-not-allowed opacity-60"
-          )}
-          style={{ height }}
-          onMouseDown={startDraw}
-          onMouseMove={draw}
-          onMouseUp={endDraw}
-          onMouseLeave={endDraw}
-          onTouchStart={startDraw}
-          onTouchMove={draw}
-          onTouchEnd={endDraw}
-        />
-        {isEmpty && !disabled && (
-          <div className="absolute inset-0 z-[3] flex flex-col items-center justify-center pointer-events-none text-muted-foreground gap-1">
-            <PenLine className="h-6 w-6 opacity-40" />
-            <span className="text-xs opacity-60">Sign here</span>
+      {allowUpload ? (
+        <Tabs value={activeTab} onValueChange={setActiveTab} className="w-full">
+          <TabsList className="grid w-full grid-cols-2">
+            <TabsTrigger value="draw" className="flex items-center gap-1.5">
+              <PenLine className="h-4 w-4" /> Draw
+            </TabsTrigger>
+            <TabsTrigger value="upload" className="flex items-center gap-1.5">
+              <ImagePlus className="h-4 w-4" /> Upload
+            </TabsTrigger>
+          </TabsList>
+
+          <TabsContent value="draw" className="mt-3">
+            <div className="relative rounded-md border-2 border-dashed border-orange-300 dark:border-orange-700 bg-white dark:bg-slate-950 overflow-hidden">
+              <div className="pointer-events-none absolute inset-0 z-[1] bg-[repeating-linear-gradient(-25deg,rgba(16,185,129,0.06)_0px,rgba(16,185,129,0.06)_2px,transparent_2px,transparent_34px)]" />
+              <canvas
+                ref={canvasRef}
+                width={600}
+                height={height}
+                className={cn(
+                  "w-full cursor-crosshair block touch-none relative z-[2]",
+                  disabled && "cursor-not-allowed opacity-60"
+                )}
+                style={{ height }}
+                onMouseDown={startDraw}
+                onMouseMove={draw}
+                onMouseUp={endDraw}
+                onMouseLeave={endDraw}
+                onTouchStart={startDraw}
+                onTouchMove={draw}
+                onTouchEnd={endDraw}
+              />
+              {isEmpty && !disabled && (
+                <div className="absolute inset-0 z-[3] flex flex-col items-center justify-center pointer-events-none text-muted-foreground gap-1">
+                  <PenLine className="h-6 w-6 opacity-40" />
+                  <span className="text-xs opacity-60">Sign here</span>
+                </div>
+              )}
+              <div className="absolute right-2 top-2 z-[3] rounded-md border border-emerald-300/80 bg-emerald-50/85 px-2 py-1 text-[10px] font-semibold uppercase tracking-wide text-emerald-800 dark:border-emerald-700 dark:bg-emerald-950/70 dark:text-emerald-200">
+                IT APP Hologram
+              </div>
+              {/* Baseline */}
+              <div className="absolute bottom-8 left-8 right-8 z-[3] border-b border-orange-200 dark:border-orange-800 pointer-events-none" />
+            </div>
+            {!disabled && (
+              <div className="flex gap-2 justify-end mt-2">
+                <Button type="button" variant="ghost" size="sm" onClick={clearCanvas} className="text-xs h-7">
+                  <Trash2 className="h-3 w-3 mr-1" />
+                  Clear
+                </Button>
+                <Button
+                  type="button"
+                  size="sm"
+                  variant="outline"
+                  onClick={saveSignature}
+                  disabled={isEmpty}
+                  className="text-xs h-7 border-orange-300 text-orange-700"
+                >
+                  <Check className="h-3 w-3 mr-1" />
+                  Confirm Signature
+                </Button>
+              </div>
+            )}
+          </TabsContent>
+
+          <TabsContent value="upload" className="mt-3">
+            <div className="space-y-3">
+              <div
+                className="border-2 border-dashed border-muted-foreground/30 rounded-lg p-6 text-center cursor-pointer hover:border-emerald-400 hover:bg-emerald-50/30 dark:hover:bg-emerald-950/20 transition-colors"
+                onClick={() => !uploadProcessing && fileInputRef.current?.click()}
+              >
+                {uploadProcessing ? (
+                  <div className="flex flex-col items-center gap-2">
+                    <div className="animate-spin h-8 w-8 border-2 border-emerald-600 border-t-transparent rounded-full" />
+                    <p className="text-sm text-muted-foreground">Processing image…</p>
+                  </div>
+                ) : uploadPreview ? (
+                  <img
+                    src={uploadPreview}
+                    alt="Uploaded signature preview"
+                    className="max-h-40 mx-auto object-contain rounded border"
+                  />
+                ) : (
+                  <div className="flex flex-col items-center gap-2 text-muted-foreground">
+                    <Upload className="h-8 w-8" />
+                    <p className="text-sm font-medium">Click to upload signature image</p>
+                    <p className="text-xs">PNG, JPG or WEBP · max 5 MB</p>
+                  </div>
+                )}
+              </div>
+              <input
+                ref={fileInputRef}
+                type="file"
+                accept="image/png,image/jpeg,image/jpg,image/webp"
+                className="hidden"
+                onChange={handleFileUpload}
+              />
+              <div className="flex gap-2 justify-end">
+                {uploadPreview && (
+                  <Button
+                    type="button"
+                    variant="outline"
+                    size="sm"
+                    onClick={() => {
+                      setUploadPreview(null)
+                      setIsEmpty(true)
+                    }}
+                    className="text-xs h-7"
+                  >
+                    <Trash2 className="h-3 w-3 mr-1" />
+                    Clear
+                  </Button>
+                )}
+                <Button
+                  type="button"
+                  size="sm"
+                  variant="outline"
+                  onClick={saveUploadedSignature}
+                  disabled={!uploadPreview || uploadProcessing}
+                  className="text-xs h-7 border-orange-300 text-orange-700"
+                >
+                  <Check className="h-3 w-3 mr-1" />
+                  Confirm Upload
+                </Button>
+              </div>
+              <p className="text-xs text-muted-foreground">
+                The QCC IT APP hologram security stamp will be applied automatically to your uploaded signature image.
+              </p>
+            </div>
+          </TabsContent>
+        </Tabs>
+      ) : (
+        <>
+          <div className="relative rounded-md border-2 border-dashed border-orange-300 dark:border-orange-700 bg-white dark:bg-slate-950 overflow-hidden">
+            <div className="pointer-events-none absolute inset-0 z-[1] bg-[repeating-linear-gradient(-25deg,rgba(16,185,129,0.06)_0px,rgba(16,185,129,0.06)_2px,transparent_2px,transparent_34px)]" />
+            <canvas
+              ref={canvasRef}
+              width={600}
+              height={height}
+              className={cn(
+                "w-full cursor-crosshair block touch-none relative z-[2]",
+                disabled && "cursor-not-allowed opacity-60"
+              )}
+              style={{ height }}
+              onMouseDown={startDraw}
+              onMouseMove={draw}
+              onMouseUp={endDraw}
+              onMouseLeave={endDraw}
+              onTouchStart={startDraw}
+              onTouchMove={draw}
+              onTouchEnd={endDraw}
+            />
+            {isEmpty && !disabled && (
+              <div className="absolute inset-0 z-[3] flex flex-col items-center justify-center pointer-events-none text-muted-foreground gap-1">
+                <PenLine className="h-6 w-6 opacity-40" />
+                <span className="text-xs opacity-60">Sign here</span>
+              </div>
+            )}
+            <div className="absolute right-2 top-2 z-[3] rounded-md border border-emerald-300/80 bg-emerald-50/85 px-2 py-1 text-[10px] font-semibold uppercase tracking-wide text-emerald-800 dark:border-emerald-700 dark:bg-emerald-950/70 dark:text-emerald-200">
+              IT APP Hologram
+            </div>
+            {/* Baseline */}
+            <div className="absolute bottom-8 left-8 right-8 z-[3] border-b border-orange-200 dark:border-orange-800 pointer-events-none" />
           </div>
-        )}
-        <div className="absolute right-2 top-2 z-[3] rounded-md border border-emerald-300/80 bg-emerald-50/85 px-2 py-1 text-[10px] font-semibold uppercase tracking-wide text-emerald-800 dark:border-emerald-700 dark:bg-emerald-950/70 dark:text-emerald-200">
-          IT APP Hologram
-        </div>
-        {/* Baseline */}
-        <div
-          className="absolute bottom-8 left-8 right-8 z-[3] border-b border-orange-200 dark:border-orange-800 pointer-events-none"
-        />
-      </div>
-      {!disabled && (
-        <div className="flex gap-2 justify-end">
-          <Button type="button" variant="ghost" size="sm" onClick={clearCanvas} className="text-xs h-7">
-            <Trash2 className="h-3 w-3 mr-1" />
-            Clear
-          </Button>
-          <Button
-            type="button"
-            size="sm"
-            variant="outline"
-            onClick={saveSignature}
-            disabled={isEmpty}
-            className="text-xs h-7 border-orange-300 text-orange-700"
-          >
-            <Check className="h-3 w-3 mr-1" />
-            Confirm Signature
-          </Button>
-        </div>
+          {!disabled && (
+            <div className="flex gap-2 justify-end">
+              <Button type="button" variant="ghost" size="sm" onClick={clearCanvas} className="text-xs h-7">
+                <Trash2 className="h-3 w-3 mr-1" />
+                Clear
+              </Button>
+              <Button
+                type="button"
+                size="sm"
+                variant="outline"
+                onClick={saveSignature}
+                disabled={isEmpty}
+                className="text-xs h-7 border-orange-300 text-orange-700"
+              >
+                <Check className="h-3 w-3 mr-1" />
+                Confirm Signature
+              </Button>
+            </div>
+          )}
+        </>
       )}
     </div>
   )
