@@ -696,6 +696,7 @@ export function DepartmentHeadApprovalModule() {
                   onSave={(dataUrl) => setHodSignature(dataUrl)}
                   onClear={() => setHodSignature(null)}
                   height={130}
+                  allowUpload={true}
                 />
               </div>
             )}
