@@ -65,15 +65,22 @@ export async function PUT(request: NextRequest) {
     }
 
     // Audit log (non-critical, don't fail if it errors)
-    await supabaseAdmin.from("audit_logs").insert({
-      username: userId || "unknown",
-      action: "DEVICE_TONER_ASSOCIATED",
-      resource: `devices/${deviceId}`,
-      details: `Associated toner ${tonerType}${tonerModel ? ` (${tonerModel})` : ""} to ${current.brand} ${current.model} (${current.serial_number || "n/a"})`,
-      severity: "medium",
-      ip_address: request.headers.get("x-forwarded-for") || "unknown",
-      user_agent: request.headers.get("user-agent") || "unknown",
-    }).catch((err) => console.error("Audit log error:", err))
+    try {
+      const insertResult = await supabaseAdmin.from("audit_logs").insert({
+        username: userId || "unknown",
+        action: "DEVICE_TONER_ASSOCIATED",
+        resource: `devices/${deviceId}`,
+        details: `Associated toner ${tonerType}${tonerModel ? ` (${tonerModel})` : ""} to ${current.brand} ${current.model} (${current.serial_number || "n/a"})`,
+        severity: "medium",
+        ip_address: request.headers.get("x-forwarded-for") || "unknown",
+        user_agent: request.headers.get("user-agent") || "unknown",
+      })
+      if (insertResult.error) {
+        console.error("Audit log error:", insertResult.error)
+      }
+    } catch (auditError: any) {
+      console.error("Audit log insert error:", auditError)
+    }
 
     return NextResponse.json({ success: true, device: updated })
   } catch (error: any) {
