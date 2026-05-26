@@ -447,7 +447,7 @@ export function ITHeadAdminPanel() {
       filtered = filtered.filter((req) => {
         if (user?.role === "admin") {
           if (req.formType === "requisition") {
-            return req.status === "pending_admin" || isPendingForManager(req)
+            return ["pending_admin", "pending_it_head"].includes(req.status) || isPendingForManager(req)
           }
           return isPendingForManager(req)
         }
@@ -749,7 +749,7 @@ export function ITHeadAdminPanel() {
                     ? "/api/it-forms/asset-transfer"
           : "/api/it-forms/manager-approve"
 
-      const requisitionApproverRole = selectedRequisition.status === "pending_admin" ? "admin" : "it_head"
+      const requisitionApproverRole = user?.role === "admin" ? "admin" : "it_head"
 
       const assignee = assignees.find((person) => person.id === selectedAssigneeId)
 
@@ -985,7 +985,7 @@ export function ITHeadAdminPanel() {
                           View
                         </Button>
                         {req.formType === "requisition" && (user?.role === "admin"
-                          ? req.status === "pending_admin"
+                          ? ["pending_admin", "pending_it_head"].includes(req.status)
                           : req.status === "pending_it_head") && (
                           <>
                             <Button size="sm" className="bg-green-600 hover:bg-green-700" onClick={() => handleApprove(req)}>
