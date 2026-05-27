@@ -44,9 +44,13 @@ export async function POST(request: NextRequest) {
   try {
     const { requisitionId, action, approvedBy, approvedById, approverRole, notes, approverSignature, userRole, userDepartment, userLocation } = await request.json()
 
+    console.log("[v0] Approval request:", { approverRole, userRole, userDepartment, userLocation })
+
     const normalizedApproverRole = normalizeApproverRole(approverRole)
     const normalizedUserRole = normalizeRole(userRole)
     const normalizedUserDepartment = (userDepartment || "").trim().toLowerCase()
+
+    console.log("[v0] Normalized values:", { normalizedApproverRole, normalizedUserRole, normalizedUserDepartment })
 
     if (!requisitionId || !action || !approvedBy) {
       return NextResponse.json({ error: "Missing required fields" }, { status: 400 })
@@ -56,7 +60,11 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: "Invalid action" }, { status: 400 })
     }
 
-    if (!isAuthorizedForRole(normalizedApproverRole, normalizedUserRole, normalizedUserDepartment, String(userLocation || ""))) {
+    const isAuthorized = isAuthorizedForRole(normalizedApproverRole, normalizedUserRole, normalizedUserDepartment, String(userLocation || ""))
+    console.log("[v0] Authorization check:", { normalizedApproverRole, normalizedUserRole, isAuthorized })
+
+    if (!isAuthorized) {
+      console.log("[v0] Authorization failed")
       return NextResponse.json({ error: "Unauthorized to approve in this role" }, { status: 403 })
     }
 
