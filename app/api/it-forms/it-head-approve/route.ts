@@ -21,8 +21,18 @@ function isUuidLike(value?: string | null) {
 }
 
 function isAuthorizedForRole(approverRole: string | undefined, userRole: string, userDepartment: string, userLocation: string) {
-  if (approverRole !== "it_head") return false
-  return userRole === "admin" || (userRole === "department_head" && isITDDepartment(userDepartment) && isHeadOfficeOrAccraLocation(userLocation))
+  // Admin can always approve as admin
+  if (approverRole === "admin") {
+    return userRole === "admin"
+  }
+  
+  // For IT Head approvers
+  if (approverRole === "it_head") {
+    return userRole === "admin" || (userRole === "department_head" && isITDDepartment(userDepartment) && isHeadOfficeOrAccraLocation(userLocation))
+  }
+  
+  // Unknown approver role
+  return false
 }
 
 function normalizeRole(value?: string | null) {
@@ -55,7 +65,21 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: "Invalid action" }, { status: 400 })
     }
 
-    if (!isAuthorizedForRole(normalizedApproverRole, normalizedUserRole, normalizedUserDepartment, String(userLocation || ""))) {
+    const isAuthorized = isAuthorizedForRole(normalizedApproverRole, normalizedUserRole, normalizedUserDepartment, String(userLocation || ""))
+
+    if (!isAuthorized) {
+      return NextResponse.json({ error: "Unauthorized to approve in this role" }, { status: 403 })
+    }
+
+    if (!["approve", "reject"].includes(action)) {
+      return NextResponse.json({ error: "Invalid action" }, { status: 400 })
+    }
+
+    const isAuthorized = isAuthorizedForRole(normalizedApproverRole, normalizedUserRole, normalizedUserDepartment, String(userLocation || ""))
+    console.log("[v0] Authorization check:", { normalizedApproverRole, normalizedUserRole, isAuthorized })
+
+    if (!isAuthorized) {
+      console.log("[v0] Authorization failed")
       return NextResponse.json({ error: "Unauthorized to approve in this role" }, { status: 403 })
     }
 

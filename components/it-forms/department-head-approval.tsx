@@ -176,7 +176,7 @@ export function DepartmentHeadApprovalModule() {
   }, [searchQuery, requisitions, filterTab, sortOrder])
 
   const getRequestNumber = (req: ITFormRequest) => req.requisition_number || req.request_number || req.id
-  const getRequester = (req: ITFormRequest) => req.requested_by || req.staff_name || "Unknown requester"
+  const getRequester = (req: ITFormRequest) => req.requester_name || req.requested_by || req.staff_name || "Unknown requester"
   const getDepartment = (req: ITFormRequest) => req.department || req.department_name || "Unknown department"
   const getSummary = (req: ITFormRequest) => req.items_required || req.complaints_from_users || "No details provided"
   const getPurpose = (req: ITFormRequest) => req.purpose || req.other_comments || "N/A"
