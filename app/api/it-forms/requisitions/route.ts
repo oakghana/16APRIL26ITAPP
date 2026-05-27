@@ -487,7 +487,8 @@ export async function GET(request: NextRequest) {
       })
     }
 
-    if (officeUseLocation && requisitions.length > 0) {
+    // Always resolve requester names regardless of officeUseLocation
+    if (requisitions.length > 0) {
       const requesterIds = [...new Set(requisitions.map((r: any) => r.requested_by_id).filter(Boolean))]
       const { data: requesterProfiles } = await supabaseAdmin
         .from("profiles")
@@ -549,7 +550,9 @@ export async function GET(request: NextRequest) {
           locationByName.get(String(r.department_head_approved_by || "").toLowerCase().trim()) ||
           r.requester_location || "",
       }))
+    }
 
+    if (officeUseLocation && requisitions.length > 0) {
       const normalizedOfficeLocation = normalizeLocation(officeUseLocation)
       const isServiceDeskRole = (officeUseRole || "").startsWith("service_desk")
       const canSeeNationwide =

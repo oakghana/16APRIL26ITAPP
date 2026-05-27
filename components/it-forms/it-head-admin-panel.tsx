@@ -80,6 +80,7 @@ interface ITRequisition {
   requested_by_id?: string
   requested_by_email?: string
   staff_name?: string
+  requester_name?: string
   requester_location?: string | null
   department?: string
   department_name?: string
@@ -243,7 +244,7 @@ export function ITHeadAdminPanel() {
   }
 
   const getRequestNumber = (req: ITRequisition) => req.requisition_number || req.request_number || req.id
-  const getRequester = (req: ITRequisition) => req.requested_by || req.staff_name || "Unknown requester"
+  const getRequester = (req: ITRequisition) => req.requester_name || req.requested_by || req.staff_name || "Unknown requester"
   const getDepartment = (req: ITRequisition) => req.department || req.department_name || "Unknown department"
   const getSummary = (req: ITRequisition) => {
     if (req.formType === "password-reset") {
