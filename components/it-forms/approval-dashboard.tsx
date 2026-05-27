@@ -98,7 +98,7 @@ export function ITFormsApprovalDashboard() {
     effectiveRole === "regional_it_head" ||
     effectiveRole === "it_store_head" ||
     effectiveRole.startsWith("service_desk")
-  const canUseManagerDesk = effectiveRole === "admin" || isITDepartmentHead
+  const canUseManagerDesk = ["admin", "it_head"].includes(effectiveRole) || isITDepartmentHead
   const canUseHODTracker = ["it_head", "admin"].includes(effectiveRole) || isITDepartmentHead
   const canUseSignatureDesk = ["department_head", "admin", "it_head", "regional_it_head"].includes(effectiveRole) || isITDepartmentHead
   const canUsePasswordWorkDesk = ["it_staff", "it_head", "regional_it_head", "admin"].includes(effectiveRole) || isITDepartmentHead

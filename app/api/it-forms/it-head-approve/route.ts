@@ -28,7 +28,7 @@ function isAuthorizedForRole(approverRole: string | undefined, userRole: string,
   
   // For IT Head approvers
   if (approverRole === "it_head") {
-    return userRole === "admin" || (userRole === "department_head" && isITDDepartment(userDepartment) && isHeadOfficeOrAccraLocation(userLocation))
+    return userRole === "admin" || userRole === "it_head" || (userRole === "department_head" && isITDDepartment(userDepartment) && isHeadOfficeOrAccraLocation(userLocation))
   }
   
   // Unknown approver role
@@ -68,18 +68,6 @@ export async function POST(request: NextRequest) {
     const isAuthorized = isAuthorizedForRole(normalizedApproverRole, normalizedUserRole, normalizedUserDepartment, String(userLocation || ""))
 
     if (!isAuthorized) {
-      return NextResponse.json({ error: "Unauthorized to approve in this role" }, { status: 403 })
-    }
-
-    if (!["approve", "reject"].includes(action)) {
-      return NextResponse.json({ error: "Invalid action" }, { status: 400 })
-    }
-
-    const isAuthorized = isAuthorizedForRole(normalizedApproverRole, normalizedUserRole, normalizedUserDepartment, String(userLocation || ""))
-    console.log("[v0] Authorization check:", { normalizedApproverRole, normalizedUserRole, isAuthorized })
-
-    if (!isAuthorized) {
-      console.log("[v0] Authorization failed")
       return NextResponse.json({ error: "Unauthorized to approve in this role" }, { status: 403 })
     }
 
