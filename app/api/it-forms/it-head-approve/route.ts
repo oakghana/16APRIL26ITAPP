@@ -21,6 +21,7 @@ function isUuidLike(value?: string | null) {
 }
 
 function isAuthorizedForRole(approverRole: string | undefined, userRole: string, userDepartment: string, userLocation: string) {
+  if (approverRole === "admin") return userRole === "admin"
   if (approverRole !== "it_head") return false
   return userRole === "admin" || (userRole === "department_head" && isITDDepartment(userDepartment) && isHeadOfficeOrAccraLocation(userLocation))
 }
