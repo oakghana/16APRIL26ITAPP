@@ -196,15 +196,10 @@ export function StoreHeadIssuanceModule() {
   }
 
   const submitIssuance = async () => {
-    if (!selectedRequisition || !issueNotes.trim()) {
-      toast({
-        title: "Required",
-        description: "Please add issuance notes",
-        variant: "destructive",
-      })
-      return
-    }
-    if (!isRegionalHead && !supplierName.trim()) {
+    if (!selectedRequisition) return
+
+    // For Head Office requests, only notes are needed (no supplier name required for direct issue)
+    if (!isRegionalHead && !isHeadOfficeReq(selectedRequisition) && !supplierName.trim()) {
       toast({
         title: "Required",
         description: "Please add supplier name",
@@ -223,7 +218,7 @@ export function StoreHeadIssuanceModule() {
           issuedBy: user?.full_name || "Unknown",
           userRole: user?.role || "",
           userLocation: user?.location || "",
-          supplierName: isRegionalHead ? undefined : supplierName,
+          supplierName: (!isRegionalHead && !isHeadOfficeReq(selectedRequisition)) ? supplierName : undefined,
           notes: issueNotes,
         }),
       })
@@ -233,11 +228,13 @@ export function StoreHeadIssuanceModule() {
 
       toast({
         title: "Success",
-        description: data.awaitingConfirmation
-          ? data.confirmationTarget === "regional_it_head"
-            ? `Dispatch prepared for ${data.requesterLocation || "regional"}. Regional IT Head must confirm receipt before stock moves.`
-            : "Issue prepared. The requester must confirm receipt before final issuance."
-          : "Items issued successfully",
+        description: isHeadOfficeReq(selectedRequisition)
+          ? "Items issued successfully to Head Office staff"
+          : data.awaitingConfirmation
+            ? data.confirmationTarget === "regional_it_head"
+              ? `Dispatch prepared for ${data.requesterLocation || "regional"}. Regional IT Head must confirm receipt before stock moves.`
+              : "Issue prepared. The requester must confirm receipt before final issuance."
+            : "Items issued successfully",
       })
 
       fetchRequisitions()
@@ -497,7 +494,9 @@ export function StoreHeadIssuanceModule() {
             )}
             {!isRegionalHead && (
               <div className="space-y-2">
-                <Label htmlFor="supplierName">Supplier Name *</Label>
+                <Label htmlFor="supplierName">
+                  Supplier Name {selectedRequisition && isHeadOfficeReq(selectedRequisition) ? "" : "*"}
+                </Label>
                 <Input
                   id="supplierName"
                   placeholder="Enter supplier name"
@@ -505,7 +504,9 @@ export function StoreHeadIssuanceModule() {
                   onChange={(e) => setSupplierName(e.target.value)}
                 />
                 <p className="text-xs text-muted-foreground">
-                  Item S/N will be auto-generated as a 5-character alphanumeric code when issued.
+                  {selectedRequisition && isHeadOfficeReq(selectedRequisition)
+                    ? "Optional for Head Office requests. Item S/N will be auto-generated when issued."
+                    : "Item S/N will be auto-generated as a 5-character alphanumeric code when issued."}
                 </p>
               </div>
             )}
@@ -522,7 +523,7 @@ export function StoreHeadIssuanceModule() {
             </Button>
             <Button
               onClick={submitIssuance}
-              disabled={isSubmitting || (!isRegionalHead && !supplierName.trim()) || !issueNotes.trim()}
+              disabled={isSubmitting || (!isRegionalHead && !isHeadOfficeReq(selectedRequisition) && !supplierName.trim()) || !issueNotes.trim()}
               className={isRegionalHead
                 ? "bg-green-600 hover:bg-green-700"
                 : selectedRequisition && !isHeadOfficeReq(selectedRequisition)
