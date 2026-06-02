@@ -458,51 +458,45 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ success: true, awaitingConfirmation: true, confirmationTarget: "regional_it_head", requesterLocation: regionalTargetLocation || requesterLocation })
     }
 
+    // For Head Office requests: skip confirmation workflow and issue directly
     if ((isStoreHead || isAdmin) && isHeadOfficeRequester) {
+      // Head Office requester = direct issuance without confirmation needed
+      const generatedItemSn = requisition.item_sn || (await generateUniqueItemSn())
       const updateData: any = {
-        updated_at: now,
-        status: "awaiting_user_confirmation",
         issued_by: issuedByUuid,
-        issued_by_name: issuedBy,
+        issued_at: now,
         issuance_notes: notes,
-        supplier_name: supplierName || requisition.supplier_name || null,
-        store_head_approved_at: now,
-        store_head_approved_by: issuedByUuid,
-        store_head_approved_by_name: issuedBy,
-        store_head_approval_comments: notes,
+        item_sn: generatedItemSn,
+        status: "issued",
+        updated_at: now,
       }
+      updateData.issued_by_name = issuedBy
+      if (supplierName) updateData.supplier_name = supplierName
 
       existingTimeline.push({
         approver: issuedBy,
         role: "store_head",
-        action: isAwaitingUserConfirmation ? "issue_updated" : "issue_prepared",
-        notes,
+        action: "issued",
+        notes: `${notes}${supplierName ? ` | Supplier: ${supplierName}` : ""} | Item S/N: ${generatedItemSn} | Head Office request - no confirmation required`,
         timestamp: now,
-        meta: {
-          mode: "direct",
-          requesterLocation,
-          supplierName: supplierName || requisition.supplier_name || null,
-          notes,
-          preparedAt: now,
-          preparedBy: issuedBy,
-          preparedById: issuedByUuid,
-        },
       })
       updateData.approval_timeline = existingTimeline
 
-      const { updateError } = await updateRequisitionRecord(requisitionId, updateData, ["issued_by", "store_head_approved_by"])
+      const { updated, updateError } = await updateRequisitionRecord(requisitionId, updateData, ["issued_by"])
+
       if (updateError) {
-        return NextResponse.json({ error: updateError.message || "Failed to prepare issuance" }, { status: 500 })
+        return NextResponse.json({ error: updateError.message || "Failed to issue" }, { status: 500 })
       }
 
+      // Notify requester that items have been issued
       const notifyId = isUuidLike(requisition.requested_by_id) ? requisition.requested_by_id
         : isUuidLike(requisition.created_by_id) ? requisition.created_by_id : null
       if (notifyId) {
         await supabaseAdmin.from("notifications").insert({
           user_id: notifyId,
-          title: "Please Confirm IT Item Receipt",
-          message: `Requisition ${requisition.requisition_number || requisition.reg_no || requisition.id} has been prepared by IT Store. Please confirm receipt before issuance is finalized.`,
-          type: "info",
+          title: "Your IT Equipment has been Issued",
+          message: `Your requisition ${requisition.requisition_number} has been fulfilled. Item S/N: ${generatedItemSn}.`,
+          type: "success",
           category: "approval",
           reference_type: "it_equipment_requisition",
           reference_id: requisitionId,
@@ -510,7 +504,7 @@ export async function POST(request: NextRequest) {
         }).then(() => {}).catch((error: any) => console.error("[v0] Notify requester error:", error?.message))
       }
 
-      return NextResponse.json({ success: true, awaitingConfirmation: true, confirmationTarget: "requester", requesterLocation })
+      return NextResponse.json({ success: true, requisition: updated })
     }
 
     // ── REGIONAL IT HEAD: assign from local stock to staff after receipt confirmation ──
