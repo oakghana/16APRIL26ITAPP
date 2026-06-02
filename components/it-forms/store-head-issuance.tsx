@@ -9,7 +9,7 @@ import { Label } from "@/components/ui/label"
 import { Textarea } from "@/components/ui/textarea"
 import { Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
-import { CheckCircle2, Eye, AlertCircle, Loader2, Package } from "lucide-react"
+import { CheckCircle2, Eye, AlertCircle, Loader2, Package, AlertTriangle, CheckCheck, AlertOctagon } from "lucide-react"
 import { useAuth } from "@/lib/auth-context"
 import { useToast } from "@/hooks/use-toast"
 import { ApprovalTracker } from "./approval-tracker"
@@ -41,6 +41,17 @@ interface ITRequisition {
   department_head_approved_by?: string
 }
 
+interface StockItem {
+  name: string
+  inStock: boolean
+  quantity: number
+  category: string
+  location: string
+  unit: string
+  supplier?: string
+  status: 'in_stock' | 'low_stock' | 'out_of_stock' | 'not_found'
+}
+
 export function StoreHeadIssuanceModule() {
   const [requisitions, setRequisitions] = useState<ITRequisition[]>([])
   const [filteredRequisitions, setFilteredRequisitions] = useState<ITRequisition[]>([])
@@ -53,6 +64,8 @@ export function StoreHeadIssuanceModule() {
   const [isSubmitting, setIsSubmitting] = useState(false)
   const [searchQuery, setSearchQuery] = useState("")
   const [filterTab, setFilterTab] = useState<"pending" | "awaiting" | "issued" | "all">("pending")
+  const [stockItems, setStockItems] = useState<StockItem[]>([])
+  const [stockLoading, setStockLoading] = useState(false)
   const { user } = useAuth()
   const { toast } = useToast()
   const isRegionalHead = user?.role === "regional_it_head"
