@@ -37,6 +37,7 @@ export async function POST(request: Request) {
 
     // Mark ticket as waiting for requester confirmation.
     // Do NOT mark as resolved here; requester must confirm first.
+    // Set awaiting_confirmation_since for auto-confirmation tracking (30 minutes timeout)
     const { data, error } = await supabase
       .from("service_tickets")
       .update({
@@ -50,6 +51,8 @@ export async function POST(request: Request) {
         completion_confirmed_at: null,
         completion_confirmed_by: null,
         completion_confirmed_by_name: null,
+        awaiting_confirmation_since: new Date().toISOString(),
+        auto_confirmed: false,
         updated_at: new Date().toISOString(),
       })
       .eq("id", ticket.id)
@@ -188,6 +191,7 @@ export async function PUT(request: Request) {
         confirmation_notes: confirmationNotes,
         completion_confirmation_notes: confirmationNotes,
         resolved_at: confirmation === "approved" ? new Date().toISOString() : null,
+        awaiting_confirmation_since: null, // Clear the auto-confirm timer
         updated_at: new Date().toISOString(),
       })
       .eq("id", ticketId)
