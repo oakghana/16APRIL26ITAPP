@@ -1,5 +1,11 @@
 {
   "buildCommand": "pnpm run build",
   "devCommand": "pnpm run dev",
-  "installCommand": "pnpm install"
+  "installCommand": "pnpm install",
+  "crons": [
+    {
+      "path": "/api/service-tickets/auto-confirm",
+      "schedule": "*/10 * * * *"
+    }
+  ]
 }
