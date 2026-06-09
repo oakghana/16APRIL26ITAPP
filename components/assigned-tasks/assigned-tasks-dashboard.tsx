@@ -242,6 +242,10 @@ export function AssignedTasksDashboard() {
       case "closed":
       case "completed":
         return "completed"
+      case "awaiting_confirmation":
+      case "awaiting confirmation":
+        // Treat awaiting_confirmation as completed since work is done and waiting for user approval
+        return "completed"
       case "on_hold":
       case "pending":
         return "on_hold"
