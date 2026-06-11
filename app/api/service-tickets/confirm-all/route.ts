@@ -64,7 +64,7 @@ export async function POST(request: NextRequest) {
       const { error: updateError } = await supabaseAdmin
         .from("service_tickets")
         .update({ 
-          status: "completed", 
+          status: "resolved", 
           updated_at: new Date().toISOString()
         })
         .eq("status", "awaiting_confirmation")
