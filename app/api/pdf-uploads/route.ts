@@ -22,17 +22,7 @@ export async function GET(request: Request) {
 
     let query = supabase
       .from("pdf_uploads")
-      .select(`
-        *,
-        confirmations:pdf_confirmations(
-          id,
-          user_id,
-          user_name,
-          user_location,
-          confirmed_at,
-          comments
-        )
-      `)
+      .select("*")
       .eq("is_active", true)
       .order("created_at", { ascending: false })
 
@@ -48,6 +38,42 @@ export async function GET(request: Request) {
       console.error("[v0] Error fetching PDF uploads:", error)
       return NextResponse.json({ error: error.message }, { status: 500 })
     }
+
+    // Fetch confirmations for all uploads
+    const uploadIds = (data || []).map((d: any) => d.id)
+    let confirmationsMap: Record<string, any[]> = {}
+    
+    if (uploadIds.length > 0) {
+      const { data: confirmations, error: confirmError } = await supabase
+        .from("pdf_confirmations")
+        .select("*")
+        .in("pdf_id", uploadIds)
+      
+      if (confirmError) {
+        console.error("[v0] Error fetching confirmations:", confirmError)
+      } else if (confirmations) {
+        // Group confirmations by pdf_id
+        confirmations.forEach((conf: any) => {
+          if (!confirmationsMap[conf.pdf_id]) {
+            confirmationsMap[conf.pdf_id] = []
+          }
+          confirmationsMap[conf.pdf_id].push({
+            id: conf.id,
+            user_id: conf.user_id,
+            user_name: conf.user_name,
+            user_location: conf.user_location,
+            confirmed_at: conf.confirmed_at,
+            comments: conf.comments,
+          })
+        })
+      }
+    }
+
+    // Add confirmations to each upload
+    const enrichedUploads = (data || []).map((upload: any) => ({
+      ...upload,
+      confirmations: confirmationsMap[upload.id] || [],
+    }))
 
     // All IT staff roles can see all documents
     const itStaffRoles = [
@@ -66,7 +92,7 @@ export async function GET(request: Request) {
     ]
     const canSeeAllDocuments = itStaffRoles.includes(userRole || "")
 
-    const filteredUploads = (data || []).filter((upload: any) => {
+    const filteredUploads = (enrichedUploads || []).filter((upload: any) => {
       const matchesRequestedLocation =
         !location ||
         location === "all" ||
@@ -108,7 +134,7 @@ export async function GET(request: Request) {
       return shouldShow
     })
 
-    console.log("[v0] Final filtered uploads count:", filteredUploads.length, "from total:", data?.length)
+    console.log("[v0] Final filtered uploads count:", filteredUploads.length, "from total:", enrichedUploads?.length)
 
     return NextResponse.json({ success: true, uploads: filteredUploads })
   } catch (error) {

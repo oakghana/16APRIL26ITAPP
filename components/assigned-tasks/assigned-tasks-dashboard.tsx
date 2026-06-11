@@ -375,19 +375,24 @@ export function AssignedTasksDashboard() {
   }
 
   const handleUpdateStatus = async () => {
-    if (!selectedTask || !newStatus) return
+    if (!selectedTask || !newStatus) {
+      toast({ title: "Error", description: "Please select a status first", variant: "destructive" })
+      return
+    }
 
     setIsUpdating(true)
     try {
       // Prevent IT staff from assigning tasks to themselves via the update-status modal
       if (user?.role === "it_staff" && newStatus === "assigned") {
-        notificationService.error(
-          "Action not allowed",
-          "IT staff cannot assign tasks to themselves from the Update Status modal."
-        )
+        toast({
+          title: "Action not allowed",
+          description: "IT staff cannot assign tasks to themselves from the Update Status modal.",
+          variant: "destructive",
+        })
         setIsUpdating(false)
         return
       }
+
       await updateTaskStatus(selectedTask.id, selectedTask.type, {
         status: newStatus as AssignedTask["status"],
         notes: workNotes,
@@ -396,34 +401,37 @@ export function AssignedTasksDashboard() {
 
       // Use enhanced notifications based on status
       if (newStatus === "completed") {
-        notificationService.flash(
-          "Task Completed! 🎉",
-          `"${selectedTask.title}" has been marked as complete. Great work!`
-        )
-        // Show acknowledgement modal for completed tasks
+        toast({
+          title: "Task Completed",
+          description: `Successfully marked "${selectedTask.title}" as completed`,
+        })
         setShowAcknowledgement(true)
       } else if (newStatus === "in_progress") {
-        notificationService.info(
-          "Task In Progress",
-          `You're now working on "${selectedTask.title}"`
-        )
+        toast({
+          title: "Task Started",
+          description: `"${selectedTask.title}" is now in progress`,
+        })
       } else {
-        notificationService.success(
-          "Task Updated",
-          `Task status has been updated to ${newStatus.replace("_", " ")}`
-        )
+        toast({
+          title: "Status Updated",
+          description: `"${selectedTask.title}" status changed to ${newStatus}`,
+        })
       }
 
       setUpdateDialogOpen(false)
-      setSelectedTask(null)
+      setNewStatus("")
       setWorkNotes("")
       setHoursWorked("")
-      setNewStatus("")
+      setSelectedTask(null)
+      await loadAssignedTasks()
     } catch (error) {
-      notificationService.error(
-        "Update Failed",
-        error instanceof Error ? error.message : "Failed to update task status"
-      )
+      const errorMessage = error instanceof Error ? error.message : "Failed to update task status"
+      toast({
+        title: "Update Failed",
+        description: errorMessage,
+        variant: "destructive",
+      })
+      console.error("[v0] Error updating status:", error)
     } finally {
       setIsUpdating(false)
     }

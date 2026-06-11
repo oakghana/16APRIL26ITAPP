@@ -63,27 +63,73 @@ export function ServiceDeskDashboard() {
   }
 
   const handleConfirmAll = async () => {
-    if (!user) return
+    if (!user) {
+      toast({ 
+        title: "Error", 
+        description: "User information not available", 
+        variant: "destructive" 
+      })
+      return
+    }
+
+    // Check permission
+    const allowedRoles = ["admin", "it_head", "regional_it_head", "service_desk_head"]
+    if (!allowedRoles.includes(user.role)) {
+      toast({ 
+        title: "Access Denied", 
+        description: "You don't have permission to confirm tickets on behalf of staff", 
+        variant: "destructive" 
+      })
+      return
+    }
+
+    if (!confirm("Are you sure you want to confirm all pending tickets?")) {
+      return
+    }
+
     try {
+      console.log("[v0] handleConfirmAll - sending request with user:", user.id, user.role)
+      
       const res = await fetch("/api/service-tickets/confirm-all", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           userId: user.id,
-          userName: user.full_name || user.name || "",
+          userName: user.full_name || user.name || user.username || "Admin",
           userRole: user.role,
         }),
       })
+
+      console.log("[v0] handleConfirmAll - response status:", res.status)
+
       const result = await res.json()
-      if (res.ok) {
-        toast({ title: "All pending tickets confirmed", description: `${result.count || 0} tickets updated` })
+      console.log("[v0] handleConfirmAll - response body:", result)
+
+      if (res.ok && result.success) {
+        const count = result.count || result.confirmedCount || 0
+        toast({ 
+          title: "Success", 
+          description: `${count} ticket(s) confirmed successfully on behalf of staff`,
+          variant: "default"
+        })
         loadTickets()
       } else {
-        toast({ title: "Error", description: result.error || "Failed to confirm tickets", variant: "destructive" })
+        const errorMsg = result.error || "Failed to confirm tickets"
+        console.error("[v0] handleConfirmAll error:", errorMsg)
+        toast({ 
+          title: "Confirmation Failed", 
+          description: errorMsg,
+          variant: "destructive" 
+        })
       }
     } catch (err) {
-      console.error("[v0] confirm all error", err)
-      toast({ title: "Error", description: "Network error", variant: "destructive" })
+      console.error("[v0] handleConfirmAll exception:", err)
+      const errorMsg = err instanceof Error ? err.message : "Network error"
+      toast({ 
+        title: "Error", 
+        description: `Failed to confirm tickets: ${errorMsg}`,
+        variant: "destructive" 
+      })
     }
   }
 

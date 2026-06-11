@@ -224,7 +224,16 @@ export function PDFUploadsDashboard() {
 
   const handleUpload = async () => {
     if (!uploadForm.file || !uploadForm.title || !user) {
-      toast.error("Please fill in all required fields")
+      toast.error("Missing required fields", {
+        description: "Please select a file and enter a title",
+      })
+      return
+    }
+
+    if (uploadForm.file.size > 50 * 1024 * 1024) {
+      toast.error("File too large", {
+        description: "Maximum file size is 50MB",
+      })
       return
     }
 
@@ -248,9 +257,9 @@ export function PDFUploadsDashboard() {
 
       const data = await response.json()
 
-      if (data.success) {
-        toast.success("✓ Document uploaded successfully! It&apos;s now visible to all IT staff.", {
-          description: `"${uploadForm.title}" is ready for download.`,
+      if (response.ok && data.success) {
+        toast.success("Document uploaded successfully", {
+          description: `"${uploadForm.title}" is now visible to IT staff and ready for download.`,
         })
         setShowUploadDialog(false)
         setUploadForm({
@@ -265,11 +274,21 @@ export function PDFUploadsDashboard() {
         }
         fetchUploads()
       } else {
-        toast.error(data.error || "Failed to upload document")
+        const errorMsg = data.error || "Failed to upload document"
+        toast.error("Upload failed", {
+          description: errorMsg.includes("permission")
+            ? "You don't have permission to upload documents"
+            : errorMsg,
+        })
       }
     } catch (error) {
-      console.error("Error uploading:", error)
-      toast.error("Failed to upload document. Please try again.")
+      console.error("[v0] Error uploading:", error)
+      const errorMsg = error instanceof Error ? error.message : "Unknown error"
+      toast.error("Upload error", {
+        description: errorMsg.includes("network") || errorMsg.includes("fetch")
+          ? "Network connection error. Please check your connection and try again."
+          : errorMsg,
+      })
     } finally {
       setUploading(false)
     }
@@ -287,7 +306,15 @@ export function PDFUploadsDashboard() {
   }
 
   const handleSaveEdit = async () => {
-    if (!selectedUpload || !user) return
+    if (!selectedUpload || !user) {
+      toast.error("Error", { description: "No document selected" })
+      return
+    }
+
+    if (!editForm.title.trim()) {
+      toast.error("Validation error", { description: "Title is required" })
+      return
+    }
 
     setSavingEdit(true)
     try {
@@ -309,17 +336,23 @@ export function PDFUploadsDashboard() {
 
       const data = await response.json()
 
-      if (data.success) {
-        toast.success("Document updated successfully")
+      if (response.ok && data.success) {
+        toast.success("Document updated", {
+          description: "Changes have been saved successfully",
+        })
         setShowEditDialog(false)
         setSelectedUpload(null)
         fetchUploads()
       } else {
-        toast.error(data.error || "Failed to update document")
+        toast.error("Update failed", {
+          description: data.error || "Could not update the document",
+        })
       }
     } catch (error) {
-      console.error("Error updating document:", error)
-      toast.error("Failed to update document")
+      console.error("[v0] Error updating document:", error)
+      toast.error("Update error", {
+        description: error instanceof Error ? error.message : "Failed to update document",
+      })
     } finally {
       setSavingEdit(false)
     }
@@ -327,6 +360,17 @@ export function PDFUploadsDashboard() {
 
   const handleConfirm = async () => {
     if (!selectedUpload || !user) return
+
+    if (!user.location) {
+      toast.error("Your location is not set. Please update your profile.")
+      return
+    }
+
+    if (hasUserConfirmed(selectedUpload)) {
+      toast.error("You have already confirmed this document")
+      setShowConfirmDialog(false)
+      return
+    }
 
     setConfirming(true)
     try {
@@ -345,17 +389,23 @@ export function PDFUploadsDashboard() {
       const data = await response.json()
 
       if (data.success) {
-        toast.success("Document confirmed successfully")
+        toast.success("Document confirmed successfully", {
+          description: "Your confirmation has been recorded",
+        })
         setShowConfirmDialog(false)
         setConfirmComment("")
         setSelectedUpload(null)
         fetchUploads()
       } else {
-        toast.error(data.error || "Failed to confirm document")
+        toast.error(data.error || "Failed to confirm document", {
+          description: "Please try again or contact support",
+        })
       }
     } catch (error) {
-      console.error("Error confirming:", error)
-      toast.error("Failed to confirm document")
+      console.error("[v0] Error confirming:", error)
+      toast.error("Failed to confirm document", {
+        description: "Network error. Please check your connection and try again.",
+      })
     } finally {
       setConfirming(false)
     }
@@ -395,7 +445,7 @@ export function PDFUploadsDashboard() {
   }
 
   const handleDelete = async (uploadId: string) => {
-    if (!confirm("Are you sure you want to delete this document?")) return
+    if (!confirm("Are you sure you want to permanently delete this document? This action cannot be undone.")) return
 
     try {
       const params = new URLSearchParams()
@@ -413,15 +463,21 @@ export function PDFUploadsDashboard() {
 
       const data = await response.json()
 
-      if (data.success) {
-        toast.success("Document deleted successfully")
+      if (response.ok && data.success) {
+        toast.success("Document deleted", {
+          description: "The document has been removed successfully",
+        })
         fetchUploads()
       } else {
-        toast.error(data.error || "Failed to delete document")
+        toast.error("Deletion failed", {
+          description: data.error || "Could not delete the document",
+        })
       }
     } catch (error) {
-      console.error("Error deleting:", error)
-      toast.error("Failed to delete document")
+      console.error("[v0] Error deleting:", error)
+      toast.error("Deletion error", {
+        description: error instanceof Error ? error.message : "Failed to delete document",
+      })
     }
   }
 
@@ -563,7 +619,7 @@ export function PDFUploadsDashboard() {
                     rows={3}
                   />
                 </div>
-                <div className="grid grid-cols-2 gap-4">
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                   <div className="space-y-2">
                     <Label>Document Type *</Label>
                     <Select
@@ -895,7 +951,28 @@ export function PDFUploadsDashboard() {
                           </Button>
                         </TableCell>
                         <TableCell>
-                          <div className="flex items-center justify-end gap-2">
+                          <div className="flex flex-wrap items-center justify-end gap-1 sm:gap-2">
+                            {!confirmed && isITStaff && (
+                              <Button
+                                variant="outline"
+                                size="sm"
+                                className="gap-1 text-blue-600 hover:text-blue-700 hover:bg-blue-50"
+                                onClick={() => {
+                                  setSelectedUpload(upload)
+                                  setShowConfirmDialog(true)
+                                }}
+                                title="Confirm you have reviewed this document"
+                              >
+                                <CheckCircle className="h-4 w-4" />
+                                <span className="hidden sm:inline">Confirm</span>
+                              </Button>
+                            )}
+                            {confirmed && (
+                              <Badge variant="secondary" className="gap-1 bg-green-100 text-green-800 dark:bg-green-900 dark:text-green-200">
+                                <CheckCircle className="h-3 w-3" />
+                                Confirmed
+                              </Badge>
+                            )}
                             <Button
                               variant="ghost"
                               size="sm"
@@ -1003,7 +1080,7 @@ export function PDFUploadsDashboard() {
                 rows={3}
               />
             </div>
-            <div className="grid grid-cols-2 gap-4">
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
               <div className="space-y-2">
                 <Label>Document Type</Label>
                 <Select

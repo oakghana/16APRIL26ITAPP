@@ -12,8 +12,23 @@ export async function POST(request: Request) {
 
     if (!pdfId || !userId || !userName || !userLocation) {
       return NextResponse.json(
-        { error: "Missing required fields" },
+        { error: "Missing required fields: pdfId, userId, userName, userLocation" },
         { status: 400 }
+      )
+    }
+
+    // Validate that the PDF exists
+    const { data: pdfData, error: pdfError } = await supabase
+      .from("pdf_uploads")
+      .select("id")
+      .eq("id", pdfId)
+      .eq("is_active", true)
+      .single()
+
+    if (pdfError || !pdfData) {
+      return NextResponse.json(
+        { error: "Document not found or is no longer active" },
+        { status: 404 }
       )
     }
 
@@ -40,19 +55,19 @@ export async function POST(request: Request) {
         user_id: userId,
         user_name: userName,
         user_location: userLocation,
-        comments,
+        comments: comments || "",
       })
       .select()
       .single()
 
     if (error) {
-      console.error("Error creating confirmation:", error)
+      console.error("[v0] Error creating confirmation:", error)
       return NextResponse.json({ error: error.message }, { status: 500 })
     }
 
     return NextResponse.json({ success: true, confirmation: data })
   } catch (error) {
-    console.error("Error in POST /api/pdf-uploads/confirm:", error)
+    console.error("[v0] Error in POST /api/pdf-uploads/confirm:", error)
     return NextResponse.json({ error: "Failed to confirm document" }, { status: 500 })
   }
 }
@@ -73,13 +88,13 @@ export async function GET(request: Request) {
       .order("confirmed_at", { ascending: false })
 
     if (error) {
-      console.error("Error fetching confirmations:", error)
+      console.error("[v0] Error fetching confirmations:", error)
       return NextResponse.json({ error: error.message }, { status: 500 })
     }
 
-    return NextResponse.json({ success: true, confirmations: data })
+    return NextResponse.json({ success: true, confirmations: data || [] })
   } catch (error) {
-    console.error("Error in GET /api/pdf-uploads/confirm:", error)
+    console.error("[v0] Error in GET /api/pdf-uploads/confirm:", error)
     return NextResponse.json({ error: "Failed to fetch confirmations" }, { status: 500 })
   }
 }
