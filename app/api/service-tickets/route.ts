@@ -23,6 +23,13 @@ export async function GET(request: NextRequest) {
 
     console.log("[v0] API Service Tickets - location:", location, "canSeeAll:", canSeeAll, "role:", userRole)
 
+    // Determine if the user is a regional-level IT role (sees their region's tickets)
+    const isRegionalRole =
+      userRole === "regional_it_head" ||
+      userRole === "service_desk_head" ||
+      userRole === "it_staff" ||
+      (userRole || "").startsWith("service_desk_")
+
     const buildTicketQuery = (selectClause: string) => {
       let query = supabaseAdmin
         .from("service_tickets")
@@ -35,7 +42,7 @@ export async function GET(request: NextRequest) {
         if (userId) {
           query = query.or(`requested_by.eq.${userId},assigned_to.eq.${userId}`)
         }
-      } else if ((userRole === "regional_it_head" || userRole === "service_desk_head") && normalizedLocation) {
+      } else if (isRegionalRole && normalizedLocation) {
         // Use only the first meaningful keyword of the location so that variants like
         // "Eastern Region" (user) still match tickets stored as "Eastern" or vice-versa.
         // The precise isLocationInSameRegion check in the JS layer acts as the gate-keeper.
@@ -107,9 +114,9 @@ export async function GET(request: NextRequest) {
     } else if (userRole === "admin" || userRole === "it_head") {
       // Admin and IT Head see all tickets - no filter
       console.log("[v0] Admin/IT Head - showing all tickets")
-    } else if (userRole === "regional_it_head" || userRole === "service_desk_head") {
-      // Regional IT Head and Service Desk Head see tickets from their region/location
-      // They should see tickets matching their location or locations in the same region
+    } else if (isRegionalRole) {
+      // Regional IT Head, IT Staff, Service Desk Head/regional variants all see tickets
+      // from their region/location (and tickets directly assigned to them)
       const loc = normalizedLocation
 
       if (loc) {
@@ -123,7 +130,7 @@ export async function GET(request: NextRequest) {
           return exact || inRegion || assignedToMe
         })
       }
-      console.log("[v0] Regional/Service Desk Head - filtered to", filteredData.length, "tickets for", location)
+      console.log("[v0] Regional/IT Staff role", userRole, "- filtered to", filteredData.length, "tickets for", location)
     } else if (!canSeeAll && location) {
       // Other IT staff see tickets for their specific location
       const loc = normalizedLocation

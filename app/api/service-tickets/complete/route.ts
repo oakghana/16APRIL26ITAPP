@@ -38,26 +38,48 @@ export async function POST(request: Request) {
     // Mark ticket as waiting for requester confirmation.
     // Do NOT mark as resolved here; requester must confirm first.
     // Set awaiting_confirmation_since for auto-confirmation tracking (30 minutes timeout)
-    const { data, error } = await supabase
-      .from("service_tickets")
-      .update({
-        status: "awaiting_confirmation",
-        completed_at: new Date().toISOString(),
-        completed_by: completedBy,
-        completed_by_name: completedByName,
-        completed_by_role: completedByRole,
-        completion_work_notes: workNotes,
-        completion_confirmed: false,
-        completion_confirmed_at: null,
-        completion_confirmed_by: null,
-        completion_confirmed_by_name: null,
-        awaiting_confirmation_since: new Date().toISOString(),
-        auto_confirmed: false,
-        updated_at: new Date().toISOString(),
-      })
-      .eq("id", ticket.id)
-      .select()
-      .single()
+    const baseUpdate: Record<string, any> = {
+      status: "awaiting_confirmation",
+      completed_at: new Date().toISOString(),
+      completed_by: completedBy,
+      completed_by_name: completedByName,
+      completed_by_role: completedByRole,
+      completion_work_notes: workNotes,
+      completion_confirmed: false,
+      completion_confirmed_at: null,
+      completion_confirmed_by: null,
+      completion_confirmed_by_name: null,
+      awaiting_confirmation_since: new Date().toISOString(),
+      updated_at: new Date().toISOString(),
+    }
+
+    // Try with auto_confirmed first; if column missing, retry without it
+    let data: any = null
+    let error: any = null
+
+    for (const updatePayload of [
+      { ...baseUpdate, auto_confirmed: false },
+      baseUpdate,
+    ]) {
+      const result = await supabase
+        .from("service_tickets")
+        .update(updatePayload)
+        .eq("id", ticket.id)
+        .select()
+        .single()
+      data = result.data
+      error = result.error
+
+      if (!error) break
+
+      const msg = String(error.message || "")
+      const isColumnMissing =
+        error.code === "42703" ||
+        /column .* does not exist/i.test(msg) ||
+        /schema cache/i.test(msg)
+      if (!isColumnMissing) break
+      console.warn("[v0] auto_confirmed column missing, retrying without it")
+    }
 
     if (error) {
       console.error("Error marking ticket as completed:", error)

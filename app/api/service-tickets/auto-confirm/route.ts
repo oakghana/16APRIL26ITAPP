@@ -15,12 +15,37 @@ export async function POST(request: Request) {
     const thirtyMinutesAgo = new Date(now.getTime() - 30 * 60 * 1000)
 
     // Find all tickets that are awaiting_confirmation for more than 30 minutes
-    const { data: ticketsToAutoConfirm, error: fetchError } = await supabase
-      .from("service_tickets")
-      .select("*")
-      .eq("status", "awaiting_confirmation")
-      .eq("auto_confirmed", false)
-      .lte("awaiting_confirmation_since", thirtyMinutesAgo.toISOString())
+    // Try filtering by auto_confirmed first; if column is missing fall back to status+time only
+    let ticketsToAutoConfirm: any[] | null = null
+    let fetchError: any = null
+
+    for (const queryBuilder of [
+      () => supabase
+        .from("service_tickets")
+        .select("*")
+        .eq("status", "awaiting_confirmation")
+        .eq("auto_confirmed", false)
+        .lte("awaiting_confirmation_since", thirtyMinutesAgo.toISOString()),
+      () => supabase
+        .from("service_tickets")
+        .select("*")
+        .eq("status", "awaiting_confirmation")
+        .lte("awaiting_confirmation_since", thirtyMinutesAgo.toISOString()),
+    ]) {
+      const result = await queryBuilder()
+      ticketsToAutoConfirm = result.data
+      fetchError = result.error
+
+      if (!fetchError) break
+
+      const msg = String(fetchError.message || "")
+      const isColMissing =
+        fetchError.code === "42703" ||
+        /column .* does not exist/i.test(msg) ||
+        /schema cache/i.test(msg)
+      if (!isColMissing) break
+      console.warn("[v0] auto_confirmed column missing in auto-confirm fetch, retrying without it")
+    }
 
     if (fetchError) {
       console.error("[v0] Error fetching tickets for auto-confirmation:", fetchError)
@@ -42,19 +67,37 @@ export async function POST(request: Request) {
     // Auto-confirm all eligible tickets
     const ticketIds = ticketsToAutoConfirm.map((t) => t.id)
 
-    const { error: updateError } = await supabase
-      .from("service_tickets")
-      .update({
-        status: "resolved",
-        completion_confirmed: true,
-        completion_confirmed_at: now.toISOString(),
-        completion_confirmed_by: "system",
-        completion_confirmed_by_name: "System Auto-Confirmation",
-        auto_confirmed: true,
-        resolved_at: now.toISOString(),
-        updated_at: now.toISOString(),
-      })
-      .in("id", ticketIds)
+    const baseAutoConfirmUpdate: Record<string, any> = {
+      status: "resolved",
+      completion_confirmed: true,
+      completion_confirmed_at: now.toISOString(),
+      completion_confirmed_by: "system",
+      completion_confirmed_by_name: "System Auto-Confirmation",
+      resolved_at: now.toISOString(),
+      updated_at: now.toISOString(),
+    }
+
+    let updateError: any = null
+    for (const updatePayload of [
+      { ...baseAutoConfirmUpdate, auto_confirmed: true },
+      baseAutoConfirmUpdate,
+    ]) {
+      const result = await supabase
+        .from("service_tickets")
+        .update(updatePayload)
+        .in("id", ticketIds)
+      updateError = result.error
+
+      if (!updateError) break
+
+      const msg = String(updateError.message || "")
+      const isColMissing =
+        updateError.code === "42703" ||
+        /column .* does not exist/i.test(msg) ||
+        /schema cache/i.test(msg)
+      if (!isColMissing) break
+      console.warn("[v0] auto_confirmed column missing in auto-confirm update, retrying without it")
+    }
 
     if (updateError) {
       console.error("[v0] Error auto-confirming tickets:", updateError)
@@ -144,12 +187,36 @@ export async function GET(request: Request) {
     const thirtyMinutesAgo = new Date(now.getTime() - 30 * 60 * 1000)
 
     // Get count of tickets eligible for auto-confirmation
-    const { data: tickets, error } = await supabase
-      .from("service_tickets")
-      .select("id, ticket_number, title, awaiting_confirmation_since")
-      .eq("status", "awaiting_confirmation")
-      .eq("auto_confirmed", false)
-      .lte("awaiting_confirmation_since", thirtyMinutesAgo.toISOString())
+    // Try with auto_confirmed filter first; fall back if column doesn't exist yet
+    let tickets: any[] | null = null
+    let error: any = null
+
+    for (const queryBuilder of [
+      () => supabase
+        .from("service_tickets")
+        .select("id, ticket_number, title, awaiting_confirmation_since")
+        .eq("status", "awaiting_confirmation")
+        .eq("auto_confirmed", false)
+        .lte("awaiting_confirmation_since", thirtyMinutesAgo.toISOString()),
+      () => supabase
+        .from("service_tickets")
+        .select("id, ticket_number, title, awaiting_confirmation_since")
+        .eq("status", "awaiting_confirmation")
+        .lte("awaiting_confirmation_since", thirtyMinutesAgo.toISOString()),
+    ]) {
+      const result = await queryBuilder()
+      tickets = result.data
+      error = result.error
+
+      if (!error) break
+
+      const msg = String(error.message || "")
+      const isColMissing =
+        error.code === "42703" ||
+        /column .* does not exist/i.test(msg) ||
+        /schema cache/i.test(msg)
+      if (!isColMissing) break
+    }
 
     if (error) {
       return NextResponse.json({ error: error.message }, { status: 500 })
