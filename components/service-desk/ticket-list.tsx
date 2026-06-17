@@ -152,7 +152,9 @@ export function TicketList({ tickets: propTickets, onRefresh }: { tickets?: Tick
         location: location,
         canSeeAll: String(canSeeAll),
         userRole: user?.role || "",
-        userId: user?.full_name || user?.name || "",
+        userId: user?.id || "",
+        userName: user?.full_name || user?.name || "",
+        userEmail: user?.email || "",
       })
       
       const response = await fetch(`/api/service-tickets?${params}`)

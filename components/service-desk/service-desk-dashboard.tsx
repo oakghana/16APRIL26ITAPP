@@ -402,13 +402,16 @@ export function ServiceDeskDashboard() {
     return Boolean(requesterName && currentName && requesterName === currentName)
   }
 
-  const filteredTickets = useMemo(() => {
-    let tickets = allTickets
-    
-    // Filter by location
+  // locationFilteredTickets: all tickets for the selected location (no status filter)
+  const locationFilteredTickets = useMemo(() => {
     if (selectedLocation !== 'all' && canSeeAllLocations) {
-      tickets = tickets.filter(t => t.location === selectedLocation)
+      return allTickets.filter(t => t.location === selectedLocation)
     }
+    return allTickets
+  }, [allTickets, selectedLocation, canSeeAllLocations])
+
+  const filteredTickets = useMemo(() => {
+    let tickets = locationFilteredTickets
 
     // Filter by status based on active tab
     if (activeTab === 'closed') {
@@ -418,7 +421,7 @@ export function ServiceDeskDashboard() {
     }
 
     return tickets
-  }, [allTickets, selectedLocation, activeTab, canSeeAllLocations])
+  }, [locationFilteredTickets, activeTab])
 
   // Pagination
   const paginatedTickets = useMemo(() => {
@@ -429,29 +432,31 @@ export function ServiceDeskDashboard() {
 
   const totalPages = Math.ceil(filteredTickets.length / ticketsPerPage)
 
+  // Stats are always computed from the location-filtered set (all statuses) so the
+  // summary cards are accurate regardless of which tab is active.
   const stats = useMemo(() => {
     let openTickets = 0
     let inProgress = 0
     let resolved = 0
 
-    for (const t of filteredTickets) {
+    for (const t of locationFilteredTickets) {
       if (isOpenStatus(t.status)) openTickets++
       else if (isInProgressStatus(t.status)) inProgress++
       else if (isResolvedStatus(t.status)) resolved++
     }
 
     return {
-      totalTickets: filteredTickets.length,
+      totalTickets: locationFilteredTickets.length,
       openTickets,
       inProgress,
       resolved,
       avgResolutionTime: "2.3 hours",
       satisfaction: "94%",
     }
-  }, [filteredTickets])
+  }, [locationFilteredTickets])
 
   // Get closed/resolved tickets
-  const closedTickets = filteredTickets.filter(t => isResolvedStatus(t.status))
+  const closedTickets = locationFilteredTickets.filter(t => isResolvedStatus(t.status))
 
   // Get available locations
   const availableLocations = useMemo(() => {
