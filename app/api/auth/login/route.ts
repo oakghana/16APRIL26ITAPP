@@ -4,22 +4,14 @@ import bcrypt from "bcryptjs"
 
 export async function POST(request: Request) {
   try {
-    const publicSupabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL
-    const serverSupabaseUrl = process.env.SUPABASE_URL
-    const isInvalidPublicUrl =
-      !publicSupabaseUrl ||
-      publicSupabaseUrl.includes("example.supabase.co") ||
-      publicSupabaseUrl.includes("placeholder")
-
-    const supabaseUrl = isInvalidPublicUrl ? serverSupabaseUrl : publicSupabaseUrl
+    // NEXT_PUBLIC_SUPABASE_URL is always the correct env var for this project
+    const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL
     const serviceRoleKey = process.env.SUPABASE_SERVICE_ROLE_KEY
 
     if (!supabaseUrl || !serviceRoleKey) {
       console.error("[v0] Missing Supabase env for login route", {
-        hasNextPublicUrl: Boolean(process.env.NEXT_PUBLIC_SUPABASE_URL),
-        hasSupabaseUrl: Boolean(process.env.SUPABASE_URL),
-        hasServiceRoleKey: Boolean(process.env.SUPABASE_SERVICE_ROLE_KEY),
-        usingServerFallback: isInvalidPublicUrl,
+        hasNextPublicUrl: Boolean(supabaseUrl),
+        hasServiceRoleKey: Boolean(serviceRoleKey),
       })
       return NextResponse.json({ error: "Server configuration error" }, { status: 500 })
     }
