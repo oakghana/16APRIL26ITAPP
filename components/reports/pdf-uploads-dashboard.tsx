@@ -150,8 +150,7 @@ export function PDFUploadsDashboard() {
   ]
   const isITStaff = user && itStaffRoles.includes(user.role)
   const canUpload = user && (
-    ["admin", "it_head", "regional_it_head"].includes(user.role) ||
-    user.role === "it_staff"  // Allow all IT staff to upload from any location
+    ["admin", "it_head", "regional_it_head", "it_staff", "it_store_head", "service_desk_head"].includes(user.role)
   )
   const canEdit = user && ["admin", "it_head"].includes(user.role)
   const canDelete = user && ["admin", "it_head"].includes(user.role)
