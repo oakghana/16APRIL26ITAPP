@@ -9,11 +9,12 @@ import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { Alert, AlertDescription } from "@/components/ui/alert"
-import { Loader2, Shield, Lock, Mail, ArrowRight } from "lucide-react"
+import { Loader2, Shield, Lock, User, ArrowRight, Eye, EyeOff } from "lucide-react"
 
 export function LoginForm() {
   const [error, setError] = useState("")
   const [isPending, setIsPending] = useState(false)
+  const [showPassword, setShowPassword] = useState(false)
   const router = useRouter()
 
   async function handleSubmit(e: React.FormEvent<HTMLFormElement>) {
@@ -88,37 +89,45 @@ export function LoginForm() {
       <Card className="w-full border shadow-lg">
         <CardHeader className="space-y-4 pb-6">
           <div className="mx-auto flex h-14 w-14 items-center justify-center rounded-2xl bg-gradient-to-br from-yellow-400 to-amber-500 shadow-xl">
-            <Shield className="h-7 w-7 text-slate-900" />
+            <Shield className="h-7 w-7 text-slate-900" aria-hidden="true" />
           </div>
           <div className="text-center space-y-2">
-            <CardTitle className="text-2xl font-bold">Akwaaba! Welcome Back 👋</CardTitle>
-            <CardDescription className="text-base">Sign in and let's sort out your IT needs — quick quick.</CardDescription>
+            <CardTitle className="text-2xl font-bold">Akwaaba! Welcome back</CardTitle>
+            <CardDescription className="text-base">Sign in to report a fault or track your request.</CardDescription>
           </div>
         </CardHeader>
         <CardContent className="space-y-6">
-          {error && (
-            <Alert variant="destructive" className="border-2">
-              <AlertDescription className="font-medium">{error}</AlertDescription>
-            </Alert>
-          )}
+          <div aria-live="assertive">
+            {error && (
+              <Alert variant="destructive" className="border-2">
+                <AlertDescription className="font-medium">{error}</AlertDescription>
+              </Alert>
+            )}
+          </div>
 
           <form onSubmit={handleSubmit} className="space-y-5">
             <div className="space-y-2">
               <Label htmlFor="username" className="text-sm font-semibold">
-                Email Address
+                Email or username
               </Label>
               <div className="relative">
-                <Mail className="absolute left-3 top-1/2 -translate-y-1/2 h-5 w-5 text-muted-foreground" />
+                <User className="absolute left-3 top-1/2 -translate-y-1/2 h-5 w-5 text-muted-foreground" aria-hidden="true" />
                 <Input
                   id="username"
                   name="username"
-                  type="email"
-                  placeholder="your.email@qccgh.com — e.g. kwame.asante@qccgh.com"
+                  type="text"
+                  inputMode="email"
+                  autoComplete="username"
+                  autoCapitalize="none"
+                  autoCorrect="off"
+                  spellCheck={false}
+                  placeholder="your.name@qccgh.com"
                   className="pl-11 h-12 text-base"
                   required
                   disabled={isPending}
                 />
               </div>
+              <p className="text-xs text-muted-foreground">Use your work email or the username IT gave you.</p>
             </div>
 
             <div className="space-y-2">
@@ -126,16 +135,27 @@ export function LoginForm() {
                 Password
               </Label>
               <div className="relative">
-                <Lock className="absolute left-3 top-1/2 -translate-y-1/2 h-5 w-5 text-muted-foreground" />
+                <Lock className="absolute left-3 top-1/2 -translate-y-1/2 h-5 w-5 text-muted-foreground" aria-hidden="true" />
                 <Input
                   id="password"
                   name="password"
-                  type="password"
-                  placeholder="Your password — keep it safe, eh!"
-                  className="pl-11 h-12 text-base"
+                  type={showPassword ? "text" : "password"}
+                  autoComplete="current-password"
+                  placeholder="Enter your password"
+                  className="pl-11 pr-12 h-12 text-base"
                   required
                   disabled={isPending}
                 />
+                <button
+                  type="button"
+                  onClick={() => setShowPassword((visible) => !visible)}
+                  className="absolute right-1 top-1/2 flex h-10 w-10 -translate-y-1/2 items-center justify-center rounded-md text-muted-foreground hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+                  aria-label={showPassword ? "Hide password" : "Show password"}
+                  aria-pressed={showPassword}
+                  disabled={isPending}
+                >
+                  {showPassword ? <EyeOff className="h-5 w-5" /> : <Eye className="h-5 w-5" />}
+                </button>
               </div>
             </div>
 
@@ -146,27 +166,33 @@ export function LoginForm() {
             >
               {isPending ? (
                 <>
-                  <Loader2 className="mr-2 h-5 w-5 animate-spin" />
-                  Just a moment, we're getting you in…
+                  <Loader2 className="mr-2 h-5 w-5 animate-spin" aria-hidden="true" />
+                  Signing you in…
                 </>
               ) : (
                 <>
                   Sign In
-                  <ArrowRight className="ml-2 h-5 w-5" />
+                  <ArrowRight className="ml-2 h-5 w-5" aria-hidden="true" />
                 </>
               )}
             </Button>
 
-            <div className="text-center pt-4 border-t space-y-2">
+            <div className="space-y-3 border-t pt-4 text-center">
               <p className="text-sm text-muted-foreground">
                 No account yet?{" "}
                 <a href="/create-account" className="font-semibold text-primary hover:underline">
-                  Request Access — it's easy!
+                  Request access
                 </a>
               </p>
-              <p className="text-xs text-muted-foreground">
-                Powered By the ITD | V2.04.22-26
-              </p>
+              <details className="text-left">
+                <summary className="cursor-pointer text-sm font-medium text-primary">Trouble signing in?</summary>
+                <ul className="mt-2 list-disc space-y-1 pl-5 text-sm text-muted-foreground">
+                  <li>Check that Caps Lock is off — passwords are case sensitive.</li>
+                  <li>Tap the eye icon to confirm what you typed.</li>
+                  <li>Still stuck, or forgotten your password? Contact the IT Service Desk to have it reset.</li>
+                </ul>
+              </details>
+              <p className="text-xs text-muted-foreground">Powered By the ITD | V2.04.22-26</p>
             </div>
           </form>
         </CardContent>
