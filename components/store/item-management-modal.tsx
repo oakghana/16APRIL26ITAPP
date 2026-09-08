@@ -1,6 +1,6 @@
 "use client"
 
-import { useState } from "react"
+import { useEffect, useMemo, useState } from "react"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
@@ -43,7 +43,10 @@ interface ItemManagementModalProps {
   isOpen: boolean
   onClose: () => void
   onSuccess: () => void
+  initialTab?: ItemManagementTab
 }
+
+type ItemManagementTab = "edit" | "merge" | "delete"
 
 export function ItemManagementModal({
   item,
@@ -51,17 +54,57 @@ export function ItemManagementModal({
   isOpen,
   onClose,
   onSuccess,
+  initialTab = "edit",
 }: ItemManagementModalProps) {
   const { user } = useAuth()
   const { toast } = useToast()
   const [loading, setLoading] = useState(false)
-  const [activeTab, setActiveTab] = useState<"edit" | "merge" | "delete">("edit")
+  const [activeTab, setActiveTab] = useState<ItemManagementTab>(initialTab)
   const [showDeleteConfirm, setShowDeleteConfirm] = useState(false)
+  const [showForceDeleteConfirm, setShowForceDeleteConfirm] = useState(false)
   const [deleteReason, setDeleteReason] = useState("")
   const [editedName, setEditedName] = useState(item?.name || "")
   const [editedQuantity, setEditedQuantity] = useState(item?.quantity?.toString() || "0")
   const [selectedMergeTarget, setSelectedMergeTarget] = useState<string | null>(null)
   const [mergeReason, setMergeReason] = useState("")
+  const [mergeSearch, setMergeSearch] = useState("")
+  const [deleteBlockers, setDeleteBlockers] = useState<string[] | null>(null)
+
+  const isAdmin = user?.role === "admin"
+
+  // Re-seed the form whenever the modal is opened for a (different) item.
+  useEffect(() => {
+    if (!isOpen || !item) return
+    setActiveTab(initialTab)
+    setEditedName(item.name || "")
+    setEditedQuantity(item.quantity?.toString() || "0")
+    setSelectedMergeTarget(null)
+    setMergeReason("")
+    setMergeSearch("")
+    setDeleteReason("")
+    setDeleteBlockers(null)
+  }, [isOpen, item?.id, initialTab])
+
+  const mergeCandidates = useMemo(() => {
+    const others = duplicateItems.filter((candidate) => candidate.id && candidate.id !== item?.id)
+    const query = mergeSearch.trim().toLowerCase()
+    const filtered = query
+      ? others.filter(
+          (candidate) =>
+            candidate.name?.toLowerCase().includes(query) ||
+            candidate.sku?.toLowerCase().includes(query) ||
+            candidate.location?.toLowerCase().includes(query),
+        )
+      : others
+
+    // Surface same-name duplicates first — they are the usual merge target.
+    const exactName = item?.name?.toLowerCase()
+    return [...filtered].sort((a, b) => {
+      const aExact = a.name?.toLowerCase() === exactName ? 0 : 1
+      const bExact = b.name?.toLowerCase() === exactName ? 0 : 1
+      return aExact - bExact || (a.name || "").localeCompare(b.name || "")
+    })
+  }, [duplicateItems, item?.id, item?.name, mergeSearch])
 
   if (!item) return null
 
@@ -181,9 +224,19 @@ export function ItemManagementModal({
       const result = await response.json()
 
       if (!response.ok) {
+        if (response.status === 409) {
+          setDeleteBlockers(result.blockers?.length ? result.blockers : [result.reason || "Item is still in use."])
+          toast({
+            title: "Cannot delete this item",
+            description: result.reason || "The item is still linked to other records.",
+            variant: "destructive",
+          })
+          return
+        }
         throw new Error(result.error || "Failed to delete item")
       }
 
+      setDeleteBlockers(null)
       toast({
         title: "Success",
         description: `Deleted "${item.name}" successfully`,
@@ -200,6 +253,52 @@ export function ItemManagementModal({
     } finally {
       setLoading(false)
       setShowDeleteConfirm(false)
+    }
+  }
+
+  // Admin-only override: removes the item together with its linked stock records.
+  const handleForceDelete = async () => {
+    if (!deleteReason.trim()) {
+      toast({ title: "Error", description: "Please provide a reason for deletion", variant: "destructive" })
+      return
+    }
+
+    setLoading(true)
+    try {
+      const response = await fetch("/api/store/force-delete-item", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          itemId: item.id,
+          deletedBy: user?.id,
+          reason: deleteReason,
+          userRole: user?.role,
+          userLocation: user?.location,
+        }),
+      })
+
+      const result = await response.json()
+
+      if (!response.ok) {
+        throw new Error(result.error || "Failed to force delete item")
+      }
+
+      toast({
+        title: "Item removed",
+        description: result.message || `Deleted "${item.name}" and all linked stock records`,
+      })
+
+      onSuccess()
+      onClose()
+    } catch (error: any) {
+      toast({
+        title: "Error",
+        description: error.message,
+        variant: "destructive",
+      })
+    } finally {
+      setLoading(false)
+      setShowForceDeleteConfirm(false)
     }
   }
 
@@ -230,12 +329,10 @@ export function ItemManagementModal({
                 <Edit className="h-4 w-4 mr-2" />
                 Edit
               </TabsTrigger>
-              {duplicateItems.length > 0 && (
-                <TabsTrigger value="merge">
-                  <Merge className="h-4 w-4 mr-2" />
-                  Merge
-                </TabsTrigger>
-              )}
+              <TabsTrigger value="merge">
+                <Merge className="h-4 w-4 mr-2" />
+                Merge
+              </TabsTrigger>
               <TabsTrigger value="delete">
                 <Trash2 className="h-4 w-4 mr-2" />
                 Delete
@@ -271,19 +368,34 @@ export function ItemManagementModal({
             </TabsContent>
 
             {/* Merge Tab */}
-            {duplicateItems.length > 0 && (
-              <TabsContent value="merge" className="space-y-4">
-                <div className="bg-yellow-50 border border-yellow-200 rounded p-3 text-sm text-yellow-800 mb-4">
-                  <p className="font-semibold mb-1">⚠ Merge Warning</p>
-                  <p>
-                    The quantities of both items will be combined into the selected target item. The source item will be
-                    deleted.
-                  </p>
-                </div>
+            <TabsContent value="merge" className="space-y-4">
+              <div className="bg-yellow-50 border border-yellow-200 rounded p-3 text-sm text-yellow-800">
+                <p className="font-semibold mb-1">⚠ Merge Warning</p>
+                <p>
+                  <strong>{item.name}</strong> will be combined into the item you select: quantities are added
+                  together and all of its stock history moves to the target. This item is then removed.
+                </p>
+              </div>
 
-                <div className="space-y-3">
-                  <Label>Select item to merge into:</Label>
-                  {duplicateItems.map((dup) => (
+              <div className="space-y-2">
+                <Label htmlFor="merge-search">Search for the item to merge into</Label>
+                <Input
+                  id="merge-search"
+                  value={mergeSearch}
+                  onChange={(e) => setMergeSearch(e.target.value)}
+                  placeholder="Search by name, SKU or location..."
+                />
+              </div>
+
+              <div className="space-y-3 max-h-64 overflow-y-auto pr-1">
+                {mergeCandidates.length === 0 ? (
+                  <p className="text-sm text-gray-500 py-4 text-center">
+                    {duplicateItems.length === 0
+                      ? "No other stock items are available to merge into."
+                      : "No items match your search."}
+                  </p>
+                ) : (
+                  mergeCandidates.map((dup) => (
                     <div
                       key={dup.id}
                       className={`p-3 border rounded cursor-pointer transition-colors ${
@@ -301,28 +413,35 @@ export function ItemManagementModal({
                           className="mt-1"
                         />
                         <div className="flex-1">
-                          <p className="font-semibold">{dup.name}</p>
+                          <p className="font-semibold">
+                            {dup.name}
+                            {dup.name?.toLowerCase() === item.name?.toLowerCase() && (
+                              <span className="ml-2 text-xs font-normal text-amber-700 bg-amber-100 rounded px-1.5 py-0.5">
+                                same name
+                              </span>
+                            )}
+                          </p>
                           <p className="text-sm text-gray-600">
                             SKU: {dup.sku} • Stock: {dup.quantity} units • Location: {dup.location}
                           </p>
                         </div>
                       </div>
                     </div>
-                  ))}
-                </div>
+                  ))
+                )}
+              </div>
 
-                <div className="space-y-2">
-                  <Label htmlFor="merge-reason">Merge Reason</Label>
-                  <Textarea
-                    id="merge-reason"
-                    value={mergeReason}
-                    onChange={(e) => setMergeReason(e.target.value)}
-                    placeholder="e.g., Duplicate entry, consolidating similar items..."
-                    className="min-h-20"
-                  />
-                </div>
-              </TabsContent>
-            )}
+              <div className="space-y-2">
+                <Label htmlFor="merge-reason">Merge Reason</Label>
+                <Textarea
+                  id="merge-reason"
+                  value={mergeReason}
+                  onChange={(e) => setMergeReason(e.target.value)}
+                  placeholder="e.g., Duplicate entry, consolidating similar items..."
+                  className="min-h-20"
+                />
+              </div>
+            </TabsContent>
 
             {/* Delete Tab */}
             <TabsContent value="delete" className="space-y-4">
@@ -346,6 +465,28 @@ export function ItemManagementModal({
                   className="min-h-20"
                 />
               </div>
+
+              {deleteBlockers && (
+                <div className="bg-amber-50 border border-amber-300 rounded p-3 text-sm text-amber-900 space-y-2">
+                  <p className="font-semibold flex items-center gap-2">
+                    <AlertTriangle className="h-4 w-4" />
+                    This item is still linked to other records
+                  </p>
+                  <ul className="list-disc list-inside space-y-1">
+                    {deleteBlockers.map((blocker, index) => (
+                      <li key={index}>{blocker}</li>
+                    ))}
+                  </ul>
+                  {isAdmin ? (
+                    <p>
+                      As an Admin you can remove the item together with those linked records using{" "}
+                      <strong>Force Delete</strong> below. This cannot be undone.
+                    </p>
+                  ) : (
+                    <p>Ask an Admin to remove this item, or clear the linked records first.</p>
+                  )}
+                </div>
+              )}
             </TabsContent>
           </Tabs>
 
@@ -364,9 +505,24 @@ export function ItemManagementModal({
               </Button>
             )}
             {activeTab === "delete" && (
-              <Button onClick={() => setShowDeleteConfirm(true)} disabled={loading || !deleteReason.trim()} variant="destructive">
-                Delete Item
-              </Button>
+              <>
+                {deleteBlockers && isAdmin && (
+                  <Button
+                    onClick={() => setShowForceDeleteConfirm(true)}
+                    disabled={loading || !deleteReason.trim()}
+                    variant="destructive"
+                  >
+                    Force Delete
+                  </Button>
+                )}
+                <Button
+                  onClick={() => setShowDeleteConfirm(true)}
+                  disabled={loading || !deleteReason.trim()}
+                  variant={deleteBlockers && isAdmin ? "outline" : "destructive"}
+                >
+                  Delete Item
+                </Button>
+              </>
             )}
           </DialogFooter>
         </DialogContent>
@@ -385,6 +541,25 @@ export function ItemManagementModal({
             <AlertDialogCancel>Cancel</AlertDialogCancel>
             <AlertDialogAction onClick={handleDelete} className="bg-red-600 hover:bg-red-700">
               Delete
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
+
+      {/* Force Delete Confirmation Dialog (Admin only) */}
+      <AlertDialog open={showForceDeleteConfirm} onOpenChange={setShowForceDeleteConfirm}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Force delete "{item.name}"?</AlertDialogTitle>
+            <AlertDialogDescription>
+              This permanently deletes the item along with its transfer requests, transactions, assignments and stock
+              audit entries. The action is recorded in the audit log and cannot be undone.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Cancel</AlertDialogCancel>
+            <AlertDialogAction onClick={handleForceDelete} className="bg-red-600 hover:bg-red-700">
+              {loading ? "Deleting..." : "Force Delete"}
             </AlertDialogAction>
           </AlertDialogFooter>
         </AlertDialogContent>

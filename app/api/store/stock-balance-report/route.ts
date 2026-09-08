@@ -39,6 +39,10 @@ export async function GET(request: Request) {
       return NextResponse.json({ error: "Start and end dates are required" }, { status: 400 })
     }
 
+    // created_at is a timestamp, so the bare end date must be pushed to end-of-day to stay inclusive
+    const rangeStart = `${startDate}T00:00:00.000Z`
+    const rangeEnd = `${endDate}T23:59:59.999Z`
+
     let itemsQuery = supabase.from("store_items").select("*").order("sku")
 
     if (location !== "all") {
@@ -54,16 +58,22 @@ export async function GET(request: Request) {
       }
 
       // Filter in-memory for case-insensitive comparison
-      const filteredItems = (allItems || []).filter(
+      let filteredItems = (allItems || []).filter(
         (item) => item.location?.toLowerCase() === location.toLowerCase()
       )
-      
+
+      if (deviceType !== "all") {
+        filteredItems = filteredItems.filter(
+          (item) => item.category?.toLowerCase() === deviceType.toLowerCase()
+        )
+      }
+
       const items = filteredItems
       const { data: transactions } = await supabase
         .from("stock_transactions")
         .select("*")
-        .gte("created_at", startDate)
-        .lte("created_at", endDate)
+        .gte("created_at", rangeStart)
+        .lte("created_at", rangeEnd)
 
       console.log(
         "[v0] Items for location '",
@@ -174,8 +184,8 @@ export async function GET(request: Request) {
     const { data: transactions } = await supabase
       .from("stock_transactions")
       .select("*")
-      .gte("created_at", startDate)
-      .lte("created_at", endDate)
+      .gte("created_at", rangeStart)
+      .lte("created_at", rangeEnd)
 
     console.log(
       "[v0] Items found:",

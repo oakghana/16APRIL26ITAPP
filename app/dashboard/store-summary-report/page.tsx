@@ -79,6 +79,7 @@ export default function StoreSummaryReportPage() {
   const [itemManagementOpen, setItemManagementOpen] = useState(false)
   const [selectedItemForManagement, setSelectedItemForManagement] = useState<any>(null)
   const [duplicateItems, setDuplicateItems] = useState<any[]>([])
+  const [itemManagementTab, setItemManagementTab] = useState<"edit" | "merge" | "delete">("edit")
 
   // Check if user is admin or can manage stock
   const isAdmin = user?.role === "admin"
@@ -122,7 +123,7 @@ export default function StoreSummaryReportPage() {
     return localStockMap[itemName?.toLowerCase() || ""] || 0
   }
 
-  // Find duplicate items with the same name but different SKUs
+  // Items with the same name but a different SKU — the obvious merge candidates
   function findDuplicateItems(itemName: string, currentId?: string): any[] {
     return report
       .filter((item) => 
@@ -139,9 +140,22 @@ export default function StoreSummaryReportPage() {
       }))
   }
 
+  // Every other item in the report can be a merge target, not just exact-name duplicates
+  function getMergeCandidates(currentId?: string): any[] {
+    return report
+      .filter((item) => item.id && item.id !== currentId)
+      .map((item) => ({
+        id: item.id,
+        name: item.itemName,
+        sku: item.code,
+        quantity: item.closingBalance || 0,
+        category: item.category,
+        location: item.location,
+      }))
+  }
+
   // Open item management modal for admin actions
-  function openItemManagement(item: StockBalanceItem) {
-    const duplicates = findDuplicateItems(item.itemName, item.id)
+  function openItemManagement(item: StockBalanceItem, tab: "edit" | "merge" | "delete" = "edit") {
     setSelectedItemForManagement({
       id: item.id,
       name: item.itemName,
@@ -150,7 +164,8 @@ export default function StoreSummaryReportPage() {
       category: item.category,
       location: item.location,
     })
-    setDuplicateItems(duplicates)
+    setDuplicateItems(getMergeCandidates(item.id))
+    setItemManagementTab(tab)
     setItemManagementOpen(true)
   }
 
@@ -781,18 +796,18 @@ export default function StoreSummaryReportPage() {
                                   </Button>
                                 </DropdownMenuTrigger>
                                 <DropdownMenuContent align="end">
-                                  <DropdownMenuItem onClick={() => openItemManagement(item)}>
+                                  <DropdownMenuItem onClick={() => openItemManagement(item, "edit")}>
                                     <Edit className="h-4 w-4 mr-2" />
                                     Edit Item
                                   </DropdownMenuItem>
-                                  {findDuplicateItems(item.itemName, item.id).length > 0 && (
-                                    <DropdownMenuItem onClick={() => openItemManagement(item)}>
-                                      <Merge className="h-4 w-4 mr-2" />
-                                      Merge Duplicate
-                                    </DropdownMenuItem>
-                                  )}
+                                  <DropdownMenuItem onClick={() => openItemManagement(item, "merge")}>
+                                    <Merge className="h-4 w-4 mr-2" />
+                                    {findDuplicateItems(item.itemName, item.id).length > 0
+                                      ? "Merge Duplicate"
+                                      : "Merge Into..."}
+                                  </DropdownMenuItem>
                                   <DropdownMenuItem 
-                                    onClick={() => openItemManagement(item)}
+                                    onClick={() => openItemManagement(item, "delete")}
                                     className="text-red-600"
                                   >
                                     <Trash2 className="h-4 w-4 mr-2" />
@@ -964,6 +979,7 @@ export default function StoreSummaryReportPage() {
         item={selectedItemForManagement}
         duplicateItems={duplicateItems}
         isOpen={itemManagementOpen}
+        initialTab={itemManagementTab}
         onClose={() => setItemManagementOpen(false)}
         onSuccess={handleManagementSuccess}
       />

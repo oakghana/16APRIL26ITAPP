@@ -51,6 +51,39 @@ export async function POST(request: Request) {
       return NextResponse.json({ error: updateError.message }, { status: 500 })
     }
 
+    // Re-parent every record that points at the source item, otherwise the
+    // source row cannot be removed (stock_transfer_requests.item_id is NOT NULL)
+    // and its history would be orphaned.
+    const relatedTables = [
+      "stock_transactions",
+      "stock_assignments",
+      "stock_transfer_requests",
+      "stock_audit_log",
+      "allocation_items",
+    ] as const
+
+    const reassigned: Record<string, number> = {}
+
+    for (const table of relatedTables) {
+      const { data: moved, error: moveError } = await supabase
+        .from(table)
+        .update({ item_id: targetItemId })
+        .eq("item_id", sourceItemId)
+        .select("id")
+
+      if (moveError) {
+        // A missing table in this deployment must not abort the merge.
+        if (moveError.code === "42P01") continue
+        console.error(`[v0] Error re-parenting ${table} during merge:`, moveError)
+        return NextResponse.json(
+          { error: `Failed to move ${table.replace(/_/g, " ")} to the target item`, details: moveError.message },
+          { status: 500 },
+        )
+      }
+
+      reassigned[table] = moved?.length || 0
+    }
+
     // Log merge action to audit trail
     await supabase.from("audit_logs").insert({
       user: userId,
@@ -75,13 +108,14 @@ export async function POST(request: Request) {
 
     return NextResponse.json({
       success: true,
-      message: `Successfully merged "${sourceItem.name}" into "${targetItem.name}"`,
+      message: `Successfully merged "${sourceItem.name}" into "${targetItem.name}" (${mergedQuantity} units)`,
       mergedData: {
         targetItemId,
         sourceItemId,
         mergedQuantity,
         sourceQuantity: sourceItem.quantity,
         targetQuantity: targetItem.quantity,
+        reassigned,
       },
     })
   } catch (error: any) {

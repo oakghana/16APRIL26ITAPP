@@ -45,24 +45,6 @@ export async function DELETE(request: Request) {
       console.error("[v0] Error checking transfer requests:", transferError)
     }
 
-    if (transferRequests && transferRequests.length > 0) {
-      console.log(`[v0] Cannot delete item ${itemId}: ${transferRequests.length} active transfer requests found`)
-      return NextResponse.json(
-        {
-          error: "Cannot delete this item",
-          reason: `This item has ${transferRequests.length} active transfer request(s) that must be cancelled or rejected first.`,
-          activeRequests: transferRequests.map((req) => ({
-            id: req.id,
-            requestNumber: req.request_number,
-            quantity: req.requested_quantity,
-            status: req.status,
-            location: req.requesting_location,
-          })),
-        },
-        { status: 409 },
-      )
-    }
-
     // Check for related stock assignments
     const { data: assignments, error: assignmentError } = await supabase
       .from("stock_assignments")
@@ -74,12 +56,32 @@ export async function DELETE(request: Request) {
       console.error("[v0] Error checking assignments:", assignmentError)
     }
 
+    const blockers: string[] = []
+
+    if (transferRequests && transferRequests.length > 0) {
+      blockers.push(`${transferRequests.length} active transfer request(s) that must be cancelled or rejected first.`)
+    }
+
     if (assignments && assignments.length > 0) {
-      console.log(`[v0] Cannot delete item ${itemId}: ${assignments.length} active assignments found`)
+      blockers.push(`${assignments.length} active assignment(s) that must be returned first.`)
+    }
+
+    if (blockers.length > 0) {
+      console.log(`[v0] Cannot delete item ${itemId}:`, blockers.join(" "))
       return NextResponse.json(
         {
           error: "Cannot delete this item",
-          reason: `This item has ${assignments.length} active assignment(s) that must be returned first.`,
+          reason: `"${item.name}" still has ${blockers.join(" It also has ")}`,
+          blockers,
+          // Admins can bypass these blockers via /api/store/force-delete-item
+          canForceDelete: userRole === "admin",
+          activeRequests: (transferRequests || []).map((req) => ({
+            id: req.id,
+            requestNumber: req.request_number,
+            quantity: req.requested_quantity,
+            status: req.status,
+            location: req.requesting_location,
+          })),
         },
         { status: 409 },
       )
@@ -110,6 +112,20 @@ export async function DELETE(request: Request) {
 
     if (deleteError) {
       console.error("[v0] Error deleting stock item:", deleteError)
+
+      // 23503 = foreign key violation: historical rows still reference this item
+      if (deleteError.code === "23503") {
+        return NextResponse.json(
+          {
+            error: "Cannot delete this item",
+            reason: `"${item.name}" is still referenced by historical stock records.`,
+            blockers: ["Linked historical stock records (transfers, transactions or assignments)."],
+            canForceDelete: userRole === "admin",
+          },
+          { status: 409 },
+        )
+      }
+
       return NextResponse.json({ error: deleteError.message }, { status: 500 })
     }
 
