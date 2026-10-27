@@ -133,6 +133,28 @@ export function PDFUploadsDashboard() {
     targetLocation: "all",
   })
 
+  const downloadDocument = async (upload: PDFUpload) => {
+    try {
+      const response = await fetch(`/api/pdf-uploads/download?id=${encodeURIComponent(upload.id)}`)
+      if (!response.ok) {
+        throw new Error("Unable to download document")
+      }
+
+      const blob = await response.blob()
+      const downloadUrl = URL.createObjectURL(blob)
+      const link = document.createElement("a")
+      link.href = downloadUrl
+      link.download = upload.file_name
+      document.body.appendChild(link)
+      link.click()
+      link.remove()
+      URL.revokeObjectURL(downloadUrl)
+    } catch (error) {
+      console.error("[v0] Document download failed:", error)
+      toast.error("Could not download the document")
+    }
+  }
+
   // All IT staff roles can see all documents and download them
   const itStaffRoles = [
     "admin",
@@ -993,13 +1015,8 @@ export function PDFUploadsDashboard() {
                             <Button
                               variant="ghost"
                               size="sm"
-                              onClick={() => {
-                                const link = document.createElement("a")
-                                link.href = upload.file_url
-                                link.download = upload.file_name
-                                link.click()
-                              }}
-                              title="Download"
+                              onClick={() => downloadDocument(upload)}
+                              title="Download document"
                             >
                               <Download className="h-4 w-4" />
                             </Button>

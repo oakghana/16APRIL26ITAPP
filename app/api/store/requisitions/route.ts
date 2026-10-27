@@ -17,6 +17,7 @@ export async function POST(request: NextRequest) {
       location,
       destinationLocation,
       itReqNumber,
+      requisitionFrequency = "monthly",
       items,
       notes,
     } = body
@@ -49,6 +50,9 @@ export async function POST(request: NextRequest) {
         unit: item.unit,
       })),
       status: "pending",
+      requisition_frequency: ["weekly", "monthly", "quarterly"].includes(requisitionFrequency)
+        ? requisitionFrequency
+        : "monthly",
       notes: notes || null,
       created_at: new Date().toISOString(),
       updated_at: new Date().toISOString(),
