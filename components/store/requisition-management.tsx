@@ -159,6 +159,8 @@ export function RequisitionManagement() {
   const [filteredRequisitions, setFilteredRequisitions] = useState<Requisition[]>([])
   const [approvedQuantities, setApprovedQuantities] = useState<Record<string, number>>({})
   const [activeTab, setActiveTab] = useState<RequisitionTabValue>("all")
+  const [exportFrequency, setExportFrequency] = useState<"all" | "weekly" | "monthly" | "quarterly">("all")
+  const [isExporting, setIsExporting] = useState(false)
   const [pageByTab, setPageByTab] = useState<Record<RequisitionTabValue, number>>(INITIAL_PAGE_STATE)
   const [pageSizeByTab, setPageSizeByTab] = useState<Record<RequisitionTabValue, number>>(INITIAL_PAGE_SIZE_STATE)
   const [isSyncingApprovedIt, setIsSyncingApprovedIt] = useState(false)
@@ -904,33 +906,141 @@ export function RequisitionManagement() {
     return allowedRoles.includes(user.role)
   }
 
-  const exportRequisitionsToExcel = () => {
-    const escapeCell = (value: unknown) => `"${String(value ?? "").replace(/"/g, '""')}"`
-    const rows = requisitions.flatMap((req) =>
-      (req.items.length ? req.items : [{ itemName: "", quantity: 0, unit: "" }]).map((item) => [
-        req.requisition_number,
-        req.requisition_frequency || "monthly",
-        req.status,
-        req.requested_by,
-        req.beneficiary,
-        req.location,
-        req.allocated_to_location,
-        item.itemName,
-        item.quantity,
-        item.unit,
-        new Date(req.created_at).toLocaleDateString(),
-        req.notes,
-      ]),
+  const getReportingPeriod = (frequency: string, dateValue: string) => {
+    const date = new Date(dateValue)
+    if (Number.isNaN(date.getTime())) return ""
+    if (frequency === "quarterly") {
+      return `Q${Math.floor(date.getMonth() / 3) + 1} ${date.getFullYear()}`
+    }
+    if (frequency === "weekly") {
+      const target = new Date(Date.UTC(date.getFullYear(), date.getMonth(), date.getDate()))
+      const dayNumber = target.getUTCDay() || 7
+      target.setUTCDate(target.getUTCDate() + 4 - dayNumber)
+      const yearStart = new Date(Date.UTC(target.getUTCFullYear(), 0, 1))
+      const week = Math.ceil(((target.getTime() - yearStart.getTime()) / 86400000 + 1) / 7)
+      return `Week ${week}, ${target.getUTCFullYear()}`
+    }
+    return date.toLocaleDateString("en-GB", { month: "long", year: "numeric" })
+  }
+
+  const exportRequisitionsToExcel = async () => {
+    const selected = requisitions.filter(
+      (req) => exportFrequency === "all" || (req.requisition_frequency || "monthly") === exportFrequency,
     )
-    const headers = ["Requisition No.", "Frequency", "Status", "Requested By", "Beneficiary", "Source Location", "Destination", "Gadget / Item", "Quantity", "Unit", "Request Date", "Notes"]
-    const csv = [headers, ...rows].map((row) => row.map(escapeCell).join(",")).join("\\n")
-    const blob = new Blob([`\\uFEFF${csv}`], { type: "text/csv;charset=utf-8;" })
-    const url = URL.createObjectURL(blob)
-    const link = document.createElement("a")
-    link.href = url
-    link.download = `store-requisitions-report-${new Date().toISOString().slice(0, 10)}.csv`
-    link.click()
-    URL.revokeObjectURL(url)
+
+    if (selected.length === 0) {
+      toast({
+        title: "Nothing to export",
+        description: `No ${exportFrequency === "all" ? "" : `${exportFrequency} `}requisitions found.`,
+        variant: "destructive",
+      })
+      return
+    }
+
+    setIsExporting(true)
+    try {
+      const ExcelJS = (await import("exceljs")).default
+      const workbook = new ExcelJS.Workbook()
+      workbook.creator = user?.name || "QCC IT Store"
+      workbook.created = new Date()
+
+      const sheet = workbook.addWorksheet("Requisitions")
+      sheet.columns = [
+        { header: "Requisition No.", key: "number", width: 24 },
+        { header: "Duration", key: "frequency", width: 12 },
+        { header: "Reporting Period", key: "period", width: 18 },
+        { header: "Status", key: "status", width: 12 },
+        { header: "Requested By", key: "requestedBy", width: 24 },
+        { header: "Beneficiary", key: "beneficiary", width: 24 },
+        { header: "Source Location", key: "source", width: 20 },
+        { header: "Destination", key: "destination", width: 20 },
+        { header: "Gadget / Item", key: "item", width: 30 },
+        { header: "Quantity", key: "quantity", width: 10 },
+        { header: "Unit", key: "unit", width: 10 },
+        { header: "Request Date", key: "date", width: 14 },
+        { header: "Notes", key: "notes", width: 36 },
+      ]
+
+      const frequencyLabel = (value?: string) =>
+        value ? value.charAt(0).toUpperCase() + value.slice(1) : "Monthly"
+
+      selected.forEach((req) => {
+        const frequency = req.requisition_frequency || "monthly"
+        const items = req.items?.length ? req.items : [{ itemName: "", quantity: 0, unit: "" }]
+        items.forEach((item) => {
+          sheet.addRow({
+            number: req.requisition_number,
+            frequency: frequencyLabel(frequency),
+            period: getReportingPeriod(frequency, req.created_at),
+            status: req.status.charAt(0).toUpperCase() + req.status.slice(1),
+            requestedBy: req.requested_by || "",
+            beneficiary: req.beneficiary || "",
+            source: req.location || "",
+            destination: req.allocated_to_location || "",
+            item: item.itemName,
+            quantity: Number(item.quantity) || 0,
+            unit: item.unit || "",
+            date: new Date(req.created_at).toLocaleDateString("en-GB"),
+            notes: req.notes || "",
+          })
+        })
+      })
+
+      const headerRow = sheet.getRow(1)
+      headerRow.font = { bold: true, color: { argb: "FFFFFFFF" } }
+      headerRow.fill = { type: "pattern", pattern: "solid", fgColor: { argb: "FF047857" } }
+      headerRow.alignment = { vertical: "middle" }
+      sheet.views = [{ state: "frozen", ySplit: 1 }]
+      sheet.autoFilter = { from: "A1", to: "M1" }
+
+      const summary = workbook.addWorksheet("Summary")
+      summary.columns = [
+        { header: "Duration", key: "frequency", width: 16 },
+        { header: "Requisitions", key: "count", width: 16 },
+        { header: "Total Items Requested", key: "total", width: 24 },
+      ]
+      ;(["weekly", "monthly", "quarterly"] as const).forEach((frequency) => {
+        const group = selected.filter((req) => (req.requisition_frequency || "monthly") === frequency)
+        summary.addRow({
+          frequency: frequencyLabel(frequency),
+          count: group.length,
+          total: group.reduce(
+            (sum, req) => sum + (req.items || []).reduce((itemSum, item) => itemSum + (Number(item.quantity) || 0), 0),
+            0,
+          ),
+        })
+      })
+      const summaryHeader = summary.getRow(1)
+      summaryHeader.font = { bold: true, color: { argb: "FFFFFFFF" } }
+      summaryHeader.fill = { type: "pattern", pattern: "solid", fgColor: { argb: "FF047857" } }
+
+      const buffer = await workbook.xlsx.writeBuffer()
+      const blob = new Blob([buffer], {
+        type: "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+      })
+      const url = URL.createObjectURL(blob)
+      const link = document.createElement("a")
+      link.href = url
+      link.download = `store-requisitions-${exportFrequency}-${new Date().toISOString().slice(0, 10)}.xlsx`
+      document.body.appendChild(link)
+      link.click()
+      document.body.removeChild(link)
+      URL.revokeObjectURL(url)
+
+      toast({
+        title: "Export complete",
+        description: `${selected.length} requisition(s) exported to Excel.`,
+      })
+    } catch (error) {
+      console.error("[v0] Error exporting requisitions:", error)
+      toast({
+        title: "Export failed",
+        description: "Could not generate the Excel report. Please try again.",
+        variant: "destructive",
+      })
+    } finally {
+      setIsExporting(false)
+    }
   }
 
   const getTransactionBadgeColor = (type: string) => {
@@ -975,10 +1085,30 @@ export function RequisitionManagement() {
           {(user?.role === "admin" || user?.role === "it_store_head") && (
             <>
               <AddStockToCentralStore onStockAdded={loadRequisitions} />
-              <Button variant="outline" onClick={exportRequisitionsToExcel} disabled={requisitions.length === 0}>
-                <Download className="mr-2 h-4 w-4" />
-                Export Excel
-              </Button>
+              <div className="flex items-center gap-2">
+                <Select
+                  value={exportFrequency}
+                  onValueChange={(value) => setExportFrequency(value as "all" | "weekly" | "monthly" | "quarterly")}
+                >
+                  <SelectTrigger className="w-[150px]" aria-label="Export duration">
+                    <SelectValue placeholder="Duration" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="all">All durations</SelectItem>
+                    <SelectItem value="weekly">Weekly</SelectItem>
+                    <SelectItem value="monthly">Monthly</SelectItem>
+                    <SelectItem value="quarterly">Quarterly</SelectItem>
+                  </SelectContent>
+                </Select>
+                <Button
+                  variant="outline"
+                  onClick={exportRequisitionsToExcel}
+                  disabled={requisitions.length === 0 || isExporting}
+                >
+                  {isExporting ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <Download className="mr-2 h-4 w-4" />}
+                  Export Excel
+                </Button>
+              </div>
             </>
           )}
 
