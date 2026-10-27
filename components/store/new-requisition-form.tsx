@@ -77,6 +77,7 @@ export function NewRequisitionForm({ onSubmit }: { onSubmit: () => void }) {
     location: "central_stores", // Source is always Central Stores
     destinationLocation: "", // Destination location for transfers
     itReqNumber: "", // IT Requisition Number field
+    requisitionFrequency: "monthly" as "weekly" | "monthly" | "quarterly",
     notes: "",
     // Show four item rows by default; users can add more as needed
     items: [
@@ -219,6 +220,7 @@ export function NewRequisitionForm({ onSubmit }: { onSubmit: () => void }) {
           location: "central_stores", // Always source from Central Stores
           destinationLocation: formData.destinationLocation,
           itReqNumber: formData.itReqNumber,
+          requisitionFrequency: formData.requisitionFrequency,
           items: formData.items.map((item) => ({
             item_id: item.item_id,
             itemName: item.itemName,
@@ -328,14 +330,34 @@ export function NewRequisitionForm({ onSubmit }: { onSubmit: () => void }) {
         </div>
 
         <div className="space-y-2">
-          <Label htmlFor="itReqNumber">IT Req. No.</Label>
-          <Input
-            id="itReqNumber"
-            value={formData.itReqNumber}
-            onChange={(e) => setFormData({ ...formData, itReqNumber: e.target.value })}
-            placeholder="e.g., IT-2026-001 (optional)"
-          />
+          <Label htmlFor="requisitionFrequency">Requisition Frequency *</Label>
+          <Select
+            value={formData.requisitionFrequency}
+            onValueChange={(value: "weekly" | "monthly" | "quarterly") =>
+              setFormData({ ...formData, requisitionFrequency: value })
+            }
+          >
+            <SelectTrigger id="requisitionFrequency">
+              <SelectValue placeholder="Select frequency" />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="weekly">Weekly</SelectItem>
+              <SelectItem value="monthly">Monthly</SelectItem>
+              <SelectItem value="quarterly">Quarterly</SelectItem>
+            </SelectContent>
+          </Select>
+          <p className="text-xs text-muted-foreground">Used to group requisitions in reporting exports.</p>
         </div>
+      </div>
+
+      <div className="space-y-2">
+        <Label htmlFor="itReqNumber">IT Req. No.</Label>
+        <Input
+          id="itReqNumber"
+          value={formData.itReqNumber}
+          onChange={(e) => setFormData({ ...formData, itReqNumber: e.target.value })}
+          placeholder="e.g., IT-2026-001 (optional)"
+        />
       </div>
 
 

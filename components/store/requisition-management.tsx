@@ -56,6 +56,7 @@ interface Requisition {
   allocated_to_location?: string
   allocation_date?: string
   allocated_by?: string
+  requisition_frequency?: "weekly" | "monthly" | "quarterly"
 }
 
 interface StockTransaction {
@@ -218,6 +219,7 @@ export function RequisitionManagement() {
         allocated_to_location: req.allocated_to_location,
         allocation_date: req.allocation_date,
         allocated_by: req.allocated_by,
+        requisition_frequency: req.requisition_frequency || "monthly",
       }))
 
       setRequisitions(mappedRequisitions)
@@ -902,6 +904,35 @@ export function RequisitionManagement() {
     return allowedRoles.includes(user.role)
   }
 
+  const exportRequisitionsToExcel = () => {
+    const escapeCell = (value: unknown) => `"${String(value ?? "").replace(/"/g, '""')}"`
+    const rows = requisitions.flatMap((req) =>
+      (req.items.length ? req.items : [{ itemName: "", quantity: 0, unit: "" }]).map((item) => [
+        req.requisition_number,
+        req.requisition_frequency || "monthly",
+        req.status,
+        req.requested_by,
+        req.beneficiary,
+        req.location,
+        req.allocated_to_location,
+        item.itemName,
+        item.quantity,
+        item.unit,
+        new Date(req.created_at).toLocaleDateString(),
+        req.notes,
+      ]),
+    )
+    const headers = ["Requisition No.", "Frequency", "Status", "Requested By", "Beneficiary", "Source Location", "Destination", "Gadget / Item", "Quantity", "Unit", "Request Date", "Notes"]
+    const csv = [headers, ...rows].map((row) => row.map(escapeCell).join(",")).join("\\n")
+    const blob = new Blob([`\\uFEFF${csv}`], { type: "text/csv;charset=utf-8;" })
+    const url = URL.createObjectURL(blob)
+    const link = document.createElement("a")
+    link.href = url
+    link.download = `store-requisitions-report-${new Date().toISOString().slice(0, 10)}.csv`
+    link.click()
+    URL.revokeObjectURL(url)
+  }
+
   const getTransactionBadgeColor = (type: string) => {
     switch (type.toLowerCase()) {
       case 'addition':
@@ -942,7 +973,13 @@ export function RequisitionManagement() {
         <div className="flex gap-2 flex-wrap">
           {/* Add Stock to Central Store - Only Admin or IT Store Head */}
           {(user?.role === "admin" || user?.role === "it_store_head") && (
-            <AddStockToCentralStore onStockAdded={loadRequisitions} />
+            <>
+              <AddStockToCentralStore onStockAdded={loadRequisitions} />
+              <Button variant="outline" onClick={exportRequisitionsToExcel} disabled={requisitions.length === 0}>
+                <Download className="mr-2 h-4 w-4" />
+                Export Excel
+              </Button>
+            </>
           )}
 
           {(user?.role === "admin" || user?.role === "it_store_head") && (
