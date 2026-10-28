@@ -39,8 +39,14 @@ export async function POST(request: Request) {
       )
     }
 
-    // Use defaults for optional fields
-    const effectiveRecipient = recipientName?.trim() || "Stock Issue"
+    if (!recipientName?.trim()) {
+      return NextResponse.json(
+        { error: "Recipient name is required to issue items" },
+        { status: 400 }
+      )
+    }
+
+    const effectiveRecipient = recipientName.trim()
     const effectiveOfficeLocation = officeLocation?.trim() || "N/A"
     const effectiveRoomNumber = roomNumber?.trim() || ""
 
