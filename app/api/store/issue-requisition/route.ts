@@ -345,7 +345,7 @@ export async function POST(request: Request) {
       }
 
       // Record stock transaction using the database function
-      const { error: transactionError } = await supabaseAdmin.rpc('record_stock_transaction', {
+      const { data: recordedTransactionId, error: transactionError } = await supabaseAdmin.rpc('record_stock_transaction', {
         p_item_id: currentItem.id,
         p_transaction_type: 'issue',
         p_quantity: item.quantity,
@@ -376,9 +376,20 @@ export async function POST(request: Request) {
           reference_type: 'requisition',
           reference_id: requisitionId,
           reference_number: requisition.requisition_number,
+          quantity_before: currentItem.quantity,
+          quantity_after: newQuantity,
           notes: notes || `Issued via ${requisition.requisition_number}${destinationLocation ? ` (transferred from ${sourceLocation})` : ''}`,
           performed_by: "Store Manager",
         })
+      } else if (recordedTransactionId) {
+        const { error: balanceError } = await supabaseAdmin
+          .from("stock_transactions")
+          .update({ quantity_before: currentItem.quantity, quantity_after: newQuantity })
+          .eq("id", recordedTransactionId)
+
+        if (balanceError) {
+          console.warn("[v0] Could not store stock balance on issue transaction:", balanceError)
+        }
       }
     }
 
