@@ -22,6 +22,7 @@ import { Plus, FileText, Search, CheckCircle, Clock, XCircle, Download, Edit, Tr
 import { NewRequisitionForm } from "./new-requisition-form"
 import { IssueItemsForm } from "./issue-items-form"
 import { AddStockToCentralStore } from "./add-stock-to-central-store"
+import { StockIssueReport } from "./stock-issue-report"
 import { createClient } from "@/lib/supabase/client"
 import { useAuth } from "@/lib/auth-context"
 import { canSeeAllLocations } from "@/lib/location-filter"
@@ -96,9 +97,10 @@ const statusConfig = {
 
 const DEFAULT_PAGE_SIZE = 10
 
-type RequisitionTabValue = "all" | "pending" | "approved" | "issued" | "rejected" | "transactions" | "it_requests"
+type RequisitionTabValue = "all" | "pending" | "approved" | "issued" | "rejected" | "transactions" | "it_requests" | "issue_report"
 
 const INITIAL_PAGE_STATE: Record<RequisitionTabValue, number> = {
+  issue_report: 1,
   all: 1,
   pending: 1,
   approved: 1,
@@ -109,6 +111,7 @@ const INITIAL_PAGE_STATE: Record<RequisitionTabValue, number> = {
 }
 
 const INITIAL_PAGE_SIZE_STATE: Record<RequisitionTabValue, number> = {
+  issue_report: DEFAULT_PAGE_SIZE,
   all: DEFAULT_PAGE_SIZE,
   pending: DEFAULT_PAGE_SIZE,
   approved: DEFAULT_PAGE_SIZE,
@@ -1201,6 +1204,10 @@ export function RequisitionManagement() {
             <Zap className="h-4 w-4" />
             <span className="hidden sm:inline">Transactions</span>
           </TabsTrigger>
+          <TabsTrigger value="issue_report" className="flex items-center gap-1">
+            <FileText className="h-4 w-4" />
+            <span className="hidden sm:inline">Stock Issued Report</span>
+          </TabsTrigger>
         </TabsList>
 
         {["all", "pending", "approved", "issued", "rejected"].map((status) => (
@@ -1792,6 +1799,10 @@ export function RequisitionManagement() {
               )}
             </CardContent>
           </Card>
+        </TabsContent>
+
+        <TabsContent value="issue_report" className="space-y-4">
+          <StockIssueReport />
         </TabsContent>
       </Tabs>
 
