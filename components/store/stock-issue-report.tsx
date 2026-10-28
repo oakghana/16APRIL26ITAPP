@@ -17,17 +17,26 @@ interface IssueRecord {
   issued_at: string
   item_id: string | null
   item_name: string
+  category: string | null
+  sku: string | null
   unit: string
   quantity_issued: number
+  unit_price: number | null
+  total_value: number | null
   previous_stock: number | null
   current_stock: number | null
   balance_estimated: boolean
   source_location: string | null
   destination: string | null
   issued_to: string | null
+  office_location: string | null
+  room_number: string | null
+  department: string | null
   requisition_number: string | null
   requisition_frequency: string | null
+  requisition_date: string | null
   requested_by: string | null
+  approved_by: string | null
   issued_by: string
   notes: string | null
 }
@@ -50,9 +59,22 @@ const fetcher = async (url: string) => {
   return payload.records as IssueRecord[]
 }
 
-function formatDateTime(value: string) {
-  const date = new Date(value)
-  return `${date.toLocaleDateString(undefined, { day: "2-digit", month: "short", year: "numeric" })} ${date.toLocaleTimeString(undefined, { hour: "2-digit", minute: "2-digit" })}`
+function formatDate(value: string | null) {
+  if (!value) return ""
+  return new Date(value).toLocaleDateString(undefined, { day: "2-digit", month: "short", year: "numeric" })
+}
+
+function formatTime(value: string | null) {
+  if (!value) return ""
+  return new Date(value).toLocaleTimeString(undefined, { hour: "2-digit", minute: "2-digit" })
+}
+
+function formatMoney(value: number | null) {
+  return value === null ? "" : value.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })
+}
+
+function recipientLocation(record: IssueRecord) {
+  return [record.office_location, record.room_number ? `Room ${record.room_number}` : null].filter(Boolean).join(", ")
 }
 
 function StockMovement({ previous, current, issued }: { previous: number | null; current: number | null; issued: number }) {
@@ -117,7 +139,16 @@ export function StockIssueReport() {
       if (itemFilter !== "all" && record.item_name !== itemFilter) return false
       if (!term) return true
 
-      return [record.item_name, record.requisition_number, record.issued_to, record.destination, record.issued_by]
+      return [
+        record.item_name,
+        record.requisition_number,
+        record.issued_to,
+        record.destination,
+        record.department,
+        record.office_location,
+        record.requested_by,
+        record.issued_by,
+      ]
         .filter(Boolean)
         .some((value) => String(value).toLowerCase().includes(term))
     })
@@ -147,24 +178,34 @@ export function StockIssueReport() {
       const sheet = workbook.addWorksheet("Stock Issued")
       const periodLabel = PERIOD_OPTIONS.find((option) => option.value === period)?.label ?? "All time"
 
-      sheet.mergeCells("A1:L1")
+      sheet.mergeCells("A1:V1")
       sheet.getCell("A1").value = "Detailed Stock Issued Report"
       sheet.getCell("A1").font = { bold: true, size: 14 }
-      sheet.mergeCells("A2:L2")
+      sheet.mergeCells("A2:V2")
       sheet.getCell("A2").value = `Period: ${periodLabel} | Generated: ${new Date().toLocaleString()} | Issuances: ${summary.issues} | Units issued: ${summary.totalUnits}`
 
       const header = sheet.addRow([
         "Date Issued",
+        "Time Issued",
         "Requisition No.",
+        "Requisition Date",
+        "Frequency",
         "Item",
+        "Category",
+        "SKU",
         "Unit",
-        "Previous Stock",
         "Quantity Issued",
+        "Previous Stock",
         "Current Stock",
         "Balance Source",
+        "Unit Price",
+        "Total Value",
         "Issued To",
-        "Destination",
-        "Frequency",
+        "Office Location",
+        "Room Number",
+        "Department / Destination",
+        "Requested By",
+        "Approved By",
         "Issued By",
       ])
       header.font = { bold: true, color: { argb: "FFFFFFFF" } }
@@ -175,22 +216,32 @@ export function StockIssueReport() {
 
       for (const record of filtered) {
         sheet.addRow([
-          formatDateTime(record.issued_at),
+          formatDate(record.issued_at),
+          formatTime(record.issued_at),
           record.requisition_number ?? "",
+          formatDate(record.requisition_date),
+          record.requisition_frequency ?? "",
           record.item_name,
+          record.category ?? "",
+          record.sku ?? "",
           record.unit,
-          record.previous_stock ?? "",
           record.quantity_issued,
+          record.previous_stock ?? "",
           record.current_stock ?? "",
           record.previous_stock === null ? "Not recorded" : record.balance_estimated ? "Reconstructed" : "Recorded",
+          record.unit_price ?? "",
+          record.total_value ?? "",
           record.issued_to ?? "",
-          record.destination ?? "",
-          record.requisition_frequency ?? "",
+          record.office_location ?? "",
+          record.room_number ?? "",
+          record.department || record.destination || "",
+          record.requested_by ?? "",
+          record.approved_by ?? "",
           record.issued_by,
         ])
       }
 
-      const widths = [20, 22, 30, 10, 15, 16, 15, 16, 26, 24, 14, 22]
+      const widths = [14, 11, 22, 15, 13, 30, 18, 16, 9, 16, 15, 15, 16, 12, 14, 28, 24, 14, 24, 24, 22, 22]
       widths.forEach((width, index) => {
         sheet.getColumn(index + 1).width = width
       })
@@ -364,30 +415,44 @@ export function StockIssueReport() {
           ) : (
             <>
               <div className="overflow-x-auto rounded-md border">
-                <table className="w-full text-sm">
+                <table className="w-full min-w-[1100px] text-sm">
                   <thead>
                     <tr className="border-b bg-muted/50 text-left">
                       <th className="px-4 py-3 font-semibold">Date issued</th>
-                      <th className="px-4 py-3 font-semibold">Item</th>
-                      <th className="px-4 py-3 font-semibold">Stock movement</th>
                       <th className="px-4 py-3 font-semibold">Issued to</th>
-                      <th className="px-4 py-3 font-semibold">Issued by</th>
+                      <th className="px-4 py-3 font-semibold">Item</th>
+                      <th className="px-4 py-3 text-right font-semibold">Quantity</th>
+                      <th className="px-4 py-3 font-semibold">Stock movement</th>
+                      <th className="px-4 py-3 font-semibold">Requisition</th>
+                      <th className="px-4 py-3 font-semibold">Department</th>
+                      <th className="px-4 py-3 font-semibold">Requested / approved / issued by</th>
                     </tr>
                   </thead>
                   <tbody>
                     {pageItems.map((record) => (
                       <tr key={record.id} className="border-b last:border-0 align-top hover:bg-muted/30">
                         <td className="whitespace-nowrap px-4 py-3">
-                          <p className="font-medium">{formatDateTime(record.issued_at)}</p>
-                          {record.requisition_number && (
-                            <p className="text-xs text-muted-foreground">{record.requisition_number}</p>
+                          <p className="font-semibold">{formatDate(record.issued_at)}</p>
+                          <p className="text-xs text-muted-foreground">{formatTime(record.issued_at)}</p>
+                        </td>
+                        <td className="px-4 py-3">
+                          <p className="font-semibold">{record.issued_to || "Not recorded"}</p>
+                          {recipientLocation(record) && (
+                            <p className="text-xs text-muted-foreground">{recipientLocation(record)}</p>
                           )}
                         </td>
                         <td className="px-4 py-3">
                           <p className="font-medium">{record.item_name}</p>
                           <p className="text-xs text-muted-foreground">
-                            {record.quantity_issued} {record.unit} issued
+                            {[record.category, record.sku].filter(Boolean).join(" | ")}
                           </p>
+                        </td>
+                        <td className="whitespace-nowrap px-4 py-3 text-right">
+                          <p className="text-lg font-semibold tabular-nums">{record.quantity_issued}</p>
+                          <p className="text-xs text-muted-foreground">{record.unit}</p>
+                          {record.total_value !== null && (
+                            <p className="text-xs text-muted-foreground tabular-nums">{formatMoney(record.total_value)}</p>
+                          )}
                         </td>
                         <td className="px-4 py-3">
                           <StockMovement
@@ -399,19 +464,39 @@ export function StockIssueReport() {
                             <p className="mt-1 text-[11px] text-muted-foreground">Reconstructed from history</p>
                           )}
                         </td>
-                        <td className="px-4 py-3">
-                          <p className="font-medium">{record.issued_to || "N/A"}</p>
-                          {record.destination && (
-                            <Badge variant="outline" className="mt-1 font-normal">
-                              {record.destination}
-                            </Badge>
+                        <td className="whitespace-nowrap px-4 py-3">
+                          <p className="font-medium">{record.requisition_number || "N/A"}</p>
+                          {record.requisition_date && (
+                            <p className="text-xs text-muted-foreground">Requested {formatDate(record.requisition_date)}</p>
                           )}
-                        </td>
-                        <td className="px-4 py-3">
-                          <p>{record.issued_by}</p>
                           {record.requisition_frequency && (
                             <p className="text-xs capitalize text-muted-foreground">{record.requisition_frequency}</p>
                           )}
+                        </td>
+                        <td className="px-4 py-3">
+                          {record.department || record.destination ? (
+                            <Badge variant="outline" className="font-normal">
+                              {record.department || record.destination}
+                            </Badge>
+                          ) : (
+                            <span className="text-xs text-muted-foreground">N/A</span>
+                          )}
+                        </td>
+                        <td className="px-4 py-3 text-xs">
+                          <p>
+                            <span className="text-muted-foreground">Requested: </span>
+                            {record.requested_by || "N/A"}
+                          </p>
+                          {record.approved_by && (
+                            <p>
+                              <span className="text-muted-foreground">Approved: </span>
+                              {record.approved_by}
+                            </p>
+                          )}
+                          <p>
+                            <span className="text-muted-foreground">Issued: </span>
+                            {record.issued_by}
+                          </p>
                         </td>
                       </tr>
                     ))}

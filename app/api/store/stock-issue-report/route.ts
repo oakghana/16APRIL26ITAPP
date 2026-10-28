@@ -54,13 +54,19 @@ export async function GET() {
 
     const itemIds = Array.from(new Set(transactions.map((t) => t.item_id).filter(Boolean))) as string[]
     const currentQuantityByItem = new Map<string, number>()
+    const itemDetailsById = new Map<string, { category: string | null; sku: string | null; unit_price: number | null }>()
     if (itemIds.length > 0) {
       const { data: items } = await supabase
         .from("store_items")
-        .select("id, quantity")
+        .select("id, quantity, category, sku, unit_price")
         .in("id", itemIds)
       for (const item of items || []) {
         currentQuantityByItem.set(item.id, Number(item.quantity) || 0)
+        itemDetailsById.set(item.id, {
+          category: item.category ?? null,
+          sku: item.sku ?? null,
+          unit_price: item.unit_price !== null && item.unit_price !== undefined ? Number(item.unit_price) : null,
+        })
       }
     }
 
@@ -115,22 +121,36 @@ export async function GET() {
     const records = issueTransactions.map((t) => {
       const requisition = t.reference_id ? requisitionById.get(t.reference_id) : undefined
       const balance = balances.get(t.id)
+      const details = t.item_id ? itemDetailsById.get(t.item_id) : undefined
+      const quantityIssued = Number(t.quantity) || 0
+      const unitPrice = details?.unit_price ?? null
+      // Older issuances were saved with the placeholder "Stock Issue" when no recipient was typed.
+      const recordedRecipient = t.recipient && t.recipient.trim().toLowerCase() !== "stock issue" ? t.recipient.trim() : null
       return {
         id: t.id,
         issued_at: t.created_at,
         item_id: t.item_id,
         item_name: t.item_name || "Unknown item",
+        category: details?.category ?? null,
+        sku: details?.sku ?? null,
         unit: t.unit || "pcs",
-        quantity_issued: Number(t.quantity) || 0,
+        quantity_issued: quantityIssued,
+        unit_price: unitPrice,
+        total_value: unitPrice !== null ? unitPrice * quantityIssued : null,
         previous_stock: balance ? balance.before : null,
         current_stock: balance ? balance.after : null,
         balance_estimated: balance ? balance.estimated : false,
         source_location: t.transaction_type === "transfer_out" ? t.location_name : null,
-        destination: requisition?.location || t.office_location || t.location_name || null,
-        issued_to: t.recipient || requisition?.beneficiary || requisition?.requested_by || null,
+        destination: requisition?.location || t.location_name || null,
+        issued_to: recordedRecipient || requisition?.beneficiary || requisition?.requested_by || null,
+        office_location: t.office_location && t.office_location !== "N/A" ? t.office_location : null,
+        room_number: (t as any).room_number || null,
+        department: requisition?.department || null,
         requisition_number: t.reference_number || requisition?.requisition_number || null,
         requisition_frequency: requisition?.requisition_frequency || null,
+        requisition_date: requisition?.created_at || requisition?.request_date || null,
         requested_by: requisition?.requested_by || null,
+        approved_by: requisition?.approved_by || null,
         issued_by: requisition?.issued_by || t.performed_by_name || t.performed_by || "Store Manager",
         notes: t.notes,
       }

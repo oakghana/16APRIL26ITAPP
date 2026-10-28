@@ -45,6 +45,11 @@ export function IssueItemsForm({
     e.preventDefault()
     setError("")
 
+    if (!recipientName.trim()) {
+      setError("Recipient name is required so the issuance can be reported.")
+      return
+    }
+
     setLoading(true)
 
     try {
@@ -134,12 +139,13 @@ export function IssueItemsForm({
       </div>
 
       <div className="space-y-4 p-4 border rounded-lg">
-        <h4 className="font-semibold text-sm">Recipient Details (Optional)</h4>
+        <h4 className="font-semibold text-sm">Recipient Details</h4>
         
         <div className="space-y-2">
-          <Label htmlFor="recipientName">Recipient Name</Label>
+          <Label htmlFor="recipientName">Recipient Name (required)</Label>
           <Input
             id="recipientName"
+            required
             placeholder="Full name of person receiving items"
             value={recipientName}
             onChange={(e) => setRecipientName(e.target.value)}
